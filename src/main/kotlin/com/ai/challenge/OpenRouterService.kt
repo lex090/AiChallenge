@@ -1,16 +1,12 @@
 package com.ai.challenge
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -29,15 +25,10 @@ data class ChatRequest(
 )
 
 @Serializable
-data class ResponseFormat(
-    val type: String,
-)
+data class ResponseFormat(val type: String)
 
 @Serializable
-data class Message(
-    val role: String,
-    val content: String,
-)
+data class Message(val role: String, val content: String)
 
 @Serializable
 data class ChatResponse(
@@ -63,10 +54,43 @@ data class Usage(
 )
 
 @Serializable
-data class ErrorBody(
-    val message: String? = null,
-    val code: Int? = null,
-)
+data class ErrorBody(val message: String? = null, val code: Int? = null)
+
+@DslMarker
+@Target(AnnotationTarget.CLASS, AnnotationTarget.TYPE)
+annotation class OpenRouterDsl
+
+@OpenRouterDsl
+class ChatScope(private val model: String) {
+    private val messages = mutableListOf<Message>()
+
+    var temperature: Double? = null
+    var maxTokens: Int? = null
+    var topP: Double? = null
+    var frequencyPenalty: Double? = null
+    var presencePenalty: Double? = null
+    var stop: List<String>? = null
+    var jsonMode: Boolean = false
+
+    fun system(content: String) { messages.add(Message("system", content)) }
+    fun user(content: String) { messages.add(Message("user", content)) }
+    fun assistant(content: String) { messages.add(Message("assistant", content)) }
+    fun message(role: String, content: String) { messages.add(Message(role, content)) }
+
+    fun stop(vararg values: String) { stop = values.toList() }
+
+    fun build(): ChatRequest = ChatRequest(
+        model = model,
+        messages = messages.toList(),
+        temperature = temperature,
+        maxTokens = maxTokens,
+        topP = topP,
+        frequencyPenalty = frequencyPenalty,
+        presencePenalty = presencePenalty,
+        stop = stop,
+        responseFormat = if (jsonMode) ResponseFormat("json_object") else null,
+    )
+}
 
 class OpenRouterService(
     private val apiKey: String,
@@ -89,11 +113,6 @@ class OpenRouterService(
         }
     }
 
-    fun chat(model: String? = null): ChatRequestBuilder {
-        val resolvedModel = model ?: defaultModel ?: error("Model must be specified either in constructor or in chat()")
-        return ChatRequestBuilder(resolvedModel)
-    }
-
     suspend fun send(request: ChatRequest): ChatResponse {
         val responseText = client.post("$BASE_URL/chat/completions") {
             contentType(ContentType.Application.Json)
@@ -104,55 +123,23 @@ class OpenRouterService(
         return json.decodeFromString<ChatResponse>(responseText)
     }
 
-    override fun close() {
-        client.close()
+    suspend fun chat(model: String? = null, init: @OpenRouterDsl ChatScope.() -> Unit): ChatResponse {
+        val resolvedModel = model ?: defaultModel ?: error("Model must be specified either in constructor or in chat()")
+        val scope = ChatScope(resolvedModel)
+        scope.init()
+        return send(scope.build())
     }
 
-    inner class ChatRequestBuilder(private val model: String) {
-        private val messages = mutableListOf<Message>()
-        private var temperature: Double? = null
-        private var maxTokens: Int? = null
-        private var topP: Double? = null
-        private var frequencyPenalty: Double? = null
-        private var presencePenalty: Double? = null
-        private var stop: List<String>? = null
-        private var jsonMode: Boolean = false
-
-        fun system(content: String) = apply { messages.add(Message("system", content)) }
-        fun user(content: String) = apply { messages.add(Message("user", content)) }
-        fun assistant(content: String) = apply { messages.add(Message("assistant", content)) }
-        fun message(role: String, content: String) = apply { messages.add(Message(role, content)) }
-        fun messages(msgs: List<Message>) = apply { messages.addAll(msgs) }
-
-        fun temperature(value: Double) = apply { temperature = value }
-        fun maxTokens(value: Int) = apply { maxTokens = value }
-        fun topP(value: Double) = apply { topP = value }
-        fun frequencyPenalty(value: Double) = apply { frequencyPenalty = value }
-        fun presencePenalty(value: Double) = apply { presencePenalty = value }
-        fun stop(vararg values: String) = apply { stop = values.toList() }
-        fun jsonMode() = apply { jsonMode = true }
-
-        fun build(): ChatRequest = ChatRequest(
-            model = model,
-            messages = messages.toList(),
-            temperature = temperature,
-            maxTokens = maxTokens,
-            topP = topP,
-            frequencyPenalty = frequencyPenalty,
-            presencePenalty = presencePenalty,
-            stop = stop,
-            responseFormat = if (jsonMode) ResponseFormat("json_object") else null,
-        )
-
-        suspend fun execute(): ChatResponse = send(build())
-
-        suspend fun executeText(): String {
-            val response = execute()
-            if (response.error != null) {
-                error("OpenRouter API error: ${response.error.message}")
-            }
-            return response.choices.firstOrNull()?.message?.content
-                ?: error("Empty response from OpenRouter")
+    suspend fun chatText(model: String? = null, init: @OpenRouterDsl ChatScope.() -> Unit): String {
+        val response = chat(model, init)
+        if (response.error != null) {
+            error("OpenRouter API error: ${response.error.message}")
         }
+        return response.choices.firstOrNull()?.message?.content
+            ?: error("Empty response from OpenRouter")
+    }
+
+    override fun close() {
+        client.close()
     }
 }

@@ -17,17 +17,17 @@ suspend fun demoResponseFormat(service: OpenRouterService) {
     println("=== response_format ===")
 
     println("\n--- БЕЗ jsonMode ---")
-    val noJson = service.chat()
-        .user("Return a JSON object with fields: name, age, city. For a person named Alice, age 30, from Paris.")
-        .executeText()
+    val noJson = service.chatText {
+        user("Return a JSON object with fields: name, age, city. For a person named Alice, age 30, from Paris.")
+    }
     println(noJson)
 
     println("\n--- С jsonMode ---")
-    val withJson = service.chat()
-        .system("Always respond with valid JSON only.")
-        .user("Return a JSON object with fields: name, age, city. For a person named Alice, age 30, from Paris.")
-        .jsonMode()
-        .executeText()
+    val withJson = service.chatText {
+        system("Always respond with valid JSON only.")
+        user("Return a JSON object with fields: name, age, city. For a person named Alice, age 30, from Paris.")
+        jsonMode = true
+    }
     println(withJson)
 }
 
@@ -35,16 +35,16 @@ suspend fun demoMaxTokens(service: OpenRouterService) {
     println("=== max_tokens ===")
 
     println("\n--- БЕЗ maxTokens ---")
-    val noLimit = service.chat()
-        .user("List 10 programming languages and briefly describe each one.")
-        .executeText()
+    val noLimit = service.chatText {
+        user("List 10 programming languages and briefly describe each one.")
+    }
     println(noLimit)
 
     println("\n--- С maxTokens=50 ---")
-    val withLimit = service.chat()
-        .user("List 10 programming languages and briefly describe each one.")
-        .maxTokens(50)
-        .execute()
+    val withLimit = service.chat {
+        user("List 10 programming languages and briefly describe each one.")
+        maxTokens = 50
+    }
     println(withLimit.choices.first().message.content)
     println("  >> finishReason: ${withLimit.choices.first().finishReason}")
 }
@@ -53,15 +53,15 @@ suspend fun demoStop(service: OpenRouterService) {
     println("=== stop ===")
 
     println("\n--- БЕЗ stop ---")
-    val noStop = service.chat()
-        .user("Count from 1 to 10, each number on a new line.")
-        .executeText()
+    val noStop = service.chatText {
+        user("Count from 1 to 10, each number on a new line.")
+    }
     println(noStop)
 
     println("\n--- С stop(\"5\") ---")
-    val withStop = service.chat()
-        .user("Count from 1 to 10, each number on a new line.")
-        .stop("5")
-        .executeText()
+    val withStop = service.chatText {
+        user("Count from 1 to 10, each number on a new line.")
+        stop("5")
+    }
     println(withStop)
 }
