@@ -1,12 +1,16 @@
 package com.ai.challenge
 
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -72,12 +76,25 @@ class ChatScope(private val model: String) {
     var stop: List<String>? = null
     var jsonMode: Boolean = false
 
-    fun system(content: String) { messages.add(Message("system", content)) }
-    fun user(content: String) { messages.add(Message("user", content)) }
-    fun assistant(content: String) { messages.add(Message("assistant", content)) }
-    fun message(role: String, content: String) { messages.add(Message(role, content)) }
+    fun system(content: String) {
+        messages.add(Message("system", content))
+    }
 
-    fun stop(vararg values: String) { stop = values.toList() }
+    fun user(content: String) {
+        messages.add(Message("user", content))
+    }
+
+    fun assistant(content: String) {
+        messages.add(Message("assistant", content))
+    }
+
+    fun message(role: String, content: String) {
+        messages.add(Message(role, content))
+    }
+
+    fun stop(vararg values: String) {
+        stop = values.toList()
+    }
 
     fun build(): ChatRequest = ChatRequest(
         model = model,
