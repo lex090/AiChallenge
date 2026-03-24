@@ -12,7 +12,6 @@ suspend fun main() {
         val answer = it.chatText {
             system("You are a helpful polyglot assistant.")
             user("Say hello in three languages")
-            temperature = 0.7
         }
 
         println(answer)
