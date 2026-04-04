@@ -6,6 +6,6 @@ interface AgentSessionManager {
     fun deleteSession(id: SessionId): Boolean
     fun listSessions(): List<AgentSession>
     fun getHistory(id: SessionId, limit: Int? = null): List<Turn>
-    fun appendTurn(id: SessionId, turn: Turn)
+    fun appendTurn(id: SessionId, turn: Turn): TurnId
     fun updateTitle(id: SessionId, title: String)
 }

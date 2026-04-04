@@ -25,8 +25,9 @@ class InMemorySessionManager : AgentSessionManager {
         return if (limit != null) history.takeLast(limit) else history
     }
 
-    override fun appendTurn(id: SessionId, turn: Turn) {
+    override fun appendTurn(id: SessionId, turn: Turn): TurnId {
         sessions.computeIfPresent(id) { _, session -> session.addTurn(turn) }
+        return turn.id
     }
 
     override fun updateTitle(id: SessionId, title: String) {
