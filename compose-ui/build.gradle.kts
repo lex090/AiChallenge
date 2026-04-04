@@ -29,9 +29,10 @@ dependencies {
     implementation(libs.mvikotlin.extensions.coroutines)
     implementation(libs.koin.core)
     implementation(libs.arrow.core)
+    implementation(libs.kotlinx.coroutines.swing)
 
     testImplementation(kotlin("test"))
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.test {
