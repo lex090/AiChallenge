@@ -60,11 +60,7 @@ class ChatStoreFactory(
                     )
                 }
                 val sessionTokens = history.fold(TokenUsage()) { acc, turn ->
-                    TokenUsage(
-                        promptTokens = acc.promptTokens + turn.tokenUsage.promptTokens,
-                        completionTokens = acc.completionTokens + turn.tokenUsage.completionTokens,
-                        totalTokens = acc.totalTokens + turn.tokenUsage.totalTokens,
-                    )
+                    acc + turn.tokenUsage
                 }
                 dispatch(Msg.SessionLoaded(sessionId, messages, sessionTokens))
             }
@@ -103,14 +99,15 @@ class ChatStoreFactory(
                     messages = messages + UiMessage(text = msg.text, isUser = true),
                 )
                 is Msg.AgentResponseMsg -> {
-                    val updatedUserMsg = messages.last().copy(tokenUsage = msg.tokenUsage)
+                    val lastMsg = messages.lastOrNull()
+                    val updatedMessages = if (lastMsg != null) {
+                        messages.dropLast(1) + lastMsg.copy(tokenUsage = msg.tokenUsage)
+                    } else {
+                        messages
+                    }
                     copy(
-                        messages = messages.dropLast(1) + updatedUserMsg + UiMessage(text = msg.text, isUser = false, tokenUsage = msg.tokenUsage),
-                        sessionTokens = TokenUsage(
-                            promptTokens = sessionTokens.promptTokens + msg.tokenUsage.promptTokens,
-                            completionTokens = sessionTokens.completionTokens + msg.tokenUsage.completionTokens,
-                            totalTokens = sessionTokens.totalTokens + msg.tokenUsage.totalTokens,
-                        ),
+                        messages = updatedMessages + UiMessage(text = msg.text, isUser = false, tokenUsage = msg.tokenUsage),
+                        sessionTokens = sessionTokens + msg.tokenUsage,
                     )
                 }
                 is Msg.Error -> copy(

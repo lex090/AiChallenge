@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable
@@ -163,7 +164,7 @@ private fun MessageBubble(message: UiMessage) {
 }
 
 @Composable
-private fun SessionTokenBar(sessionTokens: com.ai.challenge.session.TokenUsage) {
+private fun SessionTokenBar(sessionTokens: TokenUsage) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
