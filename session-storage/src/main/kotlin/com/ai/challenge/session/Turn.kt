@@ -7,4 +7,5 @@ data class Turn(
     val userMessage: String,
     val agentResponse: String,
     val timestamp: Instant = Clock.System.now(),
+    val tokenUsage: TokenUsage = TokenUsage(),
 )
