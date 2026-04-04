@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,19 +48,15 @@ fun ChatContent(component: ChatComponent) {
         }
     }
 
-    Scaffold { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-        ) {
+    Column(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.messages) { message ->
                     MessageBubble(message)
@@ -115,7 +110,6 @@ fun ChatContent(component: ChatComponent) {
                     Text("Send")
                 }
             }
-        }
     }
 }
 

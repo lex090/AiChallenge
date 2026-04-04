@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.ai.challenge.agent.Agent
+import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.ui.di.appModule
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
@@ -24,6 +25,7 @@ fun main() {
         componentContext = rootComponentContext,
         storeFactory = DefaultStoreFactory(),
         agent = koin.get<Agent>(),
+        sessionManager = koin.get<AgentSessionManager>(),
     )
 
     application {

@@ -18,9 +18,15 @@ repositories {
 dependencies {
     implementation(project(":ai-agent"))
     implementation(project(":llm-service"))
+    implementation(project(":session-storage"))
 
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    implementation(compose.materialIconsExtended)
+
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.sqlite.jdbc)
 
     implementation(libs.decompose)
     implementation(libs.decompose.extensions.compose)
@@ -33,6 +39,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.kotlinx.datetime)
 }
 
 tasks.test {
