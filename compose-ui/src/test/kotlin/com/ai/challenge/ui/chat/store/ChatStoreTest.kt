@@ -131,6 +131,58 @@ class ChatStoreTest {
 
         store.dispose()
     }
+
+    @Test
+    fun `SendMessage populates tokenUsage on user and agent messages`() = runTest {
+        val sessionManager = InMemorySessionManager()
+        val sessionId = sessionManager.createSession()
+        val usage = TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150)
+        val agent = FakeAgent(response = Either.Right(AgentResponse(text = "Hi!", tokenUsage = usage)))
+        val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
+
+        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        advanceUntilIdle()
+
+        store.accept(ChatStore.Intent.SendMessage("Hello"))
+        advanceUntilIdle()
+
+        val messages = store.state.messages
+        assertEquals(2, messages.size)
+        assertEquals(usage, messages[0].tokenUsage)
+        assertEquals(usage, messages[1].tokenUsage)
+    }
+
+    @Test
+    fun `SendMessage accumulates sessionTokens`() = runTest {
+        val sessionManager = InMemorySessionManager()
+        val sessionId = sessionManager.createSession()
+        val usage = TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150)
+        val agent = FakeAgent(response = Either.Right(AgentResponse(text = "Hi!", tokenUsage = usage)))
+        val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
+
+        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        advanceUntilIdle()
+
+        store.accept(ChatStore.Intent.SendMessage("Hello"))
+        advanceUntilIdle()
+
+        assertEquals(usage, store.state.sessionTokens)
+    }
+
+    @Test
+    fun `LoadSession computes sessionTokens from history`() = runTest {
+        val sessionManager = InMemorySessionManager()
+        val sessionId = sessionManager.createSession()
+        sessionManager.appendTurn(sessionId, Turn(userMessage = "a", agentResponse = "b", tokenUsage = TokenUsage(10, 5, 15)))
+        sessionManager.appendTurn(sessionId, Turn(userMessage = "c", agentResponse = "d", tokenUsage = TokenUsage(20, 10, 30)))
+
+        val store = ChatStoreFactory(DefaultStoreFactory(), FakeAgent(), sessionManager).create()
+
+        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        advanceUntilIdle()
+
+        assertEquals(TokenUsage(promptTokens = 30, completionTokens = 15, totalTokens = 45), store.state.sessionTokens)
+    }
 }
 
 class FakeAgent(
