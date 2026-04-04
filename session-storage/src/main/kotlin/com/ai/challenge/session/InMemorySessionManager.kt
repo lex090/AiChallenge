@@ -31,7 +31,7 @@ class InMemorySessionManager : AgentSessionManager {
 
     override fun updateTitle(id: SessionId, title: String) {
         sessions.computeIfPresent(id) { _, session ->
-            session.copy(title = title, updatedAt = kotlinx.datetime.Clock.System.now())
+            session.copy(title = title, updatedAt = kotlin.time.Clock.System.now())
         }
     }
 }

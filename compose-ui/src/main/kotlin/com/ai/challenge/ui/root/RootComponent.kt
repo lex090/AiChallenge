@@ -1,6 +1,7 @@
 package com.ai.challenge.ui.root
 
 import com.ai.challenge.agent.Agent
+import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.ui.chat.ChatComponent
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -14,6 +15,7 @@ class RootComponent(
     componentContext: ComponentContext,
     private val storeFactory: StoreFactory,
     private val agent: Agent,
+    private val sessionManager: AgentSessionManager,
 ) : ComponentContext by componentContext {
 
     private val navigation = StackNavigation<Config>()
@@ -34,6 +36,7 @@ class RootComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
                     agent = agent,
+                    sessionManager = sessionManager,
                 )
             )
         }

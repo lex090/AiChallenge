@@ -1,6 +1,7 @@
 package com.ai.challenge.ui.chat
 
 import com.ai.challenge.agent.Agent
+import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.ui.chat.store.ChatStore
 import com.ai.challenge.ui.chat.store.ChatStoreFactory
 import com.arkivanov.decompose.ComponentContext
@@ -14,10 +15,11 @@ class ChatComponent(
     componentContext: ComponentContext,
     storeFactory: StoreFactory,
     agent: Agent,
+    sessionManager: AgentSessionManager,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {
-        ChatStoreFactory(storeFactory, agent).create()
+        ChatStoreFactory(storeFactory, agent, sessionManager).create()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
