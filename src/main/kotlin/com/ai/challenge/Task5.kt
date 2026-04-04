@@ -20,18 +20,18 @@ data class BenchmarkResult(
 
 private val MODELS = listOf(
     ModelInfo(
-        id = "qwen/qwen3-8b",
-        label = "Qwen 3 8B",
-        tier = "Слабая (8B параметров)",
-        inputPricePerMToken = 0.2,
-        outputPricePerMToken = 0.5,
+        id = "google/gemma-3-4b-it",
+        label = "Google Gemma 3 4B",
+        tier = "Слабая (4B параметров)",
+        inputPricePerMToken = 0.07,
+        outputPricePerMToken = 0.14,
     ),
     ModelInfo(
-        id = "google/gemini-2.0-flash-lite-001",
-        label = "Google Gemini 2.0 Flash Lite",
+        id = "google/gemini-2.0-flash-001",
+        label = "Google Gemini 2.0 Flash",
         tier = "Средняя",
-        inputPricePerMToken = 0.075,
-        outputPricePerMToken = 0.3,
+        inputPricePerMToken = 0.1,
+        outputPricePerMToken = 0.4,
     ),
     ModelInfo(
         id = "anthropic/claude-sonnet-4",
@@ -135,18 +135,16 @@ suspend fun main() {
             }
         }
 
-        val analysis = it.chatText(model = "google/gemini-2.0-flash-lite-001") {
+        val analysis = it.chatText(model = "google/gemini-2.0-flash-001") {
             system("""
                 Ты аналитик, сравнивающий ответы языковых моделей разного уровня.
 
-                Правильный ответ на задачу:
-                - Боб — Python (дано напрямую)
-                - Алиса — Kotlin (не Python, не Go → Java или Kotlin; Грег не Kotlin → Алиса = Kotlin)
-                - Вика — Go (не Java → Go или Kotlin; Kotlin занят → Go)
-                - Грег — Java (остался)
+                Правильный ответ на задачу — задача имеет два корректных решения:
+                Вариант 1: Боб — Python, Алиса — Java, Вика — Kotlin, Грег — Go
+                Вариант 2: Боб — Python, Алиса — Kotlin, Вика — Go, Грег — Java
 
                 Сравни ответы по критериям:
-                1. **Правильность** — верно ли решена задача, все ли назначения корректны
+                1. **Правильность** — верно ли решена задача, найдены ли оба решения или хотя бы одно корректное
                 2. **Качество рассуждений** — логичность, последовательность, ясность цепочки
                 3. **Скорость** — время ответа
                 4. **Ресурсоёмкость** — количество токенов и стоимость
@@ -154,8 +152,8 @@ suspend fun main() {
                 Дай краткий вывод: в каких случаях какую модель лучше использовать.
 
                 Ссылки на модели:
-                - Qwen 3 8B: https://huggingface.co/Qwen/Qwen3-8B
-                - Gemini 2.0 Flash Lite: https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash-lite
+                - Gemma 3 4B: https://huggingface.co/google/gemma-3-4b-it
+                - Gemini 2.0 Flash: https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash
                 - Claude Sonnet 4: https://docs.anthropic.com/en/docs/about-claude/models
 
                 Оформи структурированно. Отвечай на русском.
