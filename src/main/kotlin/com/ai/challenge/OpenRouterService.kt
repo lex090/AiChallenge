@@ -2,6 +2,7 @@ package com.ai.challenge
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -126,6 +127,11 @@ class OpenRouterService(
         fun createDefaultClient(): HttpClient = HttpClient(CIO) {
             install(ContentNegotiation) {
                 json(json)
+            }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 120_000
+                connectTimeoutMillis = 30_000
+                socketTimeoutMillis = 120_000
             }
         }
     }
