@@ -3,8 +3,10 @@ package com.ai.challenge.ui.chat.store
 import arrow.core.Either
 import com.ai.challenge.agent.Agent
 import com.ai.challenge.session.AgentSessionManager
+import com.ai.challenge.session.RequestMetrics
 import com.ai.challenge.session.SessionId
-import com.ai.challenge.session.TokenUsage
+import com.ai.challenge.session.TurnId
+import com.ai.challenge.session.UsageManager
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
@@ -15,13 +17,14 @@ class ChatStoreFactory(
     private val storeFactory: StoreFactory,
     private val agent: Agent,
     private val sessionManager: AgentSessionManager,
+    private val usageManager: UsageManager,
 ) {
     fun create(): ChatStore =
         object : ChatStore,
             Store<ChatStore.Intent, ChatStore.State, Nothing> by storeFactory.create(
                 name = "ChatStore",
                 initialState = ChatStore.State(),
-                executorFactory = { ExecutorImpl(agent, sessionManager) },
+                executorFactory = { ExecutorImpl(agent, sessionManager, usageManager) },
                 reducer = ReducerImpl,
             ) {}
 
@@ -29,10 +32,15 @@ class ChatStoreFactory(
         data class SessionLoaded(
             val sessionId: SessionId,
             val messages: List<UiMessage>,
-            val sessionTokens: TokenUsage,
+            val turnMetrics: Map<TurnId, RequestMetrics>,
+            val sessionMetrics: RequestMetrics,
         ) : Msg
         data class UserMessage(val text: String) : Msg
-        data class AgentResponseMsg(val text: String, val tokenUsage: TokenUsage) : Msg
+        data class AgentResponseMsg(
+            val text: String,
+            val turnId: TurnId,
+            val metrics: RequestMetrics,
+        ) : Msg
         data class Error(val text: String) : Msg
         data object Loading : Msg
         data object LoadingComplete : Msg
@@ -41,6 +49,7 @@ class ChatStoreFactory(
     private class ExecutorImpl(
         private val agent: Agent,
         private val sessionManager: AgentSessionManager,
+        private val usageManager: UsageManager,
     ) : CoroutineExecutor<ChatStore.Intent, Nothing, ChatStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: ChatStore.Intent) {
@@ -55,14 +64,13 @@ class ChatStoreFactory(
                 val history = sessionManager.getHistory(sessionId)
                 val messages = history.flatMap { turn ->
                     listOf(
-                        UiMessage(text = turn.userMessage, isUser = true, tokenUsage = turn.tokenUsage),
-                        UiMessage(text = turn.agentResponse, isUser = false, tokenUsage = turn.tokenUsage),
+                        UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
+                        UiMessage(text = turn.agentResponse, isUser = false, turnId = turn.id),
                     )
                 }
-                val sessionTokens = history.fold(TokenUsage()) { acc, turn ->
-                    acc + turn.tokenUsage
-                }
-                dispatch(Msg.SessionLoaded(sessionId, messages, sessionTokens))
+                val turnMetrics = usageManager.getBySession(sessionId)
+                val sessionMetrics = turnMetrics.values.fold(RequestMetrics()) { acc, m -> acc + m }
+                dispatch(Msg.SessionLoaded(sessionId, messages, turnMetrics, sessionMetrics))
             }
         }
 
@@ -73,7 +81,13 @@ class ChatStoreFactory(
 
             scope.launch {
                 when (val result = agent.send(sessionId, text)) {
-                    is Either.Right -> dispatch(Msg.AgentResponseMsg(result.value.text, result.value.tokenUsage))
+                    is Either.Right -> dispatch(
+                        Msg.AgentResponseMsg(
+                            text = result.value.text,
+                            turnId = result.value.turnId,
+                            metrics = result.value.metrics,
+                        )
+                    )
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)
@@ -93,23 +107,17 @@ class ChatStoreFactory(
                 is Msg.SessionLoaded -> copy(
                     sessionId = msg.sessionId,
                     messages = msg.messages,
-                    sessionTokens = msg.sessionTokens,
+                    turnMetrics = msg.turnMetrics,
+                    sessionMetrics = msg.sessionMetrics,
                 )
                 is Msg.UserMessage -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = true),
                 )
-                is Msg.AgentResponseMsg -> {
-                    val lastMsg = messages.lastOrNull()
-                    val updatedMessages = if (lastMsg != null) {
-                        messages.dropLast(1) + lastMsg.copy(tokenUsage = msg.tokenUsage)
-                    } else {
-                        messages
-                    }
-                    copy(
-                        messages = updatedMessages + UiMessage(text = msg.text, isUser = false, tokenUsage = msg.tokenUsage),
-                        sessionTokens = sessionTokens + msg.tokenUsage,
-                    )
-                }
+                is Msg.AgentResponseMsg -> copy(
+                    messages = messages + UiMessage(text = msg.text, isUser = false, turnId = msg.turnId),
+                    turnMetrics = turnMetrics + (msg.turnId to msg.metrics),
+                    sessionMetrics = sessionMetrics + msg.metrics,
+                )
                 is Msg.Error -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = false, isError = true),
                 )
