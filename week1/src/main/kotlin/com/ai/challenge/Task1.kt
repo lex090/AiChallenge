@@ -1,5 +1,7 @@
 package com.ai.challenge
 
+import com.ai.challenge.llm.OpenRouterService
+
 suspend fun main() {
     val apiKey = System.getenv("OPENROUTER_API_KEY") ?: error("Set OPENROUTER_API_KEY env variable")
 

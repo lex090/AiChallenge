@@ -1,5 +1,7 @@
 package com.ai.challenge
 
+import com.ai.challenge.llm.OpenRouterService
+
 private val TEMPERATURES = listOf(0.0, 0.7, 1.2)
 
 private const val FACTUAL_PROMPT = "Объясни, почему небо голубое. Ответь кратко, в 3-5 предложениях."
