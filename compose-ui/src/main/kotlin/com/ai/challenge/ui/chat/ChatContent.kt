@@ -30,8 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.ui.model.UiMessage
 
@@ -89,7 +91,7 @@ fun ChatContent(component: ChatComponent) {
                     modifier = Modifier
                         .weight(1f)
                         .onKeyEvent { event ->
-                            if (event.key == Key.Enter && inputText.isNotBlank() && !state.isLoading) {
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && inputText.isNotBlank() && !state.isLoading) {
                                 component.onSendMessage(inputText.trim())
                                 inputText = ""
                                 true
