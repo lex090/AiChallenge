@@ -65,7 +65,7 @@ class ChatStoreFactory(
 
             scope.launch {
                 when (val result = agent.send(sessionId, text)) {
-                    is Either.Right -> dispatch(Msg.AgentResponse(result.value))
+                    is Either.Right -> dispatch(Msg.AgentResponse(result.value.text))
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)

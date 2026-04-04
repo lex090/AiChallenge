@@ -19,6 +19,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.ai.challenge.session.TokenUsage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -59,8 +60,57 @@ class OpenRouterAgentTest {
 
         val result = agent.send(sessionId, "Hi")
 
-        assertIs<Either.Right<String>>(result)
-        assertEquals("Hello!", result.value)
+        assertIs<Either.Right<AgentResponse>>(result)
+        assertEquals("Hello!", result.value.text)
+    }
+
+    @Test
+    fun `send returns AgentResponse with token usage`() = runTest {
+        val service = createService("""
+            {
+              "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
+              "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
+            }
+        """.trimIndent())
+        val agent = OpenRouterAgent(service, model = "test-model", sessionManager = sessionManager)
+        val sessionId = sessionManager.createSession()
+
+        val result = agent.send(sessionId, "Hi")
+
+        assertIs<Either.Right<AgentResponse>>(result)
+        assertEquals("Hello!", result.value.text)
+        assertEquals(TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15), result.value.tokenUsage)
+    }
+
+    @Test
+    fun `send returns default TokenUsage when usage is null`() = runTest {
+        val service = createService("""
+            {"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}
+        """.trimIndent())
+        val agent = OpenRouterAgent(service, model = "test-model", sessionManager = sessionManager)
+        val sessionId = sessionManager.createSession()
+
+        val result = agent.send(sessionId, "Hi")
+
+        assertIs<Either.Right<AgentResponse>>(result)
+        assertEquals(TokenUsage(), result.value.tokenUsage)
+    }
+
+    @Test
+    fun `send persists token usage in session turn`() = runTest {
+        val service = createService("""
+            {
+              "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
+              "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
+            }
+        """.trimIndent())
+        val agent = OpenRouterAgent(service, model = "test-model", sessionManager = sessionManager)
+        val sessionId = sessionManager.createSession()
+
+        agent.send(sessionId, "Hi")
+
+        val history = sessionManager.getHistory(sessionId)
+        assertEquals(TokenUsage(promptTokens = 10, completionTokens = 5, totalTokens = 15), history[0].tokenUsage)
     }
 
     @Test

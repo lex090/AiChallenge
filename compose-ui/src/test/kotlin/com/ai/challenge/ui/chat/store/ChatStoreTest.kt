@@ -3,6 +3,8 @@ package com.ai.challenge.ui.chat.store
 import arrow.core.Either
 import com.ai.challenge.agent.Agent
 import com.ai.challenge.agent.AgentError
+import com.ai.challenge.agent.AgentResponse
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.session.InMemorySessionManager
 import com.ai.challenge.session.SessionId
@@ -71,7 +73,7 @@ class ChatStoreTest {
     fun `SendMessage adds user message and agent response`() = runTest {
         val sessionManager = InMemorySessionManager()
         val sessionId = sessionManager.createSession()
-        val agent = FakeAgent(response = Either.Right("Hello from agent!"))
+        val agent = FakeAgent(response = Either.Right(AgentResponse("Hello from agent!", TokenUsage())))
         val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -115,7 +117,7 @@ class ChatStoreTest {
     fun `SendMessage auto-titles session on first message`() = runTest {
         val sessionManager = InMemorySessionManager()
         val sessionId = sessionManager.createSession()
-        val agent = FakeAgent(response = Either.Right("response"))
+        val agent = FakeAgent(response = Either.Right(AgentResponse("response", TokenUsage())))
         val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -132,7 +134,7 @@ class ChatStoreTest {
 }
 
 class FakeAgent(
-    private val response: Either<AgentError, String> = Either.Right(""),
+    private val response: Either<AgentError, AgentResponse> = Either.Right(AgentResponse("", TokenUsage())),
 ) : Agent {
-    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, String> = response
+    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = response
 }
