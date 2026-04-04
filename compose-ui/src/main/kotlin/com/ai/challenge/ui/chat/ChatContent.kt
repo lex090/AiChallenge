@@ -55,7 +55,8 @@ fun ChatContent(component: ChatComponent) {
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.messages) { message ->
                     MessageBubble(message)
