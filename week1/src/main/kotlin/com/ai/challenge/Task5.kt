@@ -1,5 +1,7 @@
 package com.ai.challenge
 
+import com.ai.challenge.llm.OpenRouterService
+
 data class ModelInfo(
     val id: String,
     val label: String,
