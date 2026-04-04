@@ -63,8 +63,8 @@ class ChatStoreTest {
 
         assertEquals(sessionId, store.state.sessionId)
         assertEquals(2, store.state.messages.size)
-        assertEquals(UiMessage("hi", isUser = true), store.state.messages[0])
-        assertEquals(UiMessage("hello", isUser = false), store.state.messages[1])
+        assertEquals(UiMessage("hi", isUser = true, tokenUsage = TokenUsage()), store.state.messages[0])
+        assertEquals(UiMessage("hello", isUser = false, tokenUsage = TokenUsage()), store.state.messages[1])
 
         store.dispose()
     }
@@ -84,8 +84,8 @@ class ChatStoreTest {
 
         val messages = store.state.messages
         assertEquals(2, messages.size)
-        assertEquals(UiMessage("Hi", isUser = true), messages[0])
-        assertEquals(UiMessage("Hello from agent!", isUser = false), messages[1])
+        assertEquals(UiMessage("Hi", isUser = true, tokenUsage = TokenUsage()), messages[0])
+        assertEquals(UiMessage("Hello from agent!", isUser = false, tokenUsage = TokenUsage()), messages[1])
         assertFalse(store.state.isLoading)
 
         store.dispose()

@@ -6,5 +6,5 @@ data class UiMessage(
     val text: String,
     val isUser: Boolean,
     val isError: Boolean = false,
-    val tokenUsage: TokenUsage = TokenUsage(),
+    val tokenUsage: TokenUsage? = null,
 )

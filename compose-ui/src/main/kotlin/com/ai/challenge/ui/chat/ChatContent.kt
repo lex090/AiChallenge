@@ -146,11 +146,12 @@ private fun MessageBubble(message: UiMessage) {
                     .padding(12.dp),
                 color = textColor,
             )
-            if (message.tokenUsage.totalTokens > 0) {
+            val tokenUsage = message.tokenUsage
+            if (tokenUsage != null && tokenUsage.totalTokens > 0) {
                 val tokenText = if (message.isUser) {
-                    "\u2191${message.tokenUsage.promptTokens} tokens"
+                    "\u2191${tokenUsage.promptTokens} tokens"
                 } else {
-                    "\u2193${message.tokenUsage.completionTokens} tokens"
+                    "\u2193${tokenUsage.completionTokens} tokens"
                 }
                 Text(
                     text = tokenText,
