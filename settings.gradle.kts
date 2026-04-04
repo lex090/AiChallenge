@@ -14,5 +14,6 @@ rootProject.name = "AiChallenge"
 
 include("llm-service")
 include("ai-agent")
+include("session-storage")
 include("compose-ui")
 include("week1")

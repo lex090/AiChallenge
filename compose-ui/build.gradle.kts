@@ -18,6 +18,7 @@ repositories {
 dependencies {
     implementation(project(":ai-agent"))
     implementation(project(":llm-service"))
+    implementation(project(":session-storage"))
 
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
