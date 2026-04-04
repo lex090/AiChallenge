@@ -6,6 +6,7 @@ import arrow.core.raise.either
 import com.ai.challenge.llm.OpenRouterService
 import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.session.SessionId
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.session.Turn
 
 class OpenRouterAgent(
@@ -14,11 +15,11 @@ class OpenRouterAgent(
     private val sessionManager: AgentSessionManager,
 ) : Agent {
 
-    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, String> = either {
+    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
         val history = sessionManager.getHistory(sessionId)
 
-        val response = catch({
-            service.chatText(model = model) {
+        val chatResponse = catch({
+            service.chat(model = model) {
                 for (turn in history) {
                     user(turn.userMessage)
                     assistant(turn.agentResponse)
@@ -34,8 +35,24 @@ class OpenRouterAgent(
             }
         }
 
-        sessionManager.appendTurn(sessionId, Turn(userMessage = message, agentResponse = response))
+        val error = chatResponse.error
+        if (error != null) {
+            raise(AgentError.ApiError(error.message ?: "Unknown API error"))
+        }
 
-        response
+        val text = chatResponse.choices.firstOrNull()?.message?.content
+            ?: raise(AgentError.ApiError("Empty response from OpenRouter"))
+
+        val tokenUsage = chatResponse.usage?.let {
+            TokenUsage(
+                promptTokens = it.promptTokens,
+                completionTokens = it.completionTokens,
+                totalTokens = it.totalTokens,
+            )
+        } ?: TokenUsage()
+
+        sessionManager.appendTurn(sessionId, Turn(userMessage = message, agentResponse = text, tokenUsage = tokenUsage))
+
+        AgentResponse(text = text, tokenUsage = tokenUsage)
     }
 }

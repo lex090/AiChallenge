@@ -1,6 +1,7 @@
 package com.ai.challenge.ui.chat.store
 
 import com.ai.challenge.session.SessionId
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 
@@ -15,5 +16,6 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
         val sessionId: SessionId? = null,
         val messages: List<UiMessage> = emptyList(),
         val isLoading: Boolean = false,
+        val sessionTokens: TokenUsage = TokenUsage(),
     )
 }

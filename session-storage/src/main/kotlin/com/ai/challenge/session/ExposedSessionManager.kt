@@ -22,6 +22,9 @@ object TurnsTable : Table("turns") {
     val userMessage = text("user_message")
     val agentResponse = text("agent_response")
     val timestamp = long("timestamp")
+    val promptTokens = integer("prompt_tokens").nullable()
+    val completionTokens = integer("completion_tokens").nullable()
+    val totalTokens = integer("total_tokens").nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -30,7 +33,7 @@ class ExposedSessionManager(private val database: Database) : AgentSessionManage
 
     init {
         transaction(database) {
-            SchemaUtils.create(SessionsTable, TurnsTable)
+            SchemaUtils.createMissingTablesAndColumns(SessionsTable, TurnsTable)
         }
     }
 
@@ -94,6 +97,9 @@ class ExposedSessionManager(private val database: Database) : AgentSessionManage
                 it[userMessage] = turn.userMessage
                 it[agentResponse] = turn.agentResponse
                 it[timestamp] = turn.timestamp.toEpochMilliseconds()
+                it[promptTokens] = turn.tokenUsage.promptTokens
+                it[completionTokens] = turn.tokenUsage.completionTokens
+                it[totalTokens] = turn.tokenUsage.totalTokens
             }
             SessionsTable.update({ SessionsTable.id eq id.value }) {
                 it[updatedAt] = now.toEpochMilliseconds()
@@ -128,6 +134,11 @@ class ExposedSessionManager(private val database: Database) : AgentSessionManage
                 userMessage = row[TurnsTable.userMessage],
                 agentResponse = row[TurnsTable.agentResponse],
                 timestamp = Instant.fromEpochMilliseconds(row[TurnsTable.timestamp]),
+                tokenUsage = TokenUsage(
+                    promptTokens = row[TurnsTable.promptTokens] ?: 0,
+                    completionTokens = row[TurnsTable.completionTokens] ?: 0,
+                    totalTokens = row[TurnsTable.totalTokens] ?: 0,
+                ),
             )
         }
     }

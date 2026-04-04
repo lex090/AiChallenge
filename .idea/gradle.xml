@@ -9,6 +9,11 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/ai-agent" />
+            <option value="$PROJECT_DIR$/compose-ui" />
+            <option value="$PROJECT_DIR$/llm-service" />
+            <option value="$PROJECT_DIR$/session-storage" />
+            <option value="$PROJECT_DIR$/week1" />
           </set>
         </option>
       </GradleProjectSettings>

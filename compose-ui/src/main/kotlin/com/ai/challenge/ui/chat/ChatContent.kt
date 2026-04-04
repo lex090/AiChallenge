@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable
@@ -110,6 +111,9 @@ fun ChatContent(component: ChatComponent) {
                     Text("Send")
                 }
             }
+            if (state.sessionTokens.totalTokens > 0) {
+                SessionTokenBar(state.sessionTokens)
+            }
     }
 }
 
@@ -131,14 +135,48 @@ private fun MessageBubble(message: UiMessage) {
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = alignment,
     ) {
+        Column(
+            modifier = Modifier.widthIn(max = 600.dp),
+        ) {
+            Text(
+                text = message.text,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(backgroundColor)
+                    .padding(12.dp),
+                color = textColor,
+            )
+            val tokenUsage = message.tokenUsage
+            if (tokenUsage != null && tokenUsage.totalTokens > 0) {
+                val tokenText = if (message.isUser) {
+                    "\u2191${tokenUsage.promptTokens} tokens"
+                } else {
+                    "\u2193${tokenUsage.completionTokens} tokens"
+                }
+                Text(
+                    text = tokenText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionTokenBar(sessionTokens: TokenUsage) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
         Text(
-            text = message.text,
-            modifier = Modifier
-                .widthIn(max = 600.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(backgroundColor)
-                .padding(12.dp),
-            color = textColor,
+            text = "Session: \u2191${sessionTokens.promptTokens} \u2193${sessionTokens.completionTokens} \u03A3${sessionTokens.totalTokens} tokens",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

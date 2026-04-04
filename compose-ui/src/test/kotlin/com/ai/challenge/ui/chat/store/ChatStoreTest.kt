@@ -3,6 +3,8 @@ package com.ai.challenge.ui.chat.store
 import arrow.core.Either
 import com.ai.challenge.agent.Agent
 import com.ai.challenge.agent.AgentError
+import com.ai.challenge.agent.AgentResponse
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.session.InMemorySessionManager
 import com.ai.challenge.session.SessionId
@@ -61,8 +63,8 @@ class ChatStoreTest {
 
         assertEquals(sessionId, store.state.sessionId)
         assertEquals(2, store.state.messages.size)
-        assertEquals(UiMessage("hi", isUser = true), store.state.messages[0])
-        assertEquals(UiMessage("hello", isUser = false), store.state.messages[1])
+        assertEquals(UiMessage("hi", isUser = true, tokenUsage = TokenUsage()), store.state.messages[0])
+        assertEquals(UiMessage("hello", isUser = false, tokenUsage = TokenUsage()), store.state.messages[1])
 
         store.dispose()
     }
@@ -71,7 +73,7 @@ class ChatStoreTest {
     fun `SendMessage adds user message and agent response`() = runTest {
         val sessionManager = InMemorySessionManager()
         val sessionId = sessionManager.createSession()
-        val agent = FakeAgent(response = Either.Right("Hello from agent!"))
+        val agent = FakeAgent(response = Either.Right(AgentResponse("Hello from agent!", TokenUsage())))
         val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -82,8 +84,8 @@ class ChatStoreTest {
 
         val messages = store.state.messages
         assertEquals(2, messages.size)
-        assertEquals(UiMessage("Hi", isUser = true), messages[0])
-        assertEquals(UiMessage("Hello from agent!", isUser = false), messages[1])
+        assertEquals(UiMessage("Hi", isUser = true, tokenUsage = TokenUsage()), messages[0])
+        assertEquals(UiMessage("Hello from agent!", isUser = false, tokenUsage = TokenUsage()), messages[1])
         assertFalse(store.state.isLoading)
 
         store.dispose()
@@ -115,7 +117,7 @@ class ChatStoreTest {
     fun `SendMessage auto-titles session on first message`() = runTest {
         val sessionManager = InMemorySessionManager()
         val sessionId = sessionManager.createSession()
-        val agent = FakeAgent(response = Either.Right("response"))
+        val agent = FakeAgent(response = Either.Right(AgentResponse("response", TokenUsage())))
         val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -129,10 +131,62 @@ class ChatStoreTest {
 
         store.dispose()
     }
+
+    @Test
+    fun `SendMessage populates tokenUsage on user and agent messages`() = runTest {
+        val sessionManager = InMemorySessionManager()
+        val sessionId = sessionManager.createSession()
+        val usage = TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150)
+        val agent = FakeAgent(response = Either.Right(AgentResponse(text = "Hi!", tokenUsage = usage)))
+        val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
+
+        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        advanceUntilIdle()
+
+        store.accept(ChatStore.Intent.SendMessage("Hello"))
+        advanceUntilIdle()
+
+        val messages = store.state.messages
+        assertEquals(2, messages.size)
+        assertEquals(usage, messages[0].tokenUsage)
+        assertEquals(usage, messages[1].tokenUsage)
+    }
+
+    @Test
+    fun `SendMessage accumulates sessionTokens`() = runTest {
+        val sessionManager = InMemorySessionManager()
+        val sessionId = sessionManager.createSession()
+        val usage = TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150)
+        val agent = FakeAgent(response = Either.Right(AgentResponse(text = "Hi!", tokenUsage = usage)))
+        val store = ChatStoreFactory(DefaultStoreFactory(), agent, sessionManager).create()
+
+        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        advanceUntilIdle()
+
+        store.accept(ChatStore.Intent.SendMessage("Hello"))
+        advanceUntilIdle()
+
+        assertEquals(usage, store.state.sessionTokens)
+    }
+
+    @Test
+    fun `LoadSession computes sessionTokens from history`() = runTest {
+        val sessionManager = InMemorySessionManager()
+        val sessionId = sessionManager.createSession()
+        sessionManager.appendTurn(sessionId, Turn(userMessage = "a", agentResponse = "b", tokenUsage = TokenUsage(10, 5, 15)))
+        sessionManager.appendTurn(sessionId, Turn(userMessage = "c", agentResponse = "d", tokenUsage = TokenUsage(20, 10, 30)))
+
+        val store = ChatStoreFactory(DefaultStoreFactory(), FakeAgent(), sessionManager).create()
+
+        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        advanceUntilIdle()
+
+        assertEquals(TokenUsage(promptTokens = 30, completionTokens = 15, totalTokens = 45), store.state.sessionTokens)
+    }
 }
 
 class FakeAgent(
-    private val response: Either<AgentError, String> = Either.Right(""),
+    private val response: Either<AgentError, AgentResponse> = Either.Right(AgentResponse("", TokenUsage())),
 ) : Agent {
-    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, String> = response
+    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = response
 }

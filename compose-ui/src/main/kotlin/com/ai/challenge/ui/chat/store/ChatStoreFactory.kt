@@ -4,6 +4,7 @@ import arrow.core.Either
 import com.ai.challenge.agent.Agent
 import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.session.SessionId
+import com.ai.challenge.session.TokenUsage
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
@@ -25,9 +26,13 @@ class ChatStoreFactory(
             ) {}
 
     private sealed interface Msg {
-        data class SessionLoaded(val sessionId: SessionId, val messages: List<UiMessage>) : Msg
+        data class SessionLoaded(
+            val sessionId: SessionId,
+            val messages: List<UiMessage>,
+            val sessionTokens: TokenUsage,
+        ) : Msg
         data class UserMessage(val text: String) : Msg
-        data class AgentResponse(val text: String) : Msg
+        data class AgentResponseMsg(val text: String, val tokenUsage: TokenUsage) : Msg
         data class Error(val text: String) : Msg
         data object Loading : Msg
         data object LoadingComplete : Msg
@@ -50,11 +55,14 @@ class ChatStoreFactory(
                 val history = sessionManager.getHistory(sessionId)
                 val messages = history.flatMap { turn ->
                     listOf(
-                        UiMessage(text = turn.userMessage, isUser = true),
-                        UiMessage(text = turn.agentResponse, isUser = false),
+                        UiMessage(text = turn.userMessage, isUser = true, tokenUsage = turn.tokenUsage),
+                        UiMessage(text = turn.agentResponse, isUser = false, tokenUsage = turn.tokenUsage),
                     )
                 }
-                dispatch(Msg.SessionLoaded(sessionId, messages))
+                val sessionTokens = history.fold(TokenUsage()) { acc, turn ->
+                    acc + turn.tokenUsage
+                }
+                dispatch(Msg.SessionLoaded(sessionId, messages, sessionTokens))
             }
         }
 
@@ -65,12 +73,11 @@ class ChatStoreFactory(
 
             scope.launch {
                 when (val result = agent.send(sessionId, text)) {
-                    is Either.Right -> dispatch(Msg.AgentResponse(result.value))
+                    is Either.Right -> dispatch(Msg.AgentResponseMsg(result.value.text, result.value.tokenUsage))
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)
 
-                // Auto-title on first message
                 val session = sessionManager.getSession(sessionId)
                 if (session != null && session.title.isEmpty()) {
                     val title = text.take(50)
@@ -86,13 +93,23 @@ class ChatStoreFactory(
                 is Msg.SessionLoaded -> copy(
                     sessionId = msg.sessionId,
                     messages = msg.messages,
+                    sessionTokens = msg.sessionTokens,
                 )
                 is Msg.UserMessage -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = true),
                 )
-                is Msg.AgentResponse -> copy(
-                    messages = messages + UiMessage(text = msg.text, isUser = false),
-                )
+                is Msg.AgentResponseMsg -> {
+                    val lastMsg = messages.lastOrNull()
+                    val updatedMessages = if (lastMsg != null) {
+                        messages.dropLast(1) + lastMsg.copy(tokenUsage = msg.tokenUsage)
+                    } else {
+                        messages
+                    }
+                    copy(
+                        messages = updatedMessages + UiMessage(text = msg.text, isUser = false, tokenUsage = msg.tokenUsage),
+                        sessionTokens = sessionTokens + msg.tokenUsage,
+                    )
+                }
                 is Msg.Error -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = false, isError = true),
                 )
