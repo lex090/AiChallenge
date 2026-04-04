@@ -4,15 +4,20 @@ import arrow.core.Either
 import arrow.core.raise.catch
 import arrow.core.raise.either
 import com.ai.challenge.llm.OpenRouterService
+import com.ai.challenge.llm.model.ChatResponse
 import com.ai.challenge.session.AgentSessionManager
+import com.ai.challenge.session.CostDetails
+import com.ai.challenge.session.RequestMetrics
 import com.ai.challenge.session.SessionId
-import com.ai.challenge.session.TokenUsage
+import com.ai.challenge.session.TokenDetails
 import com.ai.challenge.session.Turn
+import com.ai.challenge.session.UsageManager
 
 class OpenRouterAgent(
     private val service: OpenRouterService,
     private val model: String,
     private val sessionManager: AgentSessionManager,
+    private val usageManager: UsageManager,
 ) : Agent {
 
     override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
@@ -43,16 +48,27 @@ class OpenRouterAgent(
         val text = chatResponse.choices.firstOrNull()?.message?.content
             ?: raise(AgentError.ApiError("Empty response from OpenRouter"))
 
-        val tokenUsage = chatResponse.usage?.let {
-            TokenUsage(
-                promptTokens = it.promptTokens,
-                completionTokens = it.completionTokens,
-                totalTokens = it.totalTokens,
-            )
-        } ?: TokenUsage()
+        val metrics = chatResponse.toRequestMetrics()
+        val turn = Turn(userMessage = message, agentResponse = text)
+        val turnId = sessionManager.appendTurn(sessionId, turn)
+        usageManager.record(turnId, metrics)
 
-        sessionManager.appendTurn(sessionId, Turn(userMessage = message, agentResponse = text, tokenUsage = tokenUsage))
-
-        AgentResponse(text = text, tokenUsage = tokenUsage)
+        AgentResponse(text = text, turnId = turnId, metrics = metrics)
     }
 }
+
+private fun ChatResponse.toRequestMetrics(): RequestMetrics = RequestMetrics(
+    tokens = TokenDetails(
+        promptTokens = usage?.promptTokens ?: 0,
+        completionTokens = usage?.completionTokens ?: 0,
+        cachedTokens = usage?.promptTokensDetails?.cachedTokens ?: 0,
+        cacheWriteTokens = usage?.promptTokensDetails?.cacheWriteTokens ?: 0,
+        reasoningTokens = usage?.completionTokensDetails?.reasoningTokens ?: 0,
+    ),
+    cost = CostDetails(
+        totalCost = usage?.cost ?: cost ?: 0.0,
+        upstreamCost = costDetails?.upstreamCost ?: 0.0,
+        upstreamPromptCost = costDetails?.upstreamPromptCost ?: 0.0,
+        upstreamCompletionsCost = costDetails?.upstreamCompletionsCost ?: 0.0,
+    ),
+)
