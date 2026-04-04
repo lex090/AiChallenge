@@ -22,6 +22,11 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    implementation(compose.materialIconsExtended)
+
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.sqlite.jdbc)
 
     implementation(libs.decompose)
     implementation(libs.decompose.extensions.compose)
