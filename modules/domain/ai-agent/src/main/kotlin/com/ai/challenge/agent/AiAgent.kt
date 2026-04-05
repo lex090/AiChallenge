@@ -1,15 +1,25 @@
 package com.ai.challenge.agent
 
 import arrow.core.Either
+import arrow.core.left
 import arrow.core.raise.catch
 import arrow.core.raise.either
 import com.ai.challenge.core.Agent
 import com.ai.challenge.core.AgentError
 import com.ai.challenge.core.AgentResponse
 import com.ai.challenge.core.AgentSession
-import com.ai.challenge.core.ContextManager
+import com.ai.challenge.core.Branch
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchRepository
+import com.ai.challenge.core.BranchTree
+import com.ai.challenge.core.BranchableStrategy
+import com.ai.challenge.core.CheckpointId
+import com.ai.challenge.core.ContextStrategy
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.Fact
+import com.ai.challenge.core.FactRepository
 import com.ai.challenge.core.MessageRole
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.SessionRepository
@@ -28,21 +38,26 @@ class AiAgent(
     private val turnRepository: TurnRepository,
     private val tokenRepository: TokenRepository,
     private val costRepository: CostRepository,
-    private val contextManager: ContextManager,
+    private val strategies: Map<ContextStrategyType, ContextStrategy>,
+    private val branchRepository: BranchRepository? = null,
+    private val factRepository: FactRepository? = null,
 ) : Agent {
+
+    private var activeStrategyType: ContextStrategyType = ContextStrategyType.SlidingWindow
+    private val activeStrategy: ContextStrategy get() = strategies.getValue(activeStrategyType)
 
     override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
         val history = turnRepository.getBySession(sessionId)
 
-        val context = catch({
-            contextManager.prepareContext(sessionId, history, message)
+        val messages = catch({
+            activeStrategy.buildMessages(sessionId, history, message)
         }) { e: Exception ->
             raise(AgentError.NetworkError(e.message ?: "Context preparation failed"))
         }
 
         val chatResponse = catch({
             service.chat(model = model) {
-                for (msg in context.messages) {
+                for (msg in messages) {
                     message(msg.role.toApiRole(), msg.content)
                 }
             }
@@ -67,10 +82,76 @@ class AiAgent(
         val costDetails = chatResponse.toCostDetails()
         val turn = Turn(userMessage = message, agentResponse = text)
         val turnId = turnRepository.append(sessionId, turn)
+
+        if (activeStrategyType == ContextStrategyType.Branching && branchRepository != null) {
+            val activeBranch = branchRepository.getActiveBranch(sessionId)
+            if (activeBranch != null) {
+                val existingTurnIds = branchRepository.getBranchTurnIds(activeBranch.id)
+                branchRepository.saveBranchTurns(activeBranch.id, existingTurnIds + turnId)
+            }
+        }
+
         tokenRepository.record(sessionId, turnId, tokenDetails)
         costRepository.record(sessionId, turnId, costDetails)
 
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
+    }
+
+    override fun getContextStrategyType(): ContextStrategyType = activeStrategyType
+
+    override fun setContextStrategy(type: ContextStrategyType) {
+        require(strategies.containsKey(type)) { "Strategy $type is not configured" }
+        activeStrategyType = type
+    }
+
+    override suspend fun createCheckpoint(sessionId: SessionId): Either<AgentError, CheckpointId> {
+        val strategy = activeStrategy
+        if (strategy !is BranchableStrategy) {
+            return AgentError.StrategyError("Current strategy does not support branching").left()
+        }
+        return strategy.createCheckpoint(sessionId)
+    }
+
+    override suspend fun createBranch(
+        sessionId: SessionId,
+        checkpointTurnIndex: Int,
+        name: String,
+    ): Either<AgentError, BranchId> {
+        val strategy = activeStrategy
+        if (strategy !is BranchableStrategy) {
+            return AgentError.StrategyError("Current strategy does not support branching").left()
+        }
+        return strategy.createBranch(sessionId, checkpointTurnIndex, name)
+    }
+
+    override suspend fun switchBranch(sessionId: SessionId, branchId: BranchId): Either<AgentError, Unit> {
+        val strategy = activeStrategy
+        if (strategy !is BranchableStrategy) {
+            return AgentError.StrategyError("Current strategy does not support branching").left()
+        }
+        return strategy.switchBranch(sessionId, branchId)
+    }
+
+    override suspend fun listBranches(sessionId: SessionId): Either<AgentError, List<Branch>> {
+        val strategy = activeStrategy
+        if (strategy !is BranchableStrategy) {
+            return AgentError.StrategyError("Current strategy does not support branching").left()
+        }
+        return strategy.listBranches(sessionId)
+    }
+
+    override suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree> {
+        val strategy = activeStrategy
+        if (strategy !is BranchableStrategy) {
+            return AgentError.StrategyError("Current strategy does not support branching").left()
+        }
+        return strategy.getBranchTree(sessionId)
+    }
+
+    override suspend fun getSessionFacts(sessionId: SessionId): Either<AgentError, List<Fact>> {
+        val repo = factRepository
+            ?: return AgentError.StrategyError("Fact repository is not configured").left()
+        return Either.Right(repo.getBySession(sessionId))
     }
 
     override suspend fun createSession(title: String): SessionId = sessionRepository.create(title)
