@@ -71,7 +71,7 @@ class ChatStoreFactory(
 
         private fun handleLoadSession(sessionId: SessionId) {
             scope.launch {
-                val history = agent.getTurns(sessionId)
+                val history = agent.getEffectiveTurns(sessionId)
                 val messages = history.flatMap { turn ->
                     listOf(
                         UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
@@ -155,7 +155,7 @@ class ChatStoreFactory(
                 when (val result = agent.switchBranch(sessionId, branchId)) {
                     is Either.Right -> {
                         handleLoadBranchTree()
-                        handleLoadSession(sessionId)
+                        handleLoadSession(sessionId) // reload messages for new branch view
                     }
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
                 }

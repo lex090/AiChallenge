@@ -232,6 +232,7 @@ open class FakeAgent(
         val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
         return if (limit != null && all.size > limit) all.takeLast(limit) else all
     }
+    override suspend fun getEffectiveTurns(sessionId: SessionId): List<Turn> = getTurns(sessionId)
     override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenData[turnId]?.second
     override suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails> =
         tokenData.filter { it.value.first == sessionId }.mapValues { it.value.second }
@@ -242,6 +243,15 @@ open class FakeAgent(
         costData.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails =
         getCostBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+
+    override fun getContextStrategyType() = com.ai.challenge.core.ContextStrategyType.SlidingWindow
+    override fun setContextStrategy(type: com.ai.challenge.core.ContextStrategyType) {}
+    override suspend fun createCheckpoint(sessionId: SessionId) = Either.Left(AgentError.StrategyError("Not supported"))
+    override suspend fun createBranch(sessionId: SessionId, checkpointTurnIndex: Int, name: String) = Either.Left(AgentError.StrategyError("Not supported"))
+    override suspend fun switchBranch(sessionId: SessionId, branchId: com.ai.challenge.core.BranchId) = Either.Left(AgentError.StrategyError("Not supported"))
+    override suspend fun listBranches(sessionId: SessionId) = Either.Left(AgentError.StrategyError("Not supported"))
+    override suspend fun getBranchTree(sessionId: SessionId) = Either.Left(AgentError.StrategyError("Not supported"))
+    override suspend fun getSessionFacts(sessionId: SessionId) = Either.Left(AgentError.StrategyError("Not supported"))
 
     fun appendTurnDirect(sessionId: SessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn
