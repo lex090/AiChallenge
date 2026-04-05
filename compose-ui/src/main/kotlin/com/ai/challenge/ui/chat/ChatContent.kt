@@ -197,9 +197,9 @@ private fun formatSessionMetrics(metrics: RequestMetrics): String {
     return parts.joinToString("  |  ")
 }
 
-private fun formatCostParts(cost: CostDetails): List<String> = listOf(
-    "cost:$${formatCost(cost.totalCost)}",
-    "upstream:$${formatCost(cost.upstreamCost)}",
-    "prompt:$${formatCost(cost.upstreamPromptCost)}",
-    "completion:$${formatCost(cost.upstreamCompletionsCost)}",
-)
+private fun formatCostParts(cost: CostDetails): List<String> = buildList {
+    add("cost:$${formatCost(cost.totalCost)}")
+    if (cost.upstreamCost > 0 && cost.upstreamCost != cost.totalCost) add("upstream:$${formatCost(cost.upstreamCost)}")
+    add("prompt:$${formatCost(cost.upstreamPromptCost)}")
+    add("completion:$${formatCost(cost.upstreamCompletionsCost)}")
+}
