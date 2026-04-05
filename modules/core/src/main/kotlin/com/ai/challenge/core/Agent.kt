@@ -16,4 +16,13 @@ interface Agent {
     suspend fun getCostByTurn(turnId: TurnId): CostDetails?
     suspend fun getCostBySession(sessionId: SessionId): Map<TurnId, CostDetails>
     suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails
+
+    // Strategy switching
+    fun getActiveStrategy(): ContextStrategyType
+    fun setActiveStrategy(strategy: ContextStrategyType)
+
+    // Branching
+    suspend fun createBranch(sessionId: SessionId, name: String, checkpointTurnIndex: Int): Either<AgentError, Branch>
+    suspend fun switchBranch(sessionId: SessionId, branchId: BranchId?): Either<AgentError, Unit>
+    suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree>
 }

@@ -7,7 +7,12 @@ import com.ai.challenge.core.Agent
 import com.ai.challenge.core.AgentError
 import com.ai.challenge.core.AgentResponse
 import com.ai.challenge.core.AgentSession
+import com.ai.challenge.core.Branch
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchRepository
+import com.ai.challenge.core.BranchTree
 import com.ai.challenge.core.ContextManager
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.CostRepository
 import com.ai.challenge.core.MessageRole
@@ -29,7 +34,11 @@ class AiAgent(
     private val tokenRepository: TokenRepository,
     private val costRepository: CostRepository,
     private val contextManager: ContextManager,
+    private val branchRepository: BranchRepository? = null,
+    private val onStrategyChanged: ((ContextStrategyType) -> Unit)? = null,
 ) : Agent {
+
+    private var activeStrategy: ContextStrategyType = ContextStrategyType.SlidingWindow
 
     override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
         val history = turnRepository.getBySession(sessionId)
@@ -85,6 +94,42 @@ class AiAgent(
     override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
     override suspend fun getCostBySession(sessionId: SessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
     override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails = costRepository.getSessionTotal(sessionId)
+
+    override fun getActiveStrategy(): ContextStrategyType = activeStrategy
+
+    override fun setActiveStrategy(strategy: ContextStrategyType) {
+        activeStrategy = strategy
+        onStrategyChanged?.invoke(strategy)
+    }
+
+    override suspend fun createBranch(
+        sessionId: SessionId,
+        name: String,
+        checkpointTurnIndex: Int,
+    ): Either<AgentError, Branch> = either {
+        val repo = branchRepository ?: raise(AgentError.ApiError("Branching not configured"))
+        catch({ repo.createBranch(sessionId, name, checkpointTurnIndex) }) { e: Exception ->
+            raise(AgentError.NetworkError(e.message ?: "Failed to create branch"))
+        }
+    }
+
+    override suspend fun switchBranch(
+        sessionId: SessionId,
+        branchId: BranchId?,
+    ): Either<AgentError, Unit> = either {
+        val repo = branchRepository ?: raise(AgentError.ApiError("Branching not configured"))
+        catch({ repo.setActiveBranch(sessionId, branchId) }) { e: Exception ->
+            raise(AgentError.NetworkError(e.message ?: "Failed to switch branch"))
+        }
+    }
+
+    override suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree> = either {
+        val repo = branchRepository ?: raise(AgentError.ApiError("Branching not configured"))
+        val turns = turnRepository.getBySession(sessionId)
+        catch({ repo.getBranchTree(sessionId, turns.size) }) { e: Exception ->
+            raise(AgentError.NetworkError(e.message ?: "Failed to get branch tree"))
+        }
+    }
 }
 
 fun MessageRole.toApiRole(): String = when (this) {

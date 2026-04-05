@@ -1,21 +1,33 @@
 package com.ai.challenge.app.di
 
 import com.ai.challenge.agent.AiAgent
+import com.ai.challenge.branch.repository.ExposedBranchRepository
+import com.ai.challenge.branch.repository.createBranchDatabase
 import com.ai.challenge.compressor.LlmContextCompressor
 import com.ai.challenge.context.DefaultContextManager
 import com.ai.challenge.context.TurnCountStrategy
 import com.ai.challenge.core.Agent
+import com.ai.challenge.core.BranchRepository
 import com.ai.challenge.core.CompressionStrategy
 import com.ai.challenge.core.ContextCompressor
 import com.ai.challenge.core.ContextManager
+import com.ai.challenge.core.ContextPipeline
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.FactExtractor
+import com.ai.challenge.core.FactRepository
 import com.ai.challenge.core.SessionRepository
 import com.ai.challenge.core.SummaryRepository
 import com.ai.challenge.core.TokenRepository
 import com.ai.challenge.core.TurnRepository
 import com.ai.challenge.cost.repository.ExposedCostRepository
 import com.ai.challenge.cost.repository.createCostDatabase
+import com.ai.challenge.fact.extractor.LlmFactExtractor
+import com.ai.challenge.fact.repository.ExposedFactRepository
+import com.ai.challenge.fact.repository.createFactDatabase
 import com.ai.challenge.llm.OpenRouterService
+import com.ai.challenge.pipeline.ContextPipelines
+import com.ai.challenge.pipeline.PipelineContextManager
 import com.ai.challenge.session.repository.ExposedSessionRepository
 import com.ai.challenge.session.repository.createSessionDatabase
 import com.ai.challenge.summary.repository.ExposedSummaryRepository
@@ -38,10 +50,32 @@ val appModule = module {
     single<TokenRepository> { ExposedTokenRepository(createTokenDatabase()) }
     single<CostRepository> { ExposedCostRepository(createCostDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
+    single<FactRepository> { ExposedFactRepository(createFactDatabase()) }
+    single<BranchRepository> { ExposedBranchRepository(createBranchDatabase()) }
+    single<FactExtractor> { LlmFactExtractor(service = get(), model = "google/gemini-2.0-flash-001") }
     single<CompressionStrategy> { TurnCountStrategy(maxTurns = 15, retainLast = 5, compressionInterval = 10) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
-    single<ContextManager> { DefaultContextManager(strategy = get(), compressor = get(), summaryRepository = get()) }
+    single<Map<ContextStrategyType, ContextPipeline>> {
+        mapOf(
+            ContextStrategyType.SlidingWindow to ContextPipelines.slidingWindow(windowSize = 10),
+            ContextStrategyType.StickyFacts to ContextPipelines.stickyFacts(
+                factExtractor = get(),
+                factRepository = get(),
+                windowSize = 10,
+            ),
+            ContextStrategyType.Branching to ContextPipelines.branching(
+                branchRepository = get(),
+                turnRepository = get(),
+                windowSize = 10,
+            ),
+        )
+    }
+    single {
+        PipelineContextManager(pipelines = get())
+    }
+    single<ContextManager> { get<PipelineContextManager>() }
     single<Agent> {
+        val pipelineManager = get<PipelineContextManager>()
         AiAgent(
             service = get(),
             model = "google/gemini-2.0-flash-001",
@@ -49,7 +83,9 @@ val appModule = module {
             turnRepository = get(),
             tokenRepository = get(),
             costRepository = get(),
-            contextManager = get(),
+            contextManager = pipelineManager,
+            branchRepository = get(),
+            onStrategyChanged = { strategy -> pipelineManager.activeStrategy = strategy },
         )
     }
 }
