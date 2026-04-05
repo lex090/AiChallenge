@@ -93,8 +93,8 @@ fun RootContent(component: RootComponent) {
 private fun DrawerContent(
     state: SessionListStore.State,
     onNewChat: () -> Unit,
-    onSelectSession: (com.ai.challenge.session.SessionId) -> Unit,
-    onDeleteSession: (com.ai.challenge.session.SessionId) -> Unit,
+    onSelectSession: (com.ai.challenge.core.SessionId) -> Unit,
+    onDeleteSession: (com.ai.challenge.core.SessionId) -> Unit,
 ) {
     ModalDrawerSheet {
         Column(modifier = Modifier.padding(16.dp)) {
