@@ -18,15 +18,19 @@ repositories {
 dependencies {
     implementation(project(":ai-agent"))
     implementation(project(":llm-service"))
-    implementation(project(":session-storage"))
-
-    implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
-    implementation(compose.materialIconsExtended)
+    implementation(project(":core"))
+    implementation(project(":session-repository-exposed"))
+    implementation(project(":turn-repository-exposed"))
+    implementation(project(":token-repository-exposed"))
+    implementation(project(":cost-repository-exposed"))
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
+
+    implementation(compose.desktop.currentOs)
+    implementation(compose.material3)
+    implementation(compose.materialIconsExtended)
 
     implementation(libs.decompose)
     implementation(libs.decompose.extensions.compose)

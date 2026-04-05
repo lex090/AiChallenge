@@ -34,8 +34,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.session.CostDetails
-import com.ai.challenge.session.RequestMetrics
+import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable
@@ -61,8 +61,9 @@ fun ChatContent(component: ChatComponent) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.messages) { message ->
-                    val metrics = message.turnId?.let { state.turnMetrics[it] }
-                    MessageBubble(message, metrics)
+                    val tokens = message.turnId?.let { state.turnTokens[it] }
+                    val costs = message.turnId?.let { state.turnCosts[it] }
+                    MessageBubble(message, tokens, costs)
                 }
                 if (state.isLoading) {
                     item {
@@ -113,14 +114,14 @@ fun ChatContent(component: ChatComponent) {
                     Text("Send")
                 }
             }
-            if (state.sessionMetrics.tokens.totalTokens > 0) {
-                SessionMetricsBar(state.sessionMetrics)
+            if (state.sessionTokens.totalTokens > 0) {
+                SessionMetricsBar(state.sessionTokens, state.sessionCosts)
             }
     }
 }
 
 @Composable
-private fun MessageBubble(message: UiMessage, metrics: RequestMetrics?) {
+private fun MessageBubble(message: UiMessage, tokens: TokenDetails?, costs: CostDetails?) {
     val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
     val backgroundColor = when {
         message.isError -> MaterialTheme.colorScheme.errorContainer
@@ -148,9 +149,9 @@ private fun MessageBubble(message: UiMessage, metrics: RequestMetrics?) {
                     .padding(12.dp),
                 color = textColor,
             )
-            if (!message.isUser && metrics != null && metrics.tokens.totalTokens > 0) {
+            if (!message.isUser && tokens != null && costs != null && tokens.totalTokens > 0) {
                 Text(
-                    text = formatTurnMetrics(metrics),
+                    text = formatTurnMetrics(tokens, costs),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -161,7 +162,7 @@ private fun MessageBubble(message: UiMessage, metrics: RequestMetrics?) {
 }
 
 @Composable
-private fun SessionMetricsBar(metrics: RequestMetrics) {
+private fun SessionMetricsBar(tokens: TokenDetails, costs: CostDetails) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,7 +171,7 @@ private fun SessionMetricsBar(metrics: RequestMetrics) {
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = formatSessionMetrics(metrics),
+            text = formatSessionMetrics(tokens, costs),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -180,20 +181,20 @@ private fun SessionMetricsBar(metrics: RequestMetrics) {
 private fun formatCost(value: Double): String =
     String.format("%.10f", value).trimEnd('0').trimEnd('.')
 
-private fun formatTurnMetrics(metrics: RequestMetrics): String {
+private fun formatTurnMetrics(tokens: TokenDetails, costs: CostDetails): String {
     val parts = mutableListOf<String>()
-    parts.add("\u2191${metrics.tokens.promptTokens}")
-    parts.add("\u2193${metrics.tokens.completionTokens}")
-    parts.add("cached:${metrics.tokens.cachedTokens}")
-    if (metrics.tokens.reasoningTokens > 0) parts.add("reasoning:${metrics.tokens.reasoningTokens}")
-    parts.addAll(formatCostParts(metrics.cost))
+    parts.add("\u2191${tokens.promptTokens}")
+    parts.add("\u2193${tokens.completionTokens}")
+    parts.add("cached:${tokens.cachedTokens}")
+    if (tokens.reasoningTokens > 0) parts.add("reasoning:${tokens.reasoningTokens}")
+    parts.addAll(formatCostParts(costs))
     return parts.joinToString("  ")
 }
 
-private fun formatSessionMetrics(metrics: RequestMetrics): String {
+private fun formatSessionMetrics(tokens: TokenDetails, costs: CostDetails): String {
     val parts = mutableListOf<String>()
-    parts.add("Session: \u2191${metrics.tokens.promptTokens}  \u2193${metrics.tokens.completionTokens}  cached:${metrics.tokens.cachedTokens}")
-    parts.addAll(formatCostParts(metrics.cost))
+    parts.add("Session: \u2191${tokens.promptTokens}  \u2193${tokens.completionTokens}  cached:${tokens.cachedTokens}")
+    parts.addAll(formatCostParts(costs))
     return parts.joinToString("  |  ")
 }
 

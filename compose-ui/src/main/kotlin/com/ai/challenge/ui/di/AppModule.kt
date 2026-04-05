@@ -1,14 +1,20 @@
 package com.ai.challenge.ui.di
 
-import com.ai.challenge.agent.Agent
 import com.ai.challenge.agent.OpenRouterAgent
+import com.ai.challenge.core.Agent
+import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.SessionRepository
+import com.ai.challenge.core.TokenRepository
+import com.ai.challenge.core.TurnRepository
+import com.ai.challenge.cost.repository.ExposedCostRepository
+import com.ai.challenge.cost.repository.createCostDatabase
 import com.ai.challenge.llm.OpenRouterService
-import com.ai.challenge.session.AgentSessionManager
-import com.ai.challenge.session.ExposedSessionManager
-import com.ai.challenge.session.ExposedUsageManager
-import com.ai.challenge.session.UsageManager
-import com.ai.challenge.session.createSessionDatabase
-import org.jetbrains.exposed.sql.Database
+import com.ai.challenge.session.repository.ExposedSessionRepository
+import com.ai.challenge.session.repository.createSessionDatabase
+import com.ai.challenge.token.repository.ExposedTokenRepository
+import com.ai.challenge.token.repository.createTokenDatabase
+import com.ai.challenge.turn.repository.ExposedTurnRepository
+import com.ai.challenge.turn.repository.createTurnDatabase
 import org.koin.dsl.module
 
 val appModule = module {
@@ -18,15 +24,18 @@ val appModule = module {
                 ?: error("OPENROUTER_API_KEY environment variable is not set"),
         )
     }
-    single<Database> { createSessionDatabase() }
-    single<AgentSessionManager> { ExposedSessionManager(get()) }
-    single<UsageManager> { ExposedUsageManager(get()) }
+    single<SessionRepository> { ExposedSessionRepository(createSessionDatabase()) }
+    single<TurnRepository> { ExposedTurnRepository(createTurnDatabase()) }
+    single<TokenRepository> { ExposedTokenRepository(createTokenDatabase()) }
+    single<CostRepository> { ExposedCostRepository(createCostDatabase()) }
     single<Agent> {
         OpenRouterAgent(
             service = get(),
             model = "google/gemini-2.0-flash-001",
-            sessionManager = get(),
-            usageManager = get(),
+            sessionRepository = get(),
+            turnRepository = get(),
+            tokenRepository = get(),
+            costRepository = get(),
         )
     }
 }

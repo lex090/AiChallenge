@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.sessionlist.store
 
-import com.ai.challenge.session.AgentSessionManager
-import com.ai.challenge.session.SessionId
+import com.ai.challenge.core.Agent
+import com.ai.challenge.core.SessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
@@ -9,14 +9,14 @@ import kotlinx.coroutines.launch
 
 class SessionListStoreFactory(
     private val storeFactory: StoreFactory,
-    private val sessionManager: AgentSessionManager,
+    private val agent: Agent,
 ) {
     fun create(): SessionListStore =
         object : SessionListStore,
             Store<SessionListStore.Intent, SessionListStore.State, Nothing> by storeFactory.create(
                 name = "SessionListStore",
                 initialState = SessionListStore.State(),
-                executorFactory = { ExecutorImpl(sessionManager) },
+                executorFactory = { ExecutorImpl(agent) },
                 reducer = ReducerImpl,
             ) {}
 
@@ -28,7 +28,7 @@ class SessionListStoreFactory(
     }
 
     private class ExecutorImpl(
-        private val sessionManager: AgentSessionManager,
+        private val agent: Agent,
     ) : CoroutineExecutor<SessionListStore.Intent, Nothing, SessionListStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: SessionListStore.Intent) {
@@ -42,7 +42,7 @@ class SessionListStoreFactory(
 
         private fun handleLoadSessions() {
             scope.launch {
-                val sessions = sessionManager.listSessions().map { session ->
+                val sessions = agent.listSessions().map { session ->
                     SessionListStore.SessionItem(
                         id = session.id,
                         title = session.title,
@@ -55,8 +55,8 @@ class SessionListStoreFactory(
 
         private fun handleCreateSession() {
             scope.launch {
-                val id = sessionManager.createSession()
-                val session = sessionManager.getSession(id)!!
+                val id = agent.createSession()
+                val session = agent.getSession(id)!!
                 val item = SessionListStore.SessionItem(
                     id = session.id,
                     title = session.title,
@@ -68,8 +68,8 @@ class SessionListStoreFactory(
 
         private fun handleDeleteSession(id: SessionId) {
             scope.launch {
-                sessionManager.deleteSession(id)
-                val remaining = sessionManager.listSessions()
+                agent.deleteSession(id)
+                val remaining = agent.listSessions()
                 val currentActive = state().activeSessionId
                 val newActiveId = if (currentActive == id) {
                     remaining.firstOrNull()?.id

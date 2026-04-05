@@ -1,9 +1,7 @@
 package com.ai.challenge.ui.root
 
-import com.ai.challenge.agent.Agent
-import com.ai.challenge.session.AgentSessionManager
-import com.ai.challenge.session.SessionId
-import com.ai.challenge.session.UsageManager
+import com.ai.challenge.core.Agent
+import com.ai.challenge.core.SessionId
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
@@ -18,18 +16,17 @@ import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.stateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
 class RootComponent(
     componentContext: ComponentContext,
     private val storeFactory: StoreFactory,
     private val agent: Agent,
-    private val sessionManager: AgentSessionManager,
-    private val usageManager: UsageManager,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
-        SessionListStoreFactory(storeFactory, sessionManager).create()
+        SessionListStoreFactory(storeFactory, agent).create()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -47,15 +44,16 @@ class RootComponent(
         )
 
     init {
-        // Load sessions on startup; if empty, create first session
-        val sessions = sessionManager.listSessions()
-        if (sessions.isEmpty()) {
-            val id = sessionManager.createSession()
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-            selectSession(id)
-        } else {
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-            selectSession(sessions.first().id)
+        runBlocking {
+            val sessions = agent.listSessions()
+            if (sessions.isEmpty()) {
+                val id = agent.createSession()
+                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                selectSession(id)
+            } else {
+                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                selectSession(sessions.first().id)
+            }
         }
     }
 
@@ -65,23 +63,27 @@ class RootComponent(
     }
 
     fun createNewSession() {
-        val id = sessionManager.createSession()
-        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-        selectSession(id)
+        runBlocking {
+            val id = agent.createSession()
+            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+            selectSession(id)
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: SessionId) {
-        sessionManager.deleteSession(sessionId)
-        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+        runBlocking {
+            agent.deleteSession(sessionId)
+            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
-        val remaining = sessionManager.listSessions()
-        if (remaining.isEmpty()) {
-            createNewSession()
-        } else {
-            val currentActive = sessionListStore.stateFlow.value.activeSessionId
-            if (currentActive == sessionId) {
-                selectSession(remaining.first().id)
+            val remaining = agent.listSessions()
+            if (remaining.isEmpty()) {
+                createNewSession()
+            } else {
+                val currentActive = sessionListStore.stateFlow.value.activeSessionId
+                if (currentActive == sessionId) {
+                    selectSession(remaining.first().id)
+                }
             }
         }
     }
@@ -93,8 +95,6 @@ class RootComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
                     agent = agent,
-                    sessionManager = sessionManager,
-                    usageManager = usageManager,
                     sessionId = SessionId(config.sessionId),
                 )
             )

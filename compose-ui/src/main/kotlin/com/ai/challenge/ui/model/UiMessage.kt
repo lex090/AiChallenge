@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.model
 
-import com.ai.challenge.session.TurnId
+import com.ai.challenge.core.TurnId
 
 data class UiMessage(
     val text: String,

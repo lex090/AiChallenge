@@ -11,7 +11,7 @@ repositories {
 
 dependencies {
     implementation(project(":llm-service"))
-    implementation(project(":session-storage"))
+    implementation(project(":core"))
     implementation(libs.arrow.core)
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
