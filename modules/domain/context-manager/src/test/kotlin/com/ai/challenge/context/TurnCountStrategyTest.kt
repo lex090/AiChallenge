@@ -14,9 +14,9 @@ class TurnCountStrategyTest {
     // --- shouldCompress without previous compression ---
 
     @Test
-    fun `shouldCompress returns false when no prior compression and history at maxTurns`() {
+    fun `shouldCompress returns true when no prior compression and history at maxTurns`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        assertFalse(strategy.shouldCompress(turns(5), lastCompressedIndex = null))
+        assertTrue(strategy.shouldCompress(turns(5), lastCompressedIndex = null))
     }
 
     @Test
@@ -56,11 +56,11 @@ class TurnCountStrategyTest {
     }
 
     @Test
-    fun `shouldCompress returns false when exactly at threshold after compression`() {
+    fun `shouldCompress returns true when exactly at threshold after compression`() {
         // lastCompressedIndex=3, retainLast=2, compressionInterval=5
-        // turnsSinceCompression = 10 - 3 = 7, threshold = 2 + 5 = 7, 7 > 7 → false
+        // turnsSinceCompression = 10 - 3 = 7, threshold = 2 + 5 = 7, 7 >= 7 → true
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 5)
-        assertFalse(strategy.shouldCompress(turns(10), lastCompressedIndex = 3))
+        assertTrue(strategy.shouldCompress(turns(10), lastCompressedIndex = 3))
     }
 
     // --- partitionPoint ---

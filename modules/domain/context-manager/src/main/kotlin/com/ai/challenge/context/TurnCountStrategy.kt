@@ -11,10 +11,10 @@ class TurnCountStrategy(
 
     override fun shouldCompress(history: List<Turn>, lastCompressedIndex: Int?): Boolean {
         if (lastCompressedIndex == null) {
-            return history.size > maxTurns
+            return history.size >= maxTurns
         }
         val turnsSinceCompression = history.size - lastCompressedIndex
-        return turnsSinceCompression > retainLast + compressionInterval
+        return turnsSinceCompression >= retainLast + compressionInterval
     }
 
     override fun partitionPoint(history: List<Turn>): Int =

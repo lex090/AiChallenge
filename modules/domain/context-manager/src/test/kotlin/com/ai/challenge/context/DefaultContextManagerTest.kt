@@ -59,25 +59,25 @@ class DefaultContextManagerTest {
     }
 
     @Test
-    fun `first compression when exceeding maxTurns`() = runTest {
-        // maxTurns=5, retainLast=2 → first compression at 6 turns, splitAt=4
+    fun `first compression when reaching maxTurns`() = runTest {
+        // maxTurns=5, retainLast=2 → first compression at 5 turns, splitAt=3
         val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        val history = turns(6)
+        val history = turns(5)
 
         val result = manager.prepareContext(SessionId("s1"), history, "new msg")
 
         assertTrue(result.compressed)
-        assertEquals(6, result.originalTurnCount)
+        assertEquals(5, result.originalTurnCount)
         assertEquals(2, result.retainedTurnCount)
         assertEquals(1, result.summaryCount)
         // 1 system (summary) + 2 retained * 2 + 1 new = 6
         assertEquals(6, result.messages.size)
         assertEquals(MessageRole.System, result.messages.first().role)
-        assertTrue(result.messages.first().content.contains("Summary of 4 turns"))
-        assertEquals(ContextMessage(MessageRole.User, "msg5"), result.messages[1])
-        assertEquals(ContextMessage(MessageRole.Assistant, "resp5"), result.messages[2])
-        assertEquals(ContextMessage(MessageRole.User, "msg6"), result.messages[3])
-        assertEquals(ContextMessage(MessageRole.Assistant, "resp6"), result.messages[4])
+        assertTrue(result.messages.first().content.contains("Summary of 3 turns"))
+        assertEquals(ContextMessage(MessageRole.User, "msg4"), result.messages[1])
+        assertEquals(ContextMessage(MessageRole.Assistant, "resp4"), result.messages[2])
+        assertEquals(ContextMessage(MessageRole.User, "msg5"), result.messages[3])
+        assertEquals(ContextMessage(MessageRole.Assistant, "resp5"), result.messages[4])
         assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages[5])
         assertEquals(1, fakeCompressor.callCount)
         assertEquals(null, fakeCompressor.lastPreviousSummary)
@@ -86,50 +86,50 @@ class DefaultContextManagerTest {
     @Test
     fun `reuses existing summary without recompressing during interval`() = runTest {
         // maxTurns=5, retainLast=2, compressionInterval=3
-        // First compression at 6 turns: summary covers [0,4), retain [4,6)
-        // At 7,8,9 turns: reuse summary, no recompression (turnsSince=3,4,5 ≤ 2+3=5)
+        // First compression at 5 turns: summary covers [0,3), retain [3,5)
+        // At 6,7 turns: reuse summary, no recompression (turnsSince=3,4 < 2+3=5)
         val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val sessionId = SessionId("s1")
 
-        manager.prepareContext(sessionId, turns(6), "msg6")
+        manager.prepareContext(sessionId, turns(5), "msg5")
         assertEquals(1, fakeCompressor.callCount)
 
-        // 7 turns: turnsSinceCompression = 7-4 = 3, threshold = 2+3 = 5, 3 ≤ 5 → no recompression
-        val result7 = manager.prepareContext(sessionId, turns(7), "msg7")
+        // 6 turns: turnsSinceCompression = 6-3 = 3, threshold = 2+3 = 5, 3 < 5 → no recompression
+        val result6 = manager.prepareContext(sessionId, turns(6), "msg6")
         assertEquals(1, fakeCompressor.callCount) // NOT called again
-        assertTrue(result7.compressed)
-        // Uses existing summary + turns[4..7) = 3 turns as-is + new msg
-        assertEquals(3, result7.retainedTurnCount)
+        assertTrue(result6.compressed)
+        // Uses existing summary + turns[3..6) = 3 turns as-is + new msg
+        assertEquals(3, result6.retainedTurnCount)
 
-        // 9 turns: turnsSinceCompression = 9-4 = 5, 5 ≤ 5 → still no recompression
-        val result9 = manager.prepareContext(sessionId, turns(9), "msg9")
+        // 7 turns: turnsSinceCompression = 7-3 = 4, 4 < 5 → still no recompression
+        val result7 = manager.prepareContext(sessionId, turns(7), "msg7")
         assertEquals(1, fakeCompressor.callCount) // still NOT called
-        assertTrue(result9.compressed)
-        assertEquals(5, result9.retainedTurnCount)
+        assertTrue(result7.compressed)
+        assertEquals(4, result7.retainedTurnCount)
     }
 
     @Test
     fun `recompresses incrementally when interval exceeded`() = runTest {
         // maxTurns=5, retainLast=2, compressionInterval=3
-        // First compression at 6 turns: summary covers [0,4)
-        // At 10 turns: turnsSinceCompression = 10-4 = 6, threshold = 2+3 = 5, 6 > 5 → recompress
-        // New splitAt = 10-2 = 8, compress turns[4..8) with previousSummary
+        // First compression at 5 turns: summary covers [0,3)
+        // At 8 turns: turnsSinceCompression = 8-3 = 5, threshold = 2+3 = 5, 5 >= 5 → recompress
+        // New splitAt = 8-2 = 6, compress turns[3..6) with previousSummary
         val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val sessionId = SessionId("s1")
 
-        manager.prepareContext(sessionId, turns(6), "msg6")
+        manager.prepareContext(sessionId, turns(5), "msg5")
         assertEquals(1, fakeCompressor.callCount)
 
-        val result = manager.prepareContext(sessionId, turns(10), "msg10")
+        val result = manager.prepareContext(sessionId, turns(8), "msg8")
         assertEquals(2, fakeCompressor.callCount)
         assertTrue(result.compressed)
         assertEquals(2, result.retainedTurnCount)
         // Incremental: previous summary was passed
-        assertEquals("Summary of 4 turns", fakeCompressor.lastPreviousSummary)
-        // New turns compressed: turns[4..8) = 4 turns
-        assertEquals(4, fakeCompressor.lastTurnCount)
-        assertEquals(ContextMessage(MessageRole.User, "msg9"), result.messages[1])
-        assertEquals(ContextMessage(MessageRole.User, "msg10"), result.messages[3])
+        assertEquals("Summary of 3 turns", fakeCompressor.lastPreviousSummary)
+        // New turns compressed: turns[3..6) = 3 turns
+        assertEquals(3, fakeCompressor.lastTurnCount)
+        assertEquals(ContextMessage(MessageRole.User, "msg7"), result.messages[1])
+        assertEquals(ContextMessage(MessageRole.User, "msg8"), result.messages[3])
     }
 
     @Test
