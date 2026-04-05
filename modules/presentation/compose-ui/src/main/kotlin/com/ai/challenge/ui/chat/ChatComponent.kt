@@ -47,6 +47,10 @@ class ChatComponent(
         store.accept(ChatStore.Intent.SwitchBranch(branchId))
     }
 
+    fun onSwitchToMain() {
+        store.accept(ChatStore.Intent.SwitchToMain)
+    }
+
     fun onLoadFacts() {
         store.accept(ChatStore.Intent.LoadFacts)
     }

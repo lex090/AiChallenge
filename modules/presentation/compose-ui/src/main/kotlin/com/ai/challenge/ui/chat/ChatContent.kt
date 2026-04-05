@@ -140,6 +140,7 @@ fun ChatContent(component: ChatComponent) {
                 visible = state.currentStrategy == ContextStrategyType.Branching,
                 onCreateBranch = { component.onCreateBranch(it) },
                 onSwitchBranch = { component.onSwitchBranch(it) },
+                onSwitchToMain = { component.onSwitchToMain() },
             )
         }
     }

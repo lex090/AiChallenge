@@ -22,6 +22,7 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
         data object LoadBranches : Intent
         data class CreateBranch(val name: String) : Intent
         data class SwitchBranch(val branchId: BranchId) : Intent
+        data object SwitchToMain : Intent
     }
 
     data class State(

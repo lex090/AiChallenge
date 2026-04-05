@@ -49,6 +49,7 @@ fun BranchControls(
     visible: Boolean,
     onCreateBranch: (String) -> Unit,
     onSwitchBranch: (BranchId) -> Unit,
+    onSwitchToMain: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(visible = visible, modifier = modifier) {
@@ -93,6 +94,7 @@ fun BranchControls(
                         branchTree = branchTree,
                         activeBranchId = activeBranchId,
                         onSwitchBranch = onSwitchBranch,
+                        onSwitchToMain = onSwitchToMain,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -149,6 +151,7 @@ private fun BranchTreeView(
     branchTree: BranchTree,
     activeBranchId: BranchId?,
     onSwitchBranch: (BranchId) -> Unit,
+    onSwitchToMain: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -156,16 +159,28 @@ private fun BranchTreeView(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         item {
+            val isMain = activeBranchId == null
+            val bgColor = if (isMain) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+            val textColor = if (isMain) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
             Text(
                 text = "main (${branchTree.mainTurnCount} turns)",
                 style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (activeBranchId == null) FontWeight.Bold else FontWeight.Normal,
-                color = if (activeBranchId == null) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.padding(vertical = 2.dp),
+                fontWeight = if (isMain) FontWeight.Bold else FontWeight.Normal,
+                color = textColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(bgColor)
+                    .clickable(enabled = !isMain, onClick = onSwitchToMain)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
         items(branchTree.checkpoints) { checkpoint ->

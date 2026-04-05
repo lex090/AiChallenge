@@ -67,6 +67,7 @@ class ChatStoreFactory(
                 is ChatStore.Intent.LoadBranches -> handleLoadBranches()
                 is ChatStore.Intent.CreateBranch -> handleCreateBranch(intent.name)
                 is ChatStore.Intent.SwitchBranch -> handleSwitchBranch(intent.branchId)
+                is ChatStore.Intent.SwitchToMain -> handleSwitchToMain()
             }
         }
 
@@ -147,6 +148,10 @@ class ChatStoreFactory(
             scope.launch {
                 when (val result = agent.createBranch(sessionId, name, turnCount)) {
                     is Either.Right -> {
+                        val branch = result.value
+                        agent.switchBranch(sessionId, branch.id)
+                        dispatch(Msg.ActiveBranchChanged(branch.id))
+                        handleLoadSession(sessionId)
                         handleLoadBranches()
                     }
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
@@ -160,6 +165,21 @@ class ChatStoreFactory(
                 when (val result = agent.switchBranch(sessionId, branchId)) {
                     is Either.Right -> {
                         dispatch(Msg.ActiveBranchChanged(branchId))
+                        handleLoadSession(sessionId)
+                        handleLoadBranches()
+                    }
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun handleSwitchToMain() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.switchBranch(sessionId, null)) {
+                    is Either.Right -> {
+                        dispatch(Msg.ActiveBranchChanged(null))
+                        handleLoadSession(sessionId)
                         handleLoadBranches()
                     }
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
