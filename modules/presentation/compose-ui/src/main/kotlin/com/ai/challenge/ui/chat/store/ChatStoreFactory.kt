@@ -2,7 +2,11 @@ package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
 import com.ai.challenge.core.Agent
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchTree
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.Fact
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.core.TurnId
@@ -44,6 +48,9 @@ class ChatStoreFactory(
         data class Error(val text: String) : Msg
         data object Loading : Msg
         data object LoadingComplete : Msg
+        data class StrategyChanged(val strategy: ContextStrategyType) : Msg
+        data class FactsLoaded(val facts: List<Fact>) : Msg
+        data class BranchTreeLoaded(val branchTree: BranchTree) : Msg
     }
 
     private class ExecutorImpl(
@@ -54,6 +61,11 @@ class ChatStoreFactory(
             when (intent) {
                 is ChatStore.Intent.SendMessage -> handleSendMessage(intent.text)
                 is ChatStore.Intent.LoadSession -> handleLoadSession(intent.sessionId)
+                is ChatStore.Intent.SwitchStrategy -> handleSwitchStrategy(intent.strategy)
+                is ChatStore.Intent.CreateBranch -> handleCreateBranch(intent.checkpointTurnIndex, intent.name)
+                is ChatStore.Intent.SwitchBranch -> handleSwitchBranch(intent.branchId)
+                is ChatStore.Intent.LoadFacts -> handleLoadFacts()
+                is ChatStore.Intent.LoadBranchTree -> handleLoadBranchTree()
             }
         }
 
@@ -71,6 +83,52 @@ class ChatStoreFactory(
                 val sessionTokens = turnTokens.values.fold(TokenDetails()) { acc, t -> acc + t }
                 val sessionCosts = turnCosts.values.fold(CostDetails()) { acc, c -> acc + c }
                 dispatch(Msg.SessionLoaded(sessionId, messages, turnTokens, turnCosts, sessionTokens, sessionCosts))
+                dispatch(Msg.StrategyChanged(agent.getContextStrategyType()))
+            }
+        }
+
+        private fun handleSwitchStrategy(strategy: ContextStrategyType) {
+            agent.setContextStrategy(strategy)
+            dispatch(Msg.StrategyChanged(strategy))
+        }
+
+        private fun handleCreateBranch(checkpointTurnIndex: Int, name: String) {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.createBranch(sessionId, checkpointTurnIndex, name)) {
+                    is Either.Right -> handleLoadBranchTree()
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun handleSwitchBranch(branchId: BranchId) {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.switchBranch(sessionId, branchId)) {
+                    is Either.Right -> handleLoadBranchTree()
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun handleLoadFacts() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.getSessionFacts(sessionId)) {
+                    is Either.Right -> dispatch(Msg.FactsLoaded(result.value))
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun handleLoadBranchTree() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.getBranchTree(sessionId)) {
+                    is Either.Right -> dispatch(Msg.BranchTreeLoaded(result.value))
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
             }
         }
 
@@ -127,6 +185,9 @@ class ChatStoreFactory(
                 )
                 is Msg.Loading -> copy(isLoading = true)
                 is Msg.LoadingComplete -> copy(isLoading = false)
+                is Msg.StrategyChanged -> copy(currentStrategy = msg.strategy)
+                is Msg.FactsLoaded -> copy(facts = msg.facts)
+                is Msg.BranchTreeLoaded -> copy(branchTree = msg.branchTree)
             }
     }
 }

@@ -1,6 +1,8 @@
 package com.ai.challenge.ui.chat
 
 import com.ai.challenge.core.Agent
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.ui.chat.store.ChatStore
 import com.ai.challenge.ui.chat.store.ChatStoreFactory
@@ -31,5 +33,17 @@ class ChatComponent(
 
     fun onSendMessage(text: String) {
         store.accept(ChatStore.Intent.SendMessage(text))
+    }
+
+    fun onSwitchStrategy(strategy: ContextStrategyType) {
+        store.accept(ChatStore.Intent.SwitchStrategy(strategy))
+    }
+
+    fun onCreateBranch(checkpointTurnIndex: Int, name: String) {
+        store.accept(ChatStore.Intent.CreateBranch(checkpointTurnIndex, name))
+    }
+
+    fun onSwitchBranch(branchId: BranchId) {
+        store.accept(ChatStore.Intent.SwitchBranch(branchId))
     }
 }

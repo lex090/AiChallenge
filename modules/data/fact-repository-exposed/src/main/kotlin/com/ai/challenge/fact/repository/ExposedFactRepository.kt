@@ -16,7 +16,7 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
 
     init {
         transaction(database) {
-            SchemaUtils.createMissingTablesAndColumns(FactsTable)
+            SchemaUtils.create(FactsTable)
         }
     }
 
