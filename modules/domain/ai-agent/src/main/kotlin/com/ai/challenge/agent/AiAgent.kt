@@ -7,8 +7,10 @@ import com.ai.challenge.core.Agent
 import com.ai.challenge.core.AgentError
 import com.ai.challenge.core.AgentResponse
 import com.ai.challenge.core.AgentSession
+import com.ai.challenge.core.ContextManager
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.MessageRole
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.SessionRepository
 import com.ai.challenge.core.TokenDetails
@@ -26,18 +28,23 @@ class AiAgent(
     private val turnRepository: TurnRepository,
     private val tokenRepository: TokenRepository,
     private val costRepository: CostRepository,
+    private val contextManager: ContextManager,
 ) : Agent {
 
     override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
         val history = turnRepository.getBySession(sessionId)
 
+        val context = catch({
+            contextManager.prepareContext(sessionId, history, message)
+        }) { e: Exception ->
+            raise(AgentError.NetworkError(e.message ?: "Context preparation failed"))
+        }
+
         val chatResponse = catch({
             service.chat(model = model) {
-                for (turn in history) {
-                    user(turn.userMessage)
-                    assistant(turn.agentResponse)
+                for (msg in context.messages) {
+                    message(msg.role.toApiRole(), msg.content)
                 }
-                user(message)
             }
         }) { e: Exception ->
             val msg = e.message ?: "Unknown error"
@@ -78,6 +85,12 @@ class AiAgent(
     override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
     override suspend fun getCostBySession(sessionId: SessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
     override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails = costRepository.getSessionTotal(sessionId)
+}
+
+fun MessageRole.toApiRole(): String = when (this) {
+    MessageRole.System -> "system"
+    MessageRole.User -> "user"
+    MessageRole.Assistant -> "assistant"
 }
 
 private fun ChatResponse.toTokenDetails(): TokenDetails = TokenDetails(

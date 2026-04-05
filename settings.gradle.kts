@@ -21,9 +21,12 @@ include(":modules:data:session-repository-exposed")
 include(":modules:data:turn-repository-exposed")
 include(":modules:data:token-repository-exposed")
 include(":modules:data:cost-repository-exposed")
+include(":modules:data:summary-repository-exposed")
+include(":modules:data:context-compressor-llm")
 
 // Layer 2: Domain
 include(":modules:domain:ai-agent")
+include(":modules:domain:context-manager")
 
 // Layer 3: Presentation
 include(":modules:presentation:compose-ui")

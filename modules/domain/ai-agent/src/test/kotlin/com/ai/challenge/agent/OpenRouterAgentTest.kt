@@ -4,8 +4,12 @@ import arrow.core.Either
 import com.ai.challenge.core.AgentError
 import com.ai.challenge.core.AgentResponse
 import com.ai.challenge.core.AgentSession
+import com.ai.challenge.core.CompressedContext
+import com.ai.challenge.core.ContextManager
+import com.ai.challenge.core.ContextMessage
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.MessageRole
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.SessionRepository
 import com.ai.challenge.core.TokenDetails
@@ -42,6 +46,7 @@ class OpenRouterAgentTest {
     private val turnRepo = FakeTurnRepository()
     private val tokenRepo = FakeTokenRepository()
     private val costRepo = FakeCostRepository()
+    private val contextManager = PassThroughContextManager()
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -69,6 +74,7 @@ class OpenRouterAgentTest {
             turnRepository = turnRepo,
             tokenRepository = tokenRepo,
             costRepository = costRepo,
+            contextManager = contextManager,
         )
 
     @Test
@@ -186,7 +192,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager)
         val sessionId = sessionRepo.create()
 
         val result = agent.send(sessionId, "Hi")
@@ -211,7 +217,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager)
         val sessionId = sessionRepo.create()
 
         turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
@@ -282,4 +288,27 @@ private class FakeCostRepository : CostRepository {
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotal(sessionId: SessionId): CostDetails =
         getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+}
+
+private class PassThroughContextManager : ContextManager {
+    override suspend fun prepareContext(
+        sessionId: SessionId,
+        history: List<Turn>,
+        newMessage: String,
+    ): CompressedContext {
+        val messages = buildList {
+            for (turn in history) {
+                add(ContextMessage(MessageRole.User, turn.userMessage))
+                add(ContextMessage(MessageRole.Assistant, turn.agentResponse))
+            }
+            add(ContextMessage(MessageRole.User, newMessage))
+        }
+        return CompressedContext(
+            messages = messages,
+            compressed = false,
+            originalTurnCount = history.size,
+            retainedTurnCount = history.size,
+            summaryCount = 0,
+        )
+    }
 }
