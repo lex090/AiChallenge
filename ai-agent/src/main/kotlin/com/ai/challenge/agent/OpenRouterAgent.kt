@@ -67,8 +67,8 @@ private fun ChatResponse.toRequestMetrics(): RequestMetrics = RequestMetrics(
     ),
     cost = CostDetails(
         totalCost = usage?.cost ?: cost ?: 0.0,
-        upstreamCost = costDetails?.upstreamCost ?: 0.0,
-        upstreamPromptCost = costDetails?.upstreamPromptCost ?: 0.0,
-        upstreamCompletionsCost = costDetails?.upstreamCompletionsCost ?: 0.0,
+        upstreamCost = usage?.costDetails?.upstreamCost ?: costDetails?.upstreamCost ?: 0.0,
+        upstreamPromptCost = usage?.costDetails?.upstreamPromptCost ?: costDetails?.upstreamPromptCost ?: 0.0,
+        upstreamCompletionsCost = usage?.costDetails?.upstreamCompletionsCost ?: costDetails?.upstreamCompletionsCost ?: 0.0,
     ),
 )

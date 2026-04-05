@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import com.ai.challenge.session.CostDetails
 import com.ai.challenge.session.RequestMetrics
 import com.ai.challenge.ui.model.UiMessage
 
@@ -185,14 +186,20 @@ private fun formatTurnMetrics(metrics: RequestMetrics): String {
     parts.add("\u2193${metrics.tokens.completionTokens}")
     parts.add("cached:${metrics.tokens.cachedTokens}")
     if (metrics.tokens.reasoningTokens > 0) parts.add("reasoning:${metrics.tokens.reasoningTokens}")
-    if (metrics.cost.totalCost > 0) parts.add("$${formatCost(metrics.cost.totalCost)}")
+    parts.addAll(formatCostParts(metrics.cost))
     return parts.joinToString("  ")
 }
 
 private fun formatSessionMetrics(metrics: RequestMetrics): String {
     val parts = mutableListOf<String>()
     parts.add("Session: \u2191${metrics.tokens.promptTokens}  \u2193${metrics.tokens.completionTokens}  cached:${metrics.tokens.cachedTokens}")
-    if (metrics.cost.totalCost > 0) parts.add("Total: $${formatCost(metrics.cost.totalCost)}")
-    if (metrics.cost.upstreamCost > 0) parts.add("Upstream: $${formatCost(metrics.cost.upstreamCost)}")
+    parts.addAll(formatCostParts(metrics.cost))
     return parts.joinToString("  |  ")
 }
+
+private fun formatCostParts(cost: CostDetails): List<String> = listOf(
+    "cost:$${formatCost(cost.totalCost)}",
+    "upstream:$${formatCost(cost.upstreamCost)}",
+    "prompt:$${formatCost(cost.upstreamPromptCost)}",
+    "completion:$${formatCost(cost.upstreamCompletionsCost)}",
+)

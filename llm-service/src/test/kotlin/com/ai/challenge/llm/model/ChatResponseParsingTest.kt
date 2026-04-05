@@ -27,14 +27,14 @@ class ChatResponseParsingTest {
             "completion_tokens_details": {
               "reasoning_tokens": 10
             },
-            "cost": 0.0015
+            "cost": 0.0015,
+            "cost_details": {
+              "upstream_inference_cost": 0.0012,
+              "upstream_inference_prompt_cost": 0.0008,
+              "upstream_inference_completions_cost": 0.0004
+            }
           },
-          "cost": 0.0015,
-          "cost_details": {
-            "upstream_inference_cost": 0.0012,
-            "upstream_inference_prompt_cost": 0.0008,
-            "upstream_inference_completions_cost": 0.0004
-          }
+          "cost": 0.0015
         }
         """.trimIndent()
 
@@ -49,9 +49,9 @@ class ChatResponseParsingTest {
         assertEquals(10, usage.completionTokensDetails!!.reasoningTokens)
         assertEquals(0.0015, usage.cost!!, 1e-9)
         assertEquals(0.0015, response.cost!!, 1e-9)
-        assertEquals(0.0012, response.costDetails!!.upstreamCost, 1e-9)
-        assertEquals(0.0008, response.costDetails!!.upstreamPromptCost, 1e-9)
-        assertEquals(0.0004, response.costDetails!!.upstreamCompletionsCost, 1e-9)
+        assertEquals(0.0012, usage.costDetails!!.upstreamCost, 1e-9)
+        assertEquals(0.0008, usage.costDetails!!.upstreamPromptCost, 1e-9)
+        assertEquals(0.0004, usage.costDetails!!.upstreamCompletionsCost, 1e-9)
     }
 
     @Test

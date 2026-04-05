@@ -29,6 +29,7 @@ data class Usage(
     @SerialName("prompt_tokens_details") val promptTokensDetails: PromptTokensDetails? = null,
     @SerialName("completion_tokens_details") val completionTokensDetails: CompletionTokensDetails? = null,
     val cost: Double? = null,
+    @SerialName("cost_details") val costDetails: ResponseCostDetails? = null,
 )
 
 @Serializable
