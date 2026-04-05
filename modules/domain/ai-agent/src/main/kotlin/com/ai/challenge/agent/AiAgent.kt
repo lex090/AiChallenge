@@ -79,7 +79,11 @@ class AiAgent(
         val costDetails = chatResponse.toCostDetails()
         val turn = Turn(userMessage = message, agentResponse = text)
 
-        val activeBranch = branchRepository.getActiveBranch(sessionId)
+        val activeBranch = if (getContextStrategyType() == ContextStrategyType.Branching) {
+            branchRepository.getActiveBranch(sessionId)
+        } else {
+            null
+        }
         val turnId = if (activeBranch != null) {
             branchRepository.appendTurnToBranch(activeBranch.id, turn)
         } else {
