@@ -9,9 +9,14 @@ class LlmContextCompressor(
     private val model: String,
 ) : ContextCompressor {
 
-    override suspend fun compress(turns: List<Turn>): String {
+    override suspend fun compress(turns: List<Turn>, previousSummary: String?): String {
         return service.chatText(model) {
-            system("Summarize the following conversation concisely, preserving key facts, decisions, and context needed for continuation.")
+            if (previousSummary != null) {
+                system("You have a previous conversation summary and new messages. Create an updated summary that incorporates both, preserving key facts, decisions, and context needed for continuation.")
+                user("Previous summary:\n$previousSummary")
+            } else {
+                system("Summarize the following conversation concisely, preserving key facts, decisions, and context needed for continuation.")
+            }
             for (turn in turns) {
                 user(turn.userMessage)
                 assistant(turn.agentResponse)

@@ -28,9 +28,17 @@ class DefaultContextManagerTest {
         fakeSummaryRepo = InMemorySummaryRepository()
     }
 
-    private fun createManager(maxTurns: Int = 3, retainLast: Int = 1): DefaultContextManager =
+    private fun createManager(
+        maxTurns: Int = 5,
+        retainLast: Int = 2,
+        compressionInterval: Int = 3,
+    ): DefaultContextManager =
         DefaultContextManager(
-            strategy = TurnCountStrategy(maxTurns = maxTurns, retainLast = retainLast),
+            strategy = TurnCountStrategy(
+                maxTurns = maxTurns,
+                retainLast = retainLast,
+                compressionInterval = compressionInterval,
+            ),
             compressor = fakeCompressor,
             summaryRepository = fakeSummaryRepo,
         )
@@ -46,61 +54,87 @@ class DefaultContextManagerTest {
         assertEquals(3, result.originalTurnCount)
         assertEquals(3, result.retainedTurnCount)
         assertEquals(0, result.summaryCount)
-        assertEquals(7, result.messages.size) // 3 turns * 2 messages + 1 new message
+        assertEquals(7, result.messages.size)
         assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages.last())
     }
 
     @Test
-    fun `compresses old turns and retains recent ones`() = runTest {
-        val manager = createManager(maxTurns = 3, retainLast = 2)
-        val history = turns(5)
+    fun `first compression when exceeding maxTurns`() = runTest {
+        // maxTurns=5, retainLast=2 → first compression at 6 turns, splitAt=4
+        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
+        val history = turns(6)
 
         val result = manager.prepareContext(SessionId("s1"), history, "new msg")
 
         assertTrue(result.compressed)
-        assertEquals(5, result.originalTurnCount)
+        assertEquals(6, result.originalTurnCount)
         assertEquals(2, result.retainedTurnCount)
         assertEquals(1, result.summaryCount)
-        // 1 system (summary) + 2 retained turns * 2 + 1 new message = 6
+        // 1 system (summary) + 2 retained * 2 + 1 new = 6
         assertEquals(6, result.messages.size)
         assertEquals(MessageRole.System, result.messages.first().role)
-        assertTrue(result.messages.first().content.contains("Summary of 3 turns"))
-        assertEquals(ContextMessage(MessageRole.User, "msg4"), result.messages[1])
-        assertEquals(ContextMessage(MessageRole.Assistant, "resp4"), result.messages[2])
-        assertEquals(ContextMessage(MessageRole.User, "msg5"), result.messages[3])
-        assertEquals(ContextMessage(MessageRole.Assistant, "resp5"), result.messages[4])
+        assertTrue(result.messages.first().content.contains("Summary of 4 turns"))
+        assertEquals(ContextMessage(MessageRole.User, "msg5"), result.messages[1])
+        assertEquals(ContextMessage(MessageRole.Assistant, "resp5"), result.messages[2])
+        assertEquals(ContextMessage(MessageRole.User, "msg6"), result.messages[3])
+        assertEquals(ContextMessage(MessageRole.Assistant, "resp6"), result.messages[4])
         assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages[5])
+        assertEquals(1, fakeCompressor.callCount)
+        assertEquals(null, fakeCompressor.lastPreviousSummary)
     }
 
     @Test
-    fun `uses cached summary when range matches`() = runTest {
-        val manager = createManager(maxTurns = 3, retainLast = 2)
-        val history = turns(5)
+    fun `reuses existing summary without recompressing during interval`() = runTest {
+        // maxTurns=5, retainLast=2, compressionInterval=3
+        // First compression at 6 turns: summary covers [0,4), retain [4,6)
+        // At 7,8,9 turns: reuse summary, no recompression (turnsSince=3,4,5 ≤ 2+3=5)
+        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val sessionId = SessionId("s1")
 
-        manager.prepareContext(sessionId, history, "first call")
+        manager.prepareContext(sessionId, turns(6), "msg6")
         assertEquals(1, fakeCompressor.callCount)
 
-        manager.prepareContext(sessionId, history, "second call")
-        assertEquals(1, fakeCompressor.callCount) // not called again
+        // 7 turns: turnsSinceCompression = 7-4 = 3, threshold = 2+3 = 5, 3 ≤ 5 → no recompression
+        val result7 = manager.prepareContext(sessionId, turns(7), "msg7")
+        assertEquals(1, fakeCompressor.callCount) // NOT called again
+        assertTrue(result7.compressed)
+        // Uses existing summary + turns[4..7) = 3 turns as-is + new msg
+        assertEquals(3, result7.retainedTurnCount)
+
+        // 9 turns: turnsSinceCompression = 9-4 = 5, 5 ≤ 5 → still no recompression
+        val result9 = manager.prepareContext(sessionId, turns(9), "msg9")
+        assertEquals(1, fakeCompressor.callCount) // still NOT called
+        assertTrue(result9.compressed)
+        assertEquals(5, result9.retainedTurnCount)
     }
 
     @Test
-    fun `creates new summary when range shifts`() = runTest {
-        val manager = createManager(maxTurns = 3, retainLast = 2)
+    fun `recompresses incrementally when interval exceeded`() = runTest {
+        // maxTurns=5, retainLast=2, compressionInterval=3
+        // First compression at 6 turns: summary covers [0,4)
+        // At 10 turns: turnsSinceCompression = 10-4 = 6, threshold = 2+3 = 5, 6 > 5 → recompress
+        // New splitAt = 10-2 = 8, compress turns[4..8) with previousSummary
+        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val sessionId = SessionId("s1")
 
-        manager.prepareContext(sessionId, turns(5), "call1")
+        manager.prepareContext(sessionId, turns(6), "msg6")
         assertEquals(1, fakeCompressor.callCount)
 
-        // History grew — splitAt shifts from 3 to 5
-        manager.prepareContext(sessionId, turns(7), "call2")
+        val result = manager.prepareContext(sessionId, turns(10), "msg10")
         assertEquals(2, fakeCompressor.callCount)
+        assertTrue(result.compressed)
+        assertEquals(2, result.retainedTurnCount)
+        // Incremental: previous summary was passed
+        assertEquals("Summary of 4 turns", fakeCompressor.lastPreviousSummary)
+        // New turns compressed: turns[4..8) = 4 turns
+        assertEquals(4, fakeCompressor.lastTurnCount)
+        assertEquals(ContextMessage(MessageRole.User, "msg9"), result.messages[1])
+        assertEquals(ContextMessage(MessageRole.User, "msg10"), result.messages[3])
     }
 
     @Test
     fun `handles empty history`() = runTest {
-        val manager = createManager(maxTurns = 3, retainLast = 2)
+        val manager = createManager(maxTurns = 5, retainLast = 2)
 
         val result = manager.prepareContext(SessionId("s1"), emptyList(), "hello")
 
@@ -114,9 +148,15 @@ class DefaultContextManagerTest {
 private class FakeContextCompressor : ContextCompressor {
     var callCount = 0
         private set
+    var lastPreviousSummary: String? = null
+        private set
+    var lastTurnCount = 0
+        private set
 
-    override suspend fun compress(turns: List<Turn>): String {
+    override suspend fun compress(turns: List<Turn>, previousSummary: String?): String {
         callCount++
+        lastPreviousSummary = previousSummary
+        lastTurnCount = turns.size
         return "Summary of ${turns.size} turns"
     }
 }

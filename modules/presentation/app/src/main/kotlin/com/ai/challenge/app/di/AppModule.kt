@@ -38,7 +38,7 @@ val appModule = module {
     single<TokenRepository> { ExposedTokenRepository(createTokenDatabase()) }
     single<CostRepository> { ExposedCostRepository(createCostDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
-    single<CompressionStrategy> { TurnCountStrategy(maxTurns = 15, retainLast = 5) }
+    single<CompressionStrategy> { TurnCountStrategy(maxTurns = 15, retainLast = 5, compressionInterval = 10) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
     single<ContextManager> { DefaultContextManager(strategy = get(), compressor = get(), summaryRepository = get()) }
     single<Agent> {
