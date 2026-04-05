@@ -1,13 +1,13 @@
 package com.ai.challenge.token.repository
 
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.metrics.TokenDetails
-import com.ai.challenge.core.metrics.TokenRepository
+import com.ai.challenge.core.token.TokenDetails
+import com.ai.challenge.core.token.TokenDetailsRepository
 import com.ai.challenge.core.turn.TurnId
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
-class ExposedTokenRepository(private val database: Database) : TokenRepository {
+class ExposedTokenRepository(private val database: Database) : TokenDetailsRepository {
 
     init {
         transaction(database) {

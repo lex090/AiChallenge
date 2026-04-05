@@ -1,4 +1,4 @@
-package com.ai.challenge.core.metrics
+package com.ai.challenge.core.token
 
 data class TokenDetails(
     val promptTokens: Int = 0,

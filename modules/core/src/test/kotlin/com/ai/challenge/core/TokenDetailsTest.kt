@@ -1,6 +1,6 @@
 package com.ai.challenge.core
 
-import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.token.TokenDetails
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

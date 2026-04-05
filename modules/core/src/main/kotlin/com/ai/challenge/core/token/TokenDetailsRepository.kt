@@ -1,9 +1,9 @@
-package com.ai.challenge.core.metrics
+package com.ai.challenge.core.token
 
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 
-interface TokenRepository {
+interface TokenDetailsRepository {
     suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails)
     suspend fun getByTurn(turnId: TurnId): TokenDetails?
     suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails>

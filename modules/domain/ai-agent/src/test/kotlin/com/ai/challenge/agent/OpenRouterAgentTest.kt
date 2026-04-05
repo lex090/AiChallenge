@@ -7,13 +7,13 @@ import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.CompressedContext
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
-import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.metrics.CostRepository
+import com.ai.challenge.core.cost.CostDetails
+import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
-import com.ai.challenge.core.metrics.TokenDetails
-import com.ai.challenge.core.metrics.TokenRepository
+import com.ai.challenge.core.token.TokenDetails
+import com.ai.challenge.core.token.TokenDetailsRepository
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.turn.TurnRepository
@@ -268,7 +268,7 @@ private class FakeTurnRepository : TurnRepository {
     override suspend fun get(turnId: TurnId): Turn? = turns[turnId]?.second
 }
 
-private class FakeTokenRepository : TokenRepository {
+private class FakeTokenRepository : TokenDetailsRepository {
     private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, TokenDetails>>()
 
     override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) { data[turnId] = sessionId to details }
@@ -279,7 +279,7 @@ private class FakeTokenRepository : TokenRepository {
         getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
 }
 
-private class FakeCostRepository : CostRepository {
+private class FakeCostRepository : CostDetailsRepository {
     private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, CostDetails>>()
 
     override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) { data[turnId] = sessionId to details }

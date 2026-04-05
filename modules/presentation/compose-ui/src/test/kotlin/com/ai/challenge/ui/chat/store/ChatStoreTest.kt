@@ -5,9 +5,9 @@ import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.ui.model.UiMessage

@@ -8,13 +8,13 @@ import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.metrics.CostRepository
+import com.ai.challenge.core.cost.CostDetails
+import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
-import com.ai.challenge.core.metrics.TokenDetails
-import com.ai.challenge.core.metrics.TokenRepository
+import com.ai.challenge.core.token.TokenDetails
+import com.ai.challenge.core.token.TokenDetailsRepository
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.turn.TurnRepository
@@ -26,8 +26,8 @@ class AiAgent(
     private val model: String,
     private val sessionRepository: AgentSessionRepository,
     private val turnRepository: TurnRepository,
-    private val tokenRepository: TokenRepository,
-    private val costRepository: CostRepository,
+    private val tokenRepository: TokenDetailsRepository,
+    private val costRepository: CostDetailsRepository,
     private val contextManager: ContextManager,
 ) : Agent {
 

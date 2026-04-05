@@ -1,8 +1,8 @@
 package com.ai.challenge.core.agent
 
 import arrow.core.Either
-import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.cost.CostDetails
+import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn

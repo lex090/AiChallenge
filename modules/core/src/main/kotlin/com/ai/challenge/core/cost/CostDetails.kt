@@ -1,4 +1,4 @@
-package com.ai.challenge.core.metrics
+package com.ai.challenge.core.cost
 
 data class CostDetails(
     val totalCost: Double = 0.0,

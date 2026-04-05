@@ -1,6 +1,6 @@
 package com.ai.challenge.cost.repository
 
-import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest

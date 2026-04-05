@@ -1,7 +1,7 @@
 package com.ai.challenge.token.repository
 
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database

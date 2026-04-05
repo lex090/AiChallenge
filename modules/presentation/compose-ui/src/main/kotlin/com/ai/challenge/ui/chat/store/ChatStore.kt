@@ -1,8 +1,8 @@
 package com.ai.challenge.ui.chat.store
 
-import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store

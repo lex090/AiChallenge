@@ -8,10 +8,10 @@ import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.context.CompressionStrategy
 import com.ai.challenge.core.context.ContextCompressor
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.metrics.CostRepository
+import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.summary.SummaryRepository
-import com.ai.challenge.core.metrics.TokenRepository
+import com.ai.challenge.core.token.TokenDetailsRepository
 import com.ai.challenge.core.turn.TurnRepository
 import com.ai.challenge.cost.repository.ExposedCostRepository
 import com.ai.challenge.cost.repository.createCostDatabase
@@ -35,8 +35,8 @@ val appModule = module {
     }
     single<AgentSessionRepository> { ExposedSessionRepository(createSessionDatabase()) }
     single<TurnRepository> { ExposedTurnRepository(createTurnDatabase()) }
-    single<TokenRepository> { ExposedTokenRepository(createTokenDatabase()) }
-    single<CostRepository> { ExposedCostRepository(createCostDatabase()) }
+    single<TokenDetailsRepository> { ExposedTokenRepository(createTokenDatabase()) }
+    single<CostDetailsRepository> { ExposedCostRepository(createCostDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
     single<CompressionStrategy> { TurnCountStrategy(maxTurns = 15, retainLast = 5, compressionInterval = 10) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }

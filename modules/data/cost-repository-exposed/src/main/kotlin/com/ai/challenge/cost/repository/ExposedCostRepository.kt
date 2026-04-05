@@ -1,13 +1,13 @@
 package com.ai.challenge.cost.repository
 
-import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.metrics.CostRepository
+import com.ai.challenge.core.cost.CostDetails
+import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
-class ExposedCostRepository(private val database: Database) : CostRepository {
+class ExposedCostRepository(private val database: Database) : CostDetailsRepository {
 
     init {
         transaction(database) {
