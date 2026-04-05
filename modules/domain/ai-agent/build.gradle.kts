@@ -10,13 +10,14 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":core"))
-    implementation(libs.exposed.core)
-    implementation(libs.exposed.jdbc)
-    implementation(libs.sqlite.jdbc)
-
+    implementation(project(":modules:data:llm-service"))
+    implementation(project(":modules:core"))
+    implementation(libs.arrow.core)
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.ktor.client.content.negotiation)
+    testImplementation(libs.ktor.serialization.kotlinx.json)
 }
 
 tasks.test {

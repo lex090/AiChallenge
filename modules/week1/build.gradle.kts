@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":llm-service"))
+    implementation(project(":modules:data:llm-service"))
     testImplementation(kotlin("test"))
 }
 

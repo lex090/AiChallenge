@@ -16,13 +16,13 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":ai-agent"))
-    implementation(project(":llm-service"))
-    implementation(project(":core"))
-    implementation(project(":session-repository-exposed"))
-    implementation(project(":turn-repository-exposed"))
-    implementation(project(":token-repository-exposed"))
-    implementation(project(":cost-repository-exposed"))
+    implementation(project(":modules:domain:ai-agent"))
+    implementation(project(":modules:data:llm-service"))
+    implementation(project(":modules:core"))
+    implementation(project(":modules:data:session-repository-exposed"))
+    implementation(project(":modules:data:turn-repository-exposed"))
+    implementation(project(":modules:data:token-repository-exposed"))
+    implementation(project(":modules:data:cost-repository-exposed"))
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)

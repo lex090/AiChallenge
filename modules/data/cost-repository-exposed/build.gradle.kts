@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":modules:core"))
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)

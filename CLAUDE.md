@@ -6,17 +6,42 @@ AI Agent Chat — multi-module Kotlin/JVM desktop application. AI agent abstract
 
 ## Architecture: Stratified Design
 
-Each module = one architectural layer. Dependencies strictly top-to-bottom:
+All modules live under `modules/`, organized by layer. Dependencies strictly top-to-bottom:
 
 ```
-compose-ui  ->  ai-agent  ->  llm-service
-week1  ->  llm-service
+modules/
+├── core/                          ← Layer 0: Foundation
+├── data/                          ← Layer 1: Data
+│   ├── llm-service/
+│   ├── session-repository-exposed/
+│   ├── turn-repository-exposed/
+│   ├── token-repository-exposed/
+│   └── cost-repository-exposed/
+├── domain/                        ← Layer 2: Domain
+│   └── ai-agent/
+├── presentation/                  ← Layer 3: Presentation
+│   └── compose-ui/
+└── week1/                         ← Standalone
 ```
 
-- **llm-service** — Data layer: OpenRouter HTTP client, request/response models, DSL
-- **ai-agent** — Domain layer: Agent interface, error types (Arrow Either), implementations
-- **compose-ui** — Presentation + UI: Decompose components, MVIKotlin stores, Compose screens, Koin DI
-- **week1** — Demo tasks (standalone, not part of the main app)
+### Layer 0 — Foundation (`modules/core`)
+- **core** — Domain models (AgentSession, Turn, TokenDetails, CostDetails), ID types, repository interfaces, Agent facade interface, AgentError (Arrow Either)
+
+### Layer 1 — Data (`modules/data/*`)
+- **llm-service** — OpenRouter HTTP client, request/response models, DSL
+- **session-repository-exposed** — SessionRepository implementation (Exposed + SQLite)
+- **turn-repository-exposed** — TurnRepository implementation
+- **token-repository-exposed** — TokenRepository implementation
+- **cost-repository-exposed** — CostRepository implementation
+
+### Layer 2 — Domain (`modules/domain/*`)
+- **ai-agent** — OpenRouterAgent (Agent facade implementation), delegates to repositories
+
+### Layer 3 — Presentation (`modules/presentation/*`)
+- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens, Koin DI. Accesses data only through Agent interface.
+
+### Standalone
+- **week1** — Demo tasks (not part of the main app)
 
 No module may depend on a module above it.
 
@@ -59,7 +84,7 @@ No module may depend on a module above it.
 ## Running
 
 ```bash
-OPENROUTER_API_KEY=<key> ./gradlew :compose-ui:run
+OPENROUTER_API_KEY=<key> ./gradlew :modules:presentation:compose-ui:run
 ```
 
 ## Build & Test

@@ -12,12 +12,21 @@ plugins {
 
 rootProject.name = "AiChallenge"
 
-include("llm-service")
-include("core")
-include("ai-agent")
-include("session-repository-exposed")
-include("turn-repository-exposed")
-include("token-repository-exposed")
-include("cost-repository-exposed")
-include("compose-ui")
-include("week1")
+// Layer 0: Foundation
+include(":modules:core")
+
+// Layer 1: Data
+include(":modules:data:llm-service")
+include(":modules:data:session-repository-exposed")
+include(":modules:data:turn-repository-exposed")
+include(":modules:data:token-repository-exposed")
+include(":modules:data:cost-repository-exposed")
+
+// Layer 2: Domain
+include(":modules:domain:ai-agent")
+
+// Layer 3: Presentation
+include(":modules:presentation:compose-ui")
+
+// Standalone
+include(":modules:week1")
