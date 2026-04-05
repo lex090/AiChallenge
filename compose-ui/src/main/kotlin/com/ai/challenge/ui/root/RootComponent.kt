@@ -3,6 +3,7 @@ package com.ai.challenge.ui.root
 import com.ai.challenge.agent.Agent
 import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.session.SessionId
+import com.ai.challenge.session.UsageManager
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
@@ -24,6 +25,7 @@ class RootComponent(
     private val storeFactory: StoreFactory,
     private val agent: Agent,
     private val sessionManager: AgentSessionManager,
+    private val usageManager: UsageManager,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
@@ -92,6 +94,7 @@ class RootComponent(
                     storeFactory = storeFactory,
                     agent = agent,
                     sessionManager = sessionManager,
+                    usageManager = usageManager,
                     sessionId = SessionId(config.sessionId),
                 )
             )

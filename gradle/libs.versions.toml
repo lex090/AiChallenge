@@ -43,6 +43,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 
 # Logging
 slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
 # Exposed (SQL framework)
 exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }

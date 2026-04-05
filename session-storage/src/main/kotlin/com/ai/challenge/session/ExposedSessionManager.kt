@@ -16,15 +16,12 @@ object SessionsTable : Table("sessions") {
 }
 
 object TurnsTable : Table("turns") {
-    val id = integer("id").autoIncrement()
+    val id = varchar("id", 36)
     val sessionId = varchar("session_id", 36)
         .references(SessionsTable.id, onDelete = ReferenceOption.CASCADE)
     val userMessage = text("user_message")
     val agentResponse = text("agent_response")
     val timestamp = long("timestamp")
-    val promptTokens = integer("prompt_tokens").nullable()
-    val completionTokens = integer("completion_tokens").nullable()
-    val totalTokens = integer("total_tokens").nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -89,22 +86,21 @@ class ExposedSessionManager(private val database: Database) : AgentSessionManage
         loadHistory(id, limit)
     }
 
-    override fun appendTurn(id: SessionId, turn: Turn) {
+    override fun appendTurn(id: SessionId, turn: Turn): TurnId {
         val now = Clock.System.now()
         transaction(database) {
             TurnsTable.insert {
+                it[TurnsTable.id] = turn.id.value
                 it[sessionId] = id.value
                 it[userMessage] = turn.userMessage
                 it[agentResponse] = turn.agentResponse
                 it[timestamp] = turn.timestamp.toEpochMilliseconds()
-                it[promptTokens] = turn.tokenUsage.promptTokens
-                it[completionTokens] = turn.tokenUsage.completionTokens
-                it[totalTokens] = turn.tokenUsage.totalTokens
             }
             SessionsTable.update({ SessionsTable.id eq id.value }) {
                 it[updatedAt] = now.toEpochMilliseconds()
             }
         }
+        return turn.id
     }
 
     override fun updateTitle(id: SessionId, title: String) {
@@ -131,14 +127,10 @@ class ExposedSessionManager(private val database: Database) : AgentSessionManage
 
         return rows.map { row ->
             Turn(
+                id = TurnId(row[TurnsTable.id]),
                 userMessage = row[TurnsTable.userMessage],
                 agentResponse = row[TurnsTable.agentResponse],
                 timestamp = Instant.fromEpochMilliseconds(row[TurnsTable.timestamp]),
-                tokenUsage = TokenUsage(
-                    promptTokens = row[TurnsTable.promptTokens] ?: 0,
-                    completionTokens = row[TurnsTable.completionTokens] ?: 0,
-                    totalTokens = row[TurnsTable.totalTokens] ?: 0,
-                ),
             )
         }
     }

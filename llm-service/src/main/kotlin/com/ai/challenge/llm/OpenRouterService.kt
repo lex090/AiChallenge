@@ -14,6 +14,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
 import kotlinx.serialization.json.Json
 
 class OpenRouterService(
@@ -33,6 +35,9 @@ class OpenRouterService(
         fun createDefaultClient(): HttpClient = HttpClient(CIO) {
             install(ContentNegotiation) {
                 json(json)
+            }
+            install(Logging) {
+                level = LogLevel.BODY
             }
             install(HttpTimeout) {
                 requestTimeoutMillis = 120_000

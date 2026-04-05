@@ -5,6 +5,8 @@ import com.ai.challenge.agent.OpenRouterAgent
 import com.ai.challenge.llm.OpenRouterService
 import com.ai.challenge.session.AgentSessionManager
 import com.ai.challenge.session.ExposedSessionManager
+import com.ai.challenge.session.ExposedUsageManager
+import com.ai.challenge.session.UsageManager
 import com.ai.challenge.session.createSessionDatabase
 import org.jetbrains.exposed.sql.Database
 import org.koin.dsl.module
@@ -18,5 +20,13 @@ val appModule = module {
     }
     single<Database> { createSessionDatabase() }
     single<AgentSessionManager> { ExposedSessionManager(get()) }
-    single<Agent> { OpenRouterAgent(get(), model = "google/gemini-2.0-flash-001", sessionManager = get()) }
+    single<UsageManager> { ExposedUsageManager(get()) }
+    single<Agent> {
+        OpenRouterAgent(
+            service = get(),
+            model = "google/gemini-2.0-flash-001",
+            sessionManager = get(),
+            usageManager = get(),
+        )
+    }
 }

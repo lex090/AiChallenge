@@ -135,24 +135,4 @@ class ExposedSessionManagerTest {
         assertEquals("hi", session.history[0].userMessage)
     }
 
-    @Test
-    fun `appendTurn persists tokenUsage and getHistory restores it`() {
-        val id = manager.createSession()
-        val usage = TokenUsage(promptTokens = 100, completionTokens = 50, totalTokens = 150)
-        manager.appendTurn(id, Turn(userMessage = "hi", agentResponse = "hello", tokenUsage = usage))
-
-        val history = manager.getHistory(id)
-        assertEquals(1, history.size)
-        assertEquals(usage, history[0].tokenUsage)
-    }
-
-    @Test
-    fun `getHistory returns default TokenUsage for old records without token columns`() {
-        val id = manager.createSession()
-        manager.appendTurn(id, Turn(userMessage = "hi", agentResponse = "hello"))
-
-        val history = manager.getHistory(id)
-        assertEquals(1, history.size)
-        assertEquals(TokenUsage(), history[0].tokenUsage)
-    }
 }

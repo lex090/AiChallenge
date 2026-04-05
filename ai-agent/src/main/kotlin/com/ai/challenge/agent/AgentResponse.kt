@@ -1,8 +1,10 @@
 package com.ai.challenge.agent
 
-import com.ai.challenge.session.TokenUsage
+import com.ai.challenge.session.RequestMetrics
+import com.ai.challenge.session.TurnId
 
 data class AgentResponse(
     val text: String,
-    val tokenUsage: TokenUsage,
+    val turnId: TurnId,
+    val metrics: RequestMetrics,
 )

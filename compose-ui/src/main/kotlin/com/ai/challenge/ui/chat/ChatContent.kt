@@ -34,7 +34,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.session.TokenUsage
+import com.ai.challenge.session.CostDetails
+import com.ai.challenge.session.RequestMetrics
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable
@@ -60,7 +61,8 @@ fun ChatContent(component: ChatComponent) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.messages) { message ->
-                    MessageBubble(message)
+                    val metrics = message.turnId?.let { state.turnMetrics[it] }
+                    MessageBubble(message, metrics)
                 }
                 if (state.isLoading) {
                     item {
@@ -111,14 +113,14 @@ fun ChatContent(component: ChatComponent) {
                     Text("Send")
                 }
             }
-            if (state.sessionTokens.totalTokens > 0) {
-                SessionTokenBar(state.sessionTokens)
+            if (state.sessionMetrics.tokens.totalTokens > 0) {
+                SessionMetricsBar(state.sessionMetrics)
             }
     }
 }
 
 @Composable
-private fun MessageBubble(message: UiMessage) {
+private fun MessageBubble(message: UiMessage, metrics: RequestMetrics?) {
     val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
     val backgroundColor = when {
         message.isError -> MaterialTheme.colorScheme.errorContainer
@@ -146,15 +148,9 @@ private fun MessageBubble(message: UiMessage) {
                     .padding(12.dp),
                 color = textColor,
             )
-            val tokenUsage = message.tokenUsage
-            if (tokenUsage != null && tokenUsage.totalTokens > 0) {
-                val tokenText = if (message.isUser) {
-                    "\u2191${tokenUsage.promptTokens} tokens"
-                } else {
-                    "\u2193${tokenUsage.completionTokens} tokens"
-                }
+            if (!message.isUser && metrics != null && metrics.tokens.totalTokens > 0) {
                 Text(
-                    text = tokenText,
+                    text = formatTurnMetrics(metrics),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -165,7 +161,7 @@ private fun MessageBubble(message: UiMessage) {
 }
 
 @Composable
-private fun SessionTokenBar(sessionTokens: TokenUsage) {
+private fun SessionMetricsBar(metrics: RequestMetrics) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -174,9 +170,36 @@ private fun SessionTokenBar(sessionTokens: TokenUsage) {
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Session: \u2191${sessionTokens.promptTokens} \u2193${sessionTokens.completionTokens} \u03A3${sessionTokens.totalTokens} tokens",
+            text = formatSessionMetrics(metrics),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+private fun formatCost(value: Double): String =
+    String.format("%.10f", value).trimEnd('0').trimEnd('.')
+
+private fun formatTurnMetrics(metrics: RequestMetrics): String {
+    val parts = mutableListOf<String>()
+    parts.add("\u2191${metrics.tokens.promptTokens}")
+    parts.add("\u2193${metrics.tokens.completionTokens}")
+    parts.add("cached:${metrics.tokens.cachedTokens}")
+    if (metrics.tokens.reasoningTokens > 0) parts.add("reasoning:${metrics.tokens.reasoningTokens}")
+    parts.addAll(formatCostParts(metrics.cost))
+    return parts.joinToString("  ")
+}
+
+private fun formatSessionMetrics(metrics: RequestMetrics): String {
+    val parts = mutableListOf<String>()
+    parts.add("Session: \u2191${metrics.tokens.promptTokens}  \u2193${metrics.tokens.completionTokens}  cached:${metrics.tokens.cachedTokens}")
+    parts.addAll(formatCostParts(metrics.cost))
+    return parts.joinToString("  |  ")
+}
+
+private fun formatCostParts(cost: CostDetails): List<String> = buildList {
+    add("cost:$${formatCost(cost.totalCost)}")
+    if (cost.upstreamCost > 0 && cost.upstreamCost != cost.totalCost) add("upstream:$${formatCost(cost.upstreamCost)}")
+    add("prompt:$${formatCost(cost.upstreamPromptCost)}")
+    add("completion:$${formatCost(cost.upstreamCompletionsCost)}")
 }
