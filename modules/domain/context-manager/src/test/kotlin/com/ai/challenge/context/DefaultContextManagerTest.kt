@@ -80,7 +80,7 @@ class DefaultContextManagerTest {
         assertEquals(ContextMessage(MessageRole.Assistant, "resp5"), result.messages[4])
         assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages[5])
         assertEquals(1, fakeCompressor.callCount)
-        assertEquals(null, fakeCompressor.lastPreviousSummary)
+        assertEquals(null, fakeCompressor.lastPreviousSummary)  // first compression — no previous summary
     }
 
     @Test
@@ -125,7 +125,7 @@ class DefaultContextManagerTest {
         assertTrue(result.compressed)
         assertEquals(2, result.retainedTurnCount)
         // Incremental: previous summary was passed
-        assertEquals("Summary of 3 turns", fakeCompressor.lastPreviousSummary)
+        assertEquals("Summary of 3 turns", fakeCompressor.lastPreviousSummary?.text)
         // New turns compressed: turns[3..6) = 3 turns
         assertEquals(3, fakeCompressor.lastTurnCount)
         assertEquals(ContextMessage(MessageRole.User, "msg7"), result.messages[1])
@@ -148,12 +148,12 @@ class DefaultContextManagerTest {
 private class FakeContextCompressor : ContextCompressor {
     var callCount = 0
         private set
-    var lastPreviousSummary: String? = null
+    var lastPreviousSummary: Summary? = null
         private set
     var lastTurnCount = 0
         private set
 
-    override suspend fun compress(turns: List<Turn>, previousSummary: String?): String {
+    override suspend fun compress(turns: List<Turn>, previousSummary: Summary?): String {
         callCount++
         lastPreviousSummary = previousSummary
         lastTurnCount = turns.size

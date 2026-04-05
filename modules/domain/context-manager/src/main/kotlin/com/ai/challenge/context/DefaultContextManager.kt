@@ -38,7 +38,7 @@ class DefaultContextManager(
 
         val summaryText = if (lastSummary != null) {
             val newTurns = history.subList(lastSummary.toTurnIndex, splitAt)
-            compressor.compress(newTurns, previousSummary = lastSummary.text)
+            compressor.compress(newTurns, previousSummary = lastSummary)
         } else {
             val toCompress = history.subList(0, splitAt)
             compressor.compress(toCompress)
