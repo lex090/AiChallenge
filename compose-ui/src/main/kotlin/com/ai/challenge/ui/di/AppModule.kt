@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.di
 
-import com.ai.challenge.agent.OpenRouterAgent
+import com.ai.challenge.agent.AiAgent
 import com.ai.challenge.core.Agent
 import com.ai.challenge.core.CostRepository
 import com.ai.challenge.core.SessionRepository
@@ -29,7 +29,7 @@ val appModule = module {
     single<TokenRepository> { ExposedTokenRepository(createTokenDatabase()) }
     single<CostRepository> { ExposedCostRepository(createCostDatabase()) }
     single<Agent> {
-        OpenRouterAgent(
+        AiAgent(
             service = get(),
             model = "google/gemini-2.0-flash-001",
             sessionRepository = get(),

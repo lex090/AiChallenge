@@ -19,7 +19,7 @@ import com.ai.challenge.core.TurnRepository
 import com.ai.challenge.llm.OpenRouterService
 import com.ai.challenge.llm.model.ChatResponse
 
-class OpenRouterAgent(
+class AiAgent(
     private val service: OpenRouterService,
     private val model: String,
     private val sessionRepository: SessionRepository,

@@ -61,8 +61,8 @@ class OpenRouterAgentTest {
     private fun createService(responseJson: String): OpenRouterService =
         OpenRouterService(apiKey = "test-key", client = createMockClient(responseJson))
 
-    private fun createAgent(responseJson: String): OpenRouterAgent =
-        OpenRouterAgent(
+    private fun createAgent(responseJson: String): AiAgent =
+        AiAgent(
             service = createService(responseJson),
             model = "test-model",
             sessionRepository = sessionRepo,
@@ -186,7 +186,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = OpenRouterAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo)
         val sessionId = sessionRepo.create()
 
         val result = agent.send(sessionId, "Hi")
@@ -211,7 +211,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = OpenRouterAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo)
         val sessionId = sessionRepo.create()
 
         turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
