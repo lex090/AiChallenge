@@ -13,6 +13,7 @@ plugins {
 rootProject.name = "AiChallenge"
 
 include("llm-service")
+include("core")
 include("ai-agent")
 include("session-storage")
 include("compose-ui")
