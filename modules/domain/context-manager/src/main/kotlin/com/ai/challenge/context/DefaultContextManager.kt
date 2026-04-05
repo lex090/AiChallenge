@@ -26,26 +26,34 @@ class DefaultContextManager(
     ): CompressedContext {
         val existingSummaries = summaryRepository.getBySession(sessionId)
         val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
-
         val decision = strategy.evaluate(CompressionContext(history, lastSummary))
 
-        if (decision is CompressionDecision.Skip) {
-            return if (lastSummary != null) {
-                reuseExistingSummary(lastSummary, history, newMessage)
-            } else {
-                noCompression(history, newMessage)
+        return when (decision) {
+            is CompressionDecision.Skip -> when (lastSummary) {
+                null -> noCompression(history, newMessage)
+                else -> reuseExistingSummary(lastSummary, history, newMessage)
             }
-        }
 
-        val splitAt = (decision as CompressionDecision.Compress).partitionPoint
+            is CompressionDecision.Compress ->
+                compress(sessionId, history, newMessage, decision.partitionPoint, lastSummary)
+        }
+    }
+
+    private suspend fun compress(
+        sessionId: SessionId,
+        history: List<Turn>,
+        newMessage: String,
+        splitAt: Int,
+        lastSummary: Summary?,
+    ): CompressedContext {
         val toRetain = history.subList(splitAt, history.size)
 
-        val summaryText = if (lastSummary != null) {
-            val newTurns = history.subList(lastSummary.toTurnIndex, splitAt)
-            compressor.compress(newTurns, previousSummary = lastSummary)
-        } else {
-            val toCompress = history.subList(0, splitAt)
-            compressor.compress(toCompress)
+        val summaryText = when (lastSummary) {
+            null -> compressor.compress(history.subList(0, splitAt))
+            else -> compressor.compress(
+                history.subList(lastSummary.toTurnIndex, splitAt),
+                previousSummary = lastSummary,
+            )
         }
 
         summaryRepository.save(
