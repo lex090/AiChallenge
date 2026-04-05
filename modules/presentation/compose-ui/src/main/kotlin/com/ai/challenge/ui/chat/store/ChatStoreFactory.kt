@@ -71,7 +71,7 @@ class ChatStoreFactory(
 
         private fun handleLoadSession(sessionId: SessionId) {
             scope.launch {
-                val history = agent.getTurns(sessionId)
+                val history = agent.getEffectiveTurns(sessionId)
                 val messages = history.flatMap { turn ->
                     listOf(
                         UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
@@ -106,7 +106,10 @@ class ChatStoreFactory(
             val sessionId = state().sessionId ?: return
             scope.launch {
                 when (val result = agent.switchBranch(sessionId, branchId)) {
-                    is Either.Right -> handleLoadBranchTree()
+                    is Either.Right -> {
+                        handleLoadBranchTree()
+                        handleLoadSession(sessionId)
+                    }
                     is Either.Left -> dispatch(Msg.Error(result.value.message))
                 }
             }

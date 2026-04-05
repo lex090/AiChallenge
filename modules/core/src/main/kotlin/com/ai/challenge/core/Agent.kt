@@ -10,6 +10,7 @@ interface Agent {
     suspend fun getSession(id: SessionId): AgentSession?
     suspend fun updateSessionTitle(id: SessionId, title: String)
     suspend fun getTurns(sessionId: SessionId, limit: Int? = null): List<Turn>
+    suspend fun getEffectiveTurns(sessionId: SessionId): List<Turn>
     suspend fun getTokensByTurn(turnId: TurnId): TokenDetails?
     suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails>
     suspend fun getSessionTotalTokens(sessionId: SessionId): TokenDetails

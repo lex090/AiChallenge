@@ -102,6 +102,22 @@ class AiAgent(
     override suspend fun getSession(id: SessionId): AgentSession? = sessionRepository.get(id)
     override suspend fun updateSessionTitle(id: SessionId, title: String) = sessionRepository.updateTitle(id, title)
     override suspend fun getTurns(sessionId: SessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId, limit)
+
+    override suspend fun getEffectiveTurns(sessionId: SessionId): List<Turn> {
+        val activeBranch = if (getContextStrategyType() == ContextStrategyType.Branching) {
+            branchRepository.getActiveBranch(sessionId)
+        } else {
+            null
+        }
+        return if (activeBranch != null) {
+            val mainTurns = turnRepository.getBySession(sessionId)
+            val mainPrefix = mainTurns.take(activeBranch.checkpointTurnIndex)
+            val branchTurns = branchRepository.getTurnsForBranch(activeBranch.id)
+            mainPrefix + branchTurns
+        } else {
+            turnRepository.getBySession(sessionId)
+        }
+    }
     override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId)
     override suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId)
     override suspend fun getSessionTotalTokens(sessionId: SessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId)
