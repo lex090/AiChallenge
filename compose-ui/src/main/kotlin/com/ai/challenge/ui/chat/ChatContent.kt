@@ -176,21 +176,23 @@ private fun SessionMetricsBar(metrics: RequestMetrics) {
     }
 }
 
+private fun formatCost(value: Double): String =
+    String.format("%.10f", value).trimEnd('0').trimEnd('.')
+
 private fun formatTurnMetrics(metrics: RequestMetrics): String {
     val parts = mutableListOf<String>()
     parts.add("\u2191${metrics.tokens.promptTokens}")
     parts.add("\u2193${metrics.tokens.completionTokens}")
-    if (metrics.tokens.cachedTokens > 0) parts.add("cached:${metrics.tokens.cachedTokens}")
+    parts.add("cached:${metrics.tokens.cachedTokens}")
     if (metrics.tokens.reasoningTokens > 0) parts.add("reasoning:${metrics.tokens.reasoningTokens}")
-    if (metrics.cost.totalCost > 0) parts.add("$${String.format("%.4f", metrics.cost.totalCost)}")
+    if (metrics.cost.totalCost > 0) parts.add("$${formatCost(metrics.cost.totalCost)}")
     return parts.joinToString("  ")
 }
 
 private fun formatSessionMetrics(metrics: RequestMetrics): String {
     val parts = mutableListOf<String>()
-    parts.add("Session: \u2191${metrics.tokens.promptTokens}  \u2193${metrics.tokens.completionTokens}")
-    if (metrics.tokens.cachedTokens > 0) parts.add("cached:${metrics.tokens.cachedTokens}")
-    if (metrics.cost.totalCost > 0) parts.add("Total: $${String.format("%.4f", metrics.cost.totalCost)}")
-    if (metrics.cost.upstreamCost > 0) parts.add("Upstream: $${String.format("%.4f", metrics.cost.upstreamCost)}")
+    parts.add("Session: \u2191${metrics.tokens.promptTokens}  \u2193${metrics.tokens.completionTokens}  cached:${metrics.tokens.cachedTokens}")
+    if (metrics.cost.totalCost > 0) parts.add("Total: $${formatCost(metrics.cost.totalCost)}")
+    if (metrics.cost.upstreamCost > 0) parts.add("Upstream: $${formatCost(metrics.cost.upstreamCost)}")
     return parts.joinToString("  |  ")
 }
