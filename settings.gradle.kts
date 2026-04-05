@@ -15,7 +15,6 @@ rootProject.name = "AiChallenge"
 include("llm-service")
 include("core")
 include("ai-agent")
-include("session-storage")
 include("session-repository-exposed")
 include("turn-repository-exposed")
 include("token-repository-exposed")
