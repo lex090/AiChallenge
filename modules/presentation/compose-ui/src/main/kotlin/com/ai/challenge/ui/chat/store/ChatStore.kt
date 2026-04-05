@@ -19,6 +19,7 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
         data class SwitchStrategy(val strategy: ContextStrategyType) : Intent
         data class CreateBranch(val checkpointTurnIndex: Int, val name: String) : Intent
         data class SwitchBranch(val branchId: BranchId) : Intent
+        data object SwitchToMain : Intent
         data object LoadFacts : Intent
         data object LoadBranchTree : Intent
     }

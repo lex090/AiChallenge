@@ -134,6 +134,7 @@ fun ChatContent(component: ChatComponent) {
                     messageCount = state.messages.size,
                     onCreateBranch = { turnIndex, name -> component.onCreateBranch(turnIndex, name) },
                     onSwitchBranch = { branchId -> component.onSwitchBranch(branchId) },
+                    onSwitchToMain = { component.onSwitchToMain() },
                 )
             }
         }

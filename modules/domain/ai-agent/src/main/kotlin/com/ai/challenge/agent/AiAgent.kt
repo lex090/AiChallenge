@@ -165,6 +165,10 @@ class AiAgent(
         branchRepository.setActiveBranch(sessionId, branchId)
     }
 
+    override suspend fun deactivateBranch(sessionId: SessionId): Either<AgentError, Unit> = either {
+        branchRepository.setActiveBranch(sessionId, null)
+    }
+
     override suspend fun listBranches(sessionId: SessionId): Either<AgentError, List<Branch>> = either {
         branchRepository.getBranches(sessionId)
     }

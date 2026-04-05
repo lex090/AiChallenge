@@ -255,6 +255,7 @@ open class FakeAgent(
     override suspend fun createCheckpoint(sessionId: SessionId): Either<AgentError, CheckpointId> = Either.Right(CheckpointId.generate())
     override suspend fun createBranch(sessionId: SessionId, checkpointTurnIndex: Int, name: String): Either<AgentError, BranchId> = Either.Right(BranchId.generate())
     override suspend fun switchBranch(sessionId: SessionId, branchId: BranchId): Either<AgentError, Unit> = Either.Right(Unit)
+    override suspend fun deactivateBranch(sessionId: SessionId): Either<AgentError, Unit> = Either.Right(Unit)
     override suspend fun listBranches(sessionId: SessionId): Either<AgentError, List<Branch>> = Either.Right(emptyList())
     override suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree> = Either.Right(BranchTree(sessionId, emptyList()))
     override suspend fun getSessionFacts(sessionId: SessionId): Either<AgentError, List<Fact>> = Either.Right(emptyList())

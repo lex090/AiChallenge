@@ -64,6 +64,7 @@ class ChatStoreFactory(
                 is ChatStore.Intent.SwitchStrategy -> handleSwitchStrategy(intent.strategy)
                 is ChatStore.Intent.CreateBranch -> handleCreateBranch(intent.checkpointTurnIndex, intent.name)
                 is ChatStore.Intent.SwitchBranch -> handleSwitchBranch(intent.branchId)
+                is ChatStore.Intent.SwitchToMain -> handleSwitchToMain()
                 is ChatStore.Intent.LoadFacts -> handleLoadFacts()
                 is ChatStore.Intent.LoadBranchTree -> handleLoadBranchTree()
             }
@@ -106,6 +107,19 @@ class ChatStoreFactory(
             val sessionId = state().sessionId ?: return
             scope.launch {
                 when (val result = agent.switchBranch(sessionId, branchId)) {
+                    is Either.Right -> {
+                        handleLoadBranchTree()
+                        handleLoadSession(sessionId)
+                    }
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun handleSwitchToMain() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.deactivateBranch(sessionId)) {
                     is Either.Right -> {
                         handleLoadBranchTree()
                         handleLoadSession(sessionId)

@@ -13,6 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,8 +35,13 @@ fun BranchControls(
     messageCount: Int,
     onCreateBranch: (checkpointTurnIndex: Int, name: String) -> Unit,
     onSwitchBranch: (BranchId) -> Unit,
+    onSwitchToMain: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val hasActiveBranch = branchTree?.checkpoints
+        ?.flatMap { it.branches }
+        ?.any { it.isActive } == true
+
     Surface(
         modifier = modifier
             .width(280.dp)
@@ -53,13 +59,11 @@ fun BranchControls(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            if (branchTree == null || branchTree.checkpoints.isEmpty()) {
-                Text(
-                    text = "No branches yet.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
+            MainBranchItem(isActive = !hasActiveBranch, onSwitchToMain = onSwitchToMain)
+
+            if (branchTree != null && branchTree.checkpoints.isNotEmpty()) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                 LazyColumn {
                     items(branchTree.checkpoints) { checkpoint ->
                         CheckpointItem(checkpoint, onSwitchBranch)
@@ -71,19 +75,70 @@ fun BranchControls(
 }
 
 @Composable
+private fun MainBranchItem(
+    isActive: Boolean,
+    onSwitchToMain: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Main",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isActive) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+            Text(
+                text = "Full conversation history",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!isActive) {
+            TextButton(onClick = onSwitchToMain) {
+                Text("Switch")
+            }
+        } else {
+            Text(
+                text = "Active",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
 private fun CreateBranchSection(
     messageCount: Int,
     onCreateBranch: (Int, String) -> Unit,
 ) {
     var branchName by remember { mutableStateOf("") }
-    // Turn index is message pairs count (user+agent = 1 turn), default to latest
-    val turnCount = messageCount / 2
+    val maxTurn = messageCount / 2
+    var selectedTurn by remember(maxTurn) { mutableStateOf(maxTurn) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "Create branch at turn $turnCount",
+            text = "Create branch at turn $selectedTurn / $maxTurn",
             style = MaterialTheme.typography.labelMedium,
         )
+        if (maxTurn > 1) {
+            Slider(
+                value = selectedTurn.toFloat(),
+                onValueChange = { selectedTurn = it.toInt() },
+                valueRange = 1f..maxTurn.toFloat(),
+                steps = (maxTurn - 2).coerceAtLeast(0),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         OutlinedTextField(
             value = branchName,
             onValueChange = { branchName = it },
@@ -94,11 +149,11 @@ private fun CreateBranchSection(
         OutlinedButton(
             onClick = {
                 if (branchName.isNotBlank()) {
-                    onCreateBranch(turnCount, branchName.trim())
+                    onCreateBranch(selectedTurn, branchName.trim())
                     branchName = ""
                 }
             },
-            enabled = branchName.isNotBlank(),
+            enabled = branchName.isNotBlank() && maxTurn > 0,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Create Branch")
