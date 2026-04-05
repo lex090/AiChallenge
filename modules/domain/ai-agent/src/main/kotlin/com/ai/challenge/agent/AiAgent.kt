@@ -34,7 +34,11 @@ class AiAgent(
     override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
         val history = turnRepository.getBySession(sessionId)
 
-        val context = contextManager.prepareContext(sessionId, history, message)
+        val context = catch({
+            contextManager.prepareContext(sessionId, history, message)
+        }) { e: Exception ->
+            raise(AgentError.NetworkError(e.message ?: "Context preparation failed"))
+        }
 
         val chatResponse = catch({
             service.chat(model = model) {

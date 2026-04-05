@@ -8,6 +8,7 @@ import com.ai.challenge.core.Summary
 import com.ai.challenge.core.SummaryRepository
 import com.ai.challenge.core.Turn
 import kotlinx.coroutines.test.runTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -18,8 +19,14 @@ class DefaultContextManagerTest {
     private fun turns(count: Int): List<Turn> =
         (1..count).map { Turn(userMessage = "msg$it", agentResponse = "resp$it") }
 
-    private val fakeCompressor = FakeContextCompressor()
-    private val fakeSummaryRepo = InMemorySummaryRepository()
+    private lateinit var fakeCompressor: FakeContextCompressor
+    private lateinit var fakeSummaryRepo: InMemorySummaryRepository
+
+    @BeforeTest
+    fun setup() {
+        fakeCompressor = FakeContextCompressor()
+        fakeSummaryRepo = InMemorySummaryRepository()
+    }
 
     private fun createManager(maxTurns: Int = 3, retainLast: Int = 1): DefaultContextManager =
         DefaultContextManager(
