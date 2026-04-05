@@ -24,7 +24,7 @@ class ExposedBranchRepository(private val database: Database) : BranchRepository
 
     init {
         transaction(database) {
-            SchemaUtils.createMissingTablesAndColumns(
+            SchemaUtils.create(
                 BranchesTable,
                 BranchTurnsTable,
                 ActiveBranchesTable,
