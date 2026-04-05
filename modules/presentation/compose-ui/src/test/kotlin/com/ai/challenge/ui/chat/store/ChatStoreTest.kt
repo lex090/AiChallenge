@@ -10,6 +10,7 @@ import com.ai.challenge.core.BranchId
 import com.ai.challenge.core.BranchTree
 import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.Fact
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.core.Turn
@@ -254,6 +255,7 @@ open class FakeAgent(
     override suspend fun switchBranch(sessionId: SessionId, branchId: BranchId?): Either<AgentError, Unit> = Either.Right(Unit)
     override suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree> =
         Either.Right(BranchTree(sessionId, 0, emptyList()))
+    override suspend fun getSessionFacts(sessionId: SessionId): List<Fact> = emptyList()
 
     fun appendTurnDirect(sessionId: SessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn

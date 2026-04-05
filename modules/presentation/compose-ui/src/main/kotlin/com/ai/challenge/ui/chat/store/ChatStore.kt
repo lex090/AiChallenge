@@ -1,6 +1,11 @@
 package com.ai.challenge.ui.chat.store
 
+import com.ai.challenge.core.Branch
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchTree
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.Fact
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.core.TurnId
@@ -12,6 +17,11 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
     sealed interface Intent {
         data class SendMessage(val text: String) : Intent
         data class LoadSession(val sessionId: SessionId) : Intent
+        data class SwitchStrategy(val type: ContextStrategyType) : Intent
+        data object LoadFacts : Intent
+        data object LoadBranches : Intent
+        data class CreateBranch(val name: String) : Intent
+        data class SwitchBranch(val branchId: BranchId) : Intent
     }
 
     data class State(
@@ -22,5 +32,9 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
         val turnCosts: Map<TurnId, CostDetails> = emptyMap(),
         val sessionTokens: TokenDetails = TokenDetails(),
         val sessionCosts: CostDetails = CostDetails(),
+        val currentStrategy: ContextStrategyType = ContextStrategyType.SlidingWindow,
+        val facts: List<Fact> = emptyList(),
+        val branchTree: BranchTree? = null,
+        val activeBranchId: BranchId? = null,
     )
 }

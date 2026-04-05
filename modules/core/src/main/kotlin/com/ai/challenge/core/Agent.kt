@@ -25,4 +25,7 @@ interface Agent {
     suspend fun createBranch(sessionId: SessionId, name: String, checkpointTurnIndex: Int): Either<AgentError, Branch>
     suspend fun switchBranch(sessionId: SessionId, branchId: BranchId?): Either<AgentError, Unit>
     suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree>
+
+    // Facts
+    suspend fun getSessionFacts(sessionId: SessionId): List<Fact>
 }

@@ -85,6 +85,7 @@ val appModule = module {
             costRepository = get(),
             contextManager = pipelineManager,
             branchRepository = get(),
+            factRepository = get(),
             onStrategyChanged = { strategy -> pipelineManager.activeStrategy = strategy },
         )
     }

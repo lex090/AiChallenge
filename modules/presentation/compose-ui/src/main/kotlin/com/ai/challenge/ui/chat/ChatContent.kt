@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -34,6 +35,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.ui.model.UiMessage
@@ -51,72 +53,95 @@ fun ChatContent(component: ChatComponent) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(state.messages) { message ->
-                    val tokens = message.turnId?.let { state.turnTokens[it] }
-                    val costs = message.turnId?.let { state.turnCosts[it] }
-                    MessageBubble(message, tokens, costs)
-                }
-                if (state.isLoading) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            CircularProgressIndicator()
+        StrategySelector(
+            currentStrategy = state.currentStrategy,
+            onStrategySelected = { component.onSwitchStrategy(it) },
+        )
+        HorizontalDivider()
+
+        Row(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.messages) { message ->
+                        val tokens = message.turnId?.let { state.turnTokens[it] }
+                        val costs = message.turnId?.let { state.turnCosts[it] }
+                        MessageBubble(message, tokens, costs)
+                    }
+                    if (state.isLoading) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .onKeyEvent { event ->
-                            if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && inputText.isNotBlank() && !state.isLoading) {
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .onKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && inputText.isNotBlank() && !state.isLoading) {
+                                    component.onSendMessage(inputText.trim())
+                                    inputText = ""
+                                    true
+                                } else {
+                                    false
+                                }
+                            },
+                        placeholder = { Text("Type a message...") },
+                        enabled = !state.isLoading,
+                        singleLine = true,
+                    )
+                    TextButton(
+                        onClick = {
+                            if (inputText.isNotBlank()) {
                                 component.onSendMessage(inputText.trim())
                                 inputText = ""
-                                true
-                            } else {
-                                false
                             }
                         },
-                    placeholder = { Text("Type a message...") },
-                    enabled = !state.isLoading,
-                    singleLine = true,
-                )
-                TextButton(
-                    onClick = {
-                        if (inputText.isNotBlank()) {
-                            component.onSendMessage(inputText.trim())
-                            inputText = ""
-                        }
-                    },
-                    enabled = inputText.isNotBlank() && !state.isLoading,
-                ) {
-                    Text("Send")
+                        enabled = inputText.isNotBlank() && !state.isLoading,
+                    ) {
+                        Text("Send")
+                    }
+                }
+                if (state.sessionTokens.totalTokens > 0) {
+                    SessionMetricsBar(state.sessionTokens, state.sessionCosts)
                 }
             }
-            if (state.sessionTokens.totalTokens > 0) {
-                SessionMetricsBar(state.sessionTokens, state.sessionCosts)
-            }
+
+            FactsPanel(
+                facts = state.facts,
+                visible = state.currentStrategy == ContextStrategyType.StickyFacts,
+            )
+
+            BranchControls(
+                branchTree = state.branchTree,
+                activeBranchId = state.activeBranchId,
+                visible = state.currentStrategy == ContextStrategyType.Branching,
+                onCreateBranch = { component.onCreateBranch(it) },
+                onSwitchBranch = { component.onSwitchBranch(it) },
+            )
+        }
     }
 }
 

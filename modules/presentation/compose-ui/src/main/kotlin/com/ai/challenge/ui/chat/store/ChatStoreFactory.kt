@@ -2,7 +2,11 @@ package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
 import com.ai.challenge.core.Agent
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchTree
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.Fact
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.core.TurnId
@@ -20,7 +24,7 @@ class ChatStoreFactory(
         object : ChatStore,
             Store<ChatStore.Intent, ChatStore.State, Nothing> by storeFactory.create(
                 name = "ChatStore",
-                initialState = ChatStore.State(),
+                initialState = ChatStore.State(currentStrategy = agent.getActiveStrategy()),
                 executorFactory = { ExecutorImpl(agent) },
                 reducer = ReducerImpl,
             ) {}
@@ -44,6 +48,10 @@ class ChatStoreFactory(
         data class Error(val text: String) : Msg
         data object Loading : Msg
         data object LoadingComplete : Msg
+        data class StrategyChanged(val type: ContextStrategyType) : Msg
+        data class FactsLoaded(val facts: List<Fact>) : Msg
+        data class BranchTreeLoaded(val branchTree: BranchTree) : Msg
+        data class ActiveBranchChanged(val branchId: BranchId?) : Msg
     }
 
     private class ExecutorImpl(
@@ -54,6 +62,11 @@ class ChatStoreFactory(
             when (intent) {
                 is ChatStore.Intent.SendMessage -> handleSendMessage(intent.text)
                 is ChatStore.Intent.LoadSession -> handleLoadSession(intent.sessionId)
+                is ChatStore.Intent.SwitchStrategy -> handleSwitchStrategy(intent.type)
+                is ChatStore.Intent.LoadFacts -> handleLoadFacts()
+                is ChatStore.Intent.LoadBranches -> handleLoadBranches()
+                is ChatStore.Intent.CreateBranch -> handleCreateBranch(intent.name)
+                is ChatStore.Intent.SwitchBranch -> handleSwitchBranch(intent.branchId)
             }
         }
 
@@ -71,6 +84,8 @@ class ChatStoreFactory(
                 val sessionTokens = turnTokens.values.fold(TokenDetails()) { acc, t -> acc + t }
                 val sessionCosts = turnCosts.values.fold(CostDetails()) { acc, c -> acc + c }
                 dispatch(Msg.SessionLoaded(sessionId, messages, turnTokens, turnCosts, sessionTokens, sessionCosts))
+                dispatch(Msg.StrategyChanged(agent.getActiveStrategy()))
+                loadStrategyData()
             }
         }
 
@@ -97,6 +112,66 @@ class ChatStoreFactory(
                 if (session != null && session.title.isEmpty()) {
                     agent.updateSessionTitle(sessionId, text.take(50))
                 }
+
+                loadStrategyData()
+            }
+        }
+
+        private fun handleSwitchStrategy(type: ContextStrategyType) {
+            agent.setActiveStrategy(type)
+            dispatch(Msg.StrategyChanged(type))
+            loadStrategyData()
+        }
+
+        private fun handleLoadFacts() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                val facts = agent.getSessionFacts(sessionId)
+                dispatch(Msg.FactsLoaded(facts))
+            }
+        }
+
+        private fun handleLoadBranches() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.getBranchTree(sessionId)) {
+                    is Either.Right -> dispatch(Msg.BranchTreeLoaded(result.value))
+                    is Either.Left -> { /* silently ignore branch tree errors */ }
+                }
+            }
+        }
+
+        private fun handleCreateBranch(name: String) {
+            val sessionId = state().sessionId ?: return
+            val turnCount = state().messages.count { it.isUser }
+            scope.launch {
+                when (val result = agent.createBranch(sessionId, name, turnCount)) {
+                    is Either.Right -> {
+                        handleLoadBranches()
+                    }
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun handleSwitchBranch(branchId: BranchId) {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (val result = agent.switchBranch(sessionId, branchId)) {
+                    is Either.Right -> {
+                        dispatch(Msg.ActiveBranchChanged(branchId))
+                        handleLoadBranches()
+                    }
+                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                }
+            }
+        }
+
+        private fun loadStrategyData() {
+            when (state().currentStrategy) {
+                ContextStrategyType.StickyFacts -> handleLoadFacts()
+                ContextStrategyType.Branching -> handleLoadBranches()
+                ContextStrategyType.SlidingWindow -> { /* no extra data needed */ }
             }
         }
     }
@@ -127,6 +202,10 @@ class ChatStoreFactory(
                 )
                 is Msg.Loading -> copy(isLoading = true)
                 is Msg.LoadingComplete -> copy(isLoading = false)
+                is Msg.StrategyChanged -> copy(currentStrategy = msg.type)
+                is Msg.FactsLoaded -> copy(facts = msg.facts)
+                is Msg.BranchTreeLoaded -> copy(branchTree = msg.branchTree)
+                is Msg.ActiveBranchChanged -> copy(activeBranchId = msg.branchId)
             }
     }
 }

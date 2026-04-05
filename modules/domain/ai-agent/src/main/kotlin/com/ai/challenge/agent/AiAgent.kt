@@ -15,6 +15,8 @@ import com.ai.challenge.core.ContextManager
 import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.Fact
+import com.ai.challenge.core.FactRepository
 import com.ai.challenge.core.MessageRole
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.SessionRepository
@@ -35,6 +37,7 @@ class AiAgent(
     private val costRepository: CostRepository,
     private val contextManager: ContextManager,
     private val branchRepository: BranchRepository? = null,
+    private val factRepository: FactRepository? = null,
     private val onStrategyChanged: ((ContextStrategyType) -> Unit)? = null,
 ) : Agent {
 
@@ -130,6 +133,9 @@ class AiAgent(
             raise(AgentError.NetworkError(e.message ?: "Failed to get branch tree"))
         }
     }
+
+    override suspend fun getSessionFacts(sessionId: SessionId): List<Fact> =
+        factRepository?.getBySession(sessionId) ?: emptyList()
 }
 
 fun MessageRole.toApiRole(): String = when (this) {
