@@ -135,13 +135,22 @@ class ChatStoreFactory(
                 when (tree) {
                     is Either.Right -> {
                         val lastCheckpoint = tree.value.checkpoints.lastOrNull()
-                        if (lastCheckpoint != null) {
-                            when (val result = agent.createBranch(sessionId, lastCheckpoint.turnIndex, name)) {
-                                is Either.Right -> handleLoadBranchTree()
-                                is Either.Left -> dispatch(Msg.Error(result.value.message))
-                            }
+                        val turnIndex = if (lastCheckpoint != null) {
+                            lastCheckpoint.turnIndex
                         } else {
-                            dispatch(Msg.Error("No checkpoint exists. Create a checkpoint first."))
+                            val turns = agent.getTurns(sessionId)
+                            if (turns.isEmpty()) {
+                                dispatch(Msg.Error("Cannot branch on empty session. Send a message first."))
+                                return@launch
+                            }
+                            turns.size
+                        }
+                        when (val result = agent.createBranch(sessionId, turnIndex, name)) {
+                            is Either.Right -> {
+                                handleLoadBranchTree()
+                                handleLoadSession(sessionId)
+                            }
+                            is Either.Left -> dispatch(Msg.Error(result.value.message))
                         }
                     }
                     is Either.Left -> dispatch(Msg.Error(tree.value.message))
