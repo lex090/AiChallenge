@@ -24,6 +24,7 @@ include(":modules:data:cost-repository-exposed")
 
 // Layer 2: Domain
 include(":modules:domain:ai-agent")
+include(":modules:domain:context-manager")
 
 // Layer 3: Presentation
 include(":modules:presentation:compose-ui")
