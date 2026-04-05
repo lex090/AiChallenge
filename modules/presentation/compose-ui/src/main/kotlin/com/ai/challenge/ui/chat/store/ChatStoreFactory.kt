@@ -72,7 +72,7 @@ class ChatStoreFactory(
 
         private fun handleLoadSession(sessionId: SessionId) {
             scope.launch {
-                val history = agent.getTurns(sessionId)
+                val history = agent.getEffectiveTurns(sessionId)
                 val messages = history.flatMap { turn ->
                     listOf(
                         UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),

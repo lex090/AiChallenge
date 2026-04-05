@@ -237,6 +237,7 @@ open class FakeAgent(
         val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
         return if (limit != null && all.size > limit) all.takeLast(limit) else all
     }
+    override suspend fun getEffectiveTurns(sessionId: SessionId): List<Turn> = getTurns(sessionId)
     override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenData[turnId]?.second
     override suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails> =
         tokenData.filter { it.value.first == sessionId }.mapValues { it.value.second }
