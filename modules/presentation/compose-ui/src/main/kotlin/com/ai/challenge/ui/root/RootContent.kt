@@ -33,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.arkivanov.decompose.extensions.compose.stack.Children
@@ -94,8 +94,8 @@ fun RootContent(component: RootComponent) {
 private fun DrawerContent(
     state: SessionListStore.State,
     onNewChat: () -> Unit,
-    onSelectSession: (SessionId) -> Unit,
-    onDeleteSession: (SessionId) -> Unit,
+    onSelectSession: (AgentSessionId) -> Unit,
+    onDeleteSession: (AgentSessionId) -> Unit,
 ) {
     ModalDrawerSheet {
         Column(modifier = Modifier.padding(16.dp)) {

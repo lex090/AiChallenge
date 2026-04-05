@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.sessionlist.store
 
 import com.ai.challenge.core.agent.Agent
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
@@ -21,10 +21,10 @@ class SessionListStoreFactory(
             ) {}
 
     private sealed interface Msg {
-        data class SessionsLoaded(val sessions: List<SessionListStore.SessionItem>, val activeSessionId: SessionId?) : Msg
+        data class SessionsLoaded(val sessions: List<SessionListStore.SessionItem>, val activeSessionId: AgentSessionId?) : Msg
         data class SessionCreated(val item: SessionListStore.SessionItem) : Msg
-        data class SessionDeleted(val id: SessionId, val newActiveId: SessionId?) : Msg
-        data class SessionSelected(val id: SessionId) : Msg
+        data class SessionDeleted(val id: AgentSessionId, val newActiveId: AgentSessionId?) : Msg
+        data class SessionSelected(val id: AgentSessionId) : Msg
     }
 
     private class ExecutorImpl(
@@ -66,7 +66,7 @@ class SessionListStoreFactory(
             }
         }
 
-        private fun handleDeleteSession(id: SessionId) {
+        private fun handleDeleteSession(id: AgentSessionId) {
             scope.launch {
                 agent.deleteSession(id)
                 val remaining = agent.listSessions()

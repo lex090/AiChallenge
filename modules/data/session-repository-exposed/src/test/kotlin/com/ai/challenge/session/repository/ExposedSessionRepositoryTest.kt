@@ -1,6 +1,6 @@
 package com.ai.challenge.session.repository
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database
 import kotlin.test.BeforeTest
@@ -38,7 +38,7 @@ class ExposedSessionRepositoryTest {
 
     @Test
     fun `get returns null for unknown id`() = runTest {
-        assertNull(repository.get(SessionId("nonexistent")))
+        assertNull(repository.get(AgentSessionId("nonexistent")))
     }
 
     @Test
@@ -50,7 +50,7 @@ class ExposedSessionRepositoryTest {
 
     @Test
     fun `delete returns false for unknown id`() = runTest {
-        assertFalse(repository.delete(SessionId("nonexistent")))
+        assertFalse(repository.delete(AgentSessionId("nonexistent")))
     }
 
     @Test

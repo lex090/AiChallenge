@@ -1,7 +1,7 @@
 package com.ai.challenge.cost.repository
 
 import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database
@@ -25,7 +25,7 @@ class ExposedCostRepositoryTest {
 
     @Test
     fun `record and getByTurn round-trip`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         val turnId = TurnId.generate()
         val details = CostDetails(totalCost = 0.001, upstreamCost = 0.0008, upstreamPromptCost = 0.0005, upstreamCompletionsCost = 0.0003)
 
@@ -41,7 +41,7 @@ class ExposedCostRepositoryTest {
 
     @Test
     fun `getBySession returns costs for all turns in session`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         val turnId1 = TurnId.generate()
         val turnId2 = TurnId.generate()
         val c1 = CostDetails(totalCost = 0.001)
@@ -58,8 +58,8 @@ class ExposedCostRepositoryTest {
 
     @Test
     fun `getBySession does not include costs from other sessions`() = runTest {
-        val session1 = SessionId.generate()
-        val session2 = SessionId.generate()
+        val session1 = AgentSessionId.generate()
+        val session2 = AgentSessionId.generate()
 
         repository.record(session1, TurnId.generate(), CostDetails(totalCost = 0.001))
         repository.record(session2, TurnId.generate(), CostDetails(totalCost = 0.002))
@@ -70,7 +70,7 @@ class ExposedCostRepositoryTest {
 
     @Test
     fun `getSessionTotal returns accumulated costs`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
 
         repository.record(sessionId, TurnId.generate(), CostDetails(totalCost = 0.001))
         repository.record(sessionId, TurnId.generate(), CostDetails(totalCost = 0.002))
@@ -81,6 +81,6 @@ class ExposedCostRepositoryTest {
 
     @Test
     fun `getSessionTotal returns empty for session with no costs`() = runTest {
-        assertEquals(CostDetails(), repository.getSessionTotal(SessionId.generate()))
+        assertEquals(CostDetails(), repository.getSessionTotal(AgentSessionId.generate()))
     }
 }

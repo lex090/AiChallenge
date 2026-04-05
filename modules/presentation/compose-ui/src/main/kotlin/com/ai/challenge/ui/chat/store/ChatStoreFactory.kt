@@ -3,7 +3,7 @@ package com.ai.challenge.ui.chat.store
 import arrow.core.Either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.ui.model.UiMessage
@@ -27,7 +27,7 @@ class ChatStoreFactory(
 
     private sealed interface Msg {
         data class SessionLoaded(
-            val sessionId: SessionId,
+            val sessionId: AgentSessionId,
             val messages: List<UiMessage>,
             val turnTokens: Map<TurnId, TokenDetails>,
             val turnCosts: Map<TurnId, CostDetails>,
@@ -57,7 +57,7 @@ class ChatStoreFactory(
             }
         }
 
-        private fun handleLoadSession(sessionId: SessionId) {
+        private fun handleLoadSession(sessionId: AgentSessionId) {
             scope.launch {
                 val history = agent.getTurns(sessionId)
                 val messages = history.flatMap { turn ->

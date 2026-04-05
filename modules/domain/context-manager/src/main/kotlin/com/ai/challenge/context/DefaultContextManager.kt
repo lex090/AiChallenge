@@ -8,7 +8,7 @@ import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.CompressionStrategy
 import com.ai.challenge.core.context.MessageRole
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
@@ -20,7 +20,7 @@ class DefaultContextManager(
 ) : ContextManager {
 
     override suspend fun prepareContext(
-        sessionId: SessionId,
+        sessionId: AgentSessionId,
         history: List<Turn>,
         newMessage: String,
     ): CompressedContext {
@@ -40,7 +40,7 @@ class DefaultContextManager(
     }
 
     private suspend fun compress(
-        sessionId: SessionId,
+        sessionId: AgentSessionId,
         history: List<Turn>,
         newMessage: String,
         splitAt: Int,

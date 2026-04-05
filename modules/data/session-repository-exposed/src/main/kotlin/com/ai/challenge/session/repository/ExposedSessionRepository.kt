@@ -1,15 +1,15 @@
 package com.ai.challenge.session.repository
 
 import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.session.SessionId
-import com.ai.challenge.core.session.SessionRepository
+import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.session.AgentSessionRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class ExposedSessionRepository(private val database: Database) : SessionRepository {
+class ExposedSessionRepository(private val database: Database) : AgentSessionRepository {
 
     init {
         transaction(database) {
@@ -17,8 +17,8 @@ class ExposedSessionRepository(private val database: Database) : SessionReposito
         }
     }
 
-    override suspend fun create(title: String): SessionId {
-        val sessionId = SessionId.generate()
+    override suspend fun create(title: String): AgentSessionId {
+        val sessionId = AgentSessionId.generate()
         val now = Clock.System.now()
         transaction(database) {
             SessionsTable.insert {
@@ -31,14 +31,14 @@ class ExposedSessionRepository(private val database: Database) : SessionReposito
         return sessionId
     }
 
-    override suspend fun get(id: SessionId): AgentSession? = transaction(database) {
+    override suspend fun get(id: AgentSessionId): AgentSession? = transaction(database) {
         SessionsTable.selectAll()
             .where { SessionsTable.id eq id.value }
             .singleOrNull()
             ?.toAgentSession()
     }
 
-    override suspend fun delete(id: SessionId): Boolean = transaction(database) {
+    override suspend fun delete(id: AgentSessionId): Boolean = transaction(database) {
         SessionsTable.deleteWhere { SessionsTable.id eq id.value } > 0
     }
 
@@ -48,7 +48,7 @@ class ExposedSessionRepository(private val database: Database) : SessionReposito
             .map { it.toAgentSession() }
     }
 
-    override suspend fun updateTitle(id: SessionId, title: String) {
+    override suspend fun updateTitle(id: AgentSessionId, title: String) {
         val now = Clock.System.now()
         transaction(database) {
             SessionsTable.update({ SessionsTable.id eq id.value }) {
@@ -59,7 +59,7 @@ class ExposedSessionRepository(private val database: Database) : SessionReposito
     }
 
     private fun ResultRow.toAgentSession() = AgentSession(
-        id = SessionId(this[SessionsTable.id]),
+        id = AgentSessionId(this[SessionsTable.id]),
         title = this[SessionsTable.title],
         createdAt = Instant.fromEpochMilliseconds(this[SessionsTable.createdAt]),
         updatedAt = Instant.fromEpochMilliseconds(this[SessionsTable.updatedAt]),

@@ -1,8 +1,8 @@
 package com.ai.challenge.core.summary
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 
 interface SummaryRepository {
-    suspend fun save(sessionId: SessionId, summary: Summary)
-    suspend fun getBySession(sessionId: SessionId): List<Summary>
+    suspend fun save(sessionId: AgentSessionId, summary: Summary)
+    suspend fun getBySession(sessionId: AgentSessionId): List<Summary>
 }

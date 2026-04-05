@@ -1,6 +1,6 @@
 package com.ai.challenge.summary.repository
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryId
 import com.ai.challenge.core.summary.SummaryRepository
@@ -20,7 +20,7 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
         }
     }
 
-    override suspend fun save(sessionId: SessionId, summary: Summary) {
+    override suspend fun save(sessionId: AgentSessionId, summary: Summary) {
         transaction(database) {
             SummariesTable.insert {
                 it[id] = summary.id.value
@@ -33,7 +33,7 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
         }
     }
 
-    override suspend fun getBySession(sessionId: SessionId): List<Summary> = transaction(database) {
+    override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> = transaction(database) {
         SummariesTable.selectAll()
             .where { SummariesTable.sessionId eq sessionId.value }
             .map { it.toSummary() }

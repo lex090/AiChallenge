@@ -1,6 +1,6 @@
 package com.ai.challenge.turn.repository
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.turn.TurnRepository
@@ -16,7 +16,7 @@ class ExposedTurnRepository(private val database: Database) : TurnRepository {
         }
     }
 
-    override suspend fun append(sessionId: SessionId, turn: Turn): TurnId {
+    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
         transaction(database) {
             TurnsTable.insert {
                 it[id] = turn.id.value
@@ -29,7 +29,7 @@ class ExposedTurnRepository(private val database: Database) : TurnRepository {
         return turn.id
     }
 
-    override suspend fun getBySession(sessionId: SessionId, limit: Int?): List<Turn> = transaction(database) {
+    override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> = transaction(database) {
         val query = TurnsTable.selectAll()
             .where { TurnsTable.sessionId eq sessionId.value }
             .orderBy(TurnsTable.timestamp, SortOrder.ASC)

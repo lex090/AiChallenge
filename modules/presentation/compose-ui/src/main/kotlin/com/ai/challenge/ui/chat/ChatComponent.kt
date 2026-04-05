@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.chat
 
 import com.ai.challenge.core.agent.Agent
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.store.ChatStore
 import com.ai.challenge.ui.chat.store.ChatStoreFactory
 import com.arkivanov.decompose.ComponentContext
@@ -15,7 +15,7 @@ class ChatComponent(
     componentContext: ComponentContext,
     storeFactory: StoreFactory,
     agent: Agent,
-    sessionId: SessionId,
+    sessionId: AgentSessionId,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {

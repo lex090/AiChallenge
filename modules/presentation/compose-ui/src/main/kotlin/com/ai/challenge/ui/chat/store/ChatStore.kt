@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.chat.store
 
 import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.ui.model.UiMessage
@@ -11,11 +11,11 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
 
     sealed interface Intent {
         data class SendMessage(val text: String) : Intent
-        data class LoadSession(val sessionId: SessionId) : Intent
+        data class LoadSession(val sessionId: AgentSessionId) : Intent
     }
 
     data class State(
-        val sessionId: SessionId? = null,
+        val sessionId: AgentSessionId? = null,
         val messages: List<UiMessage> = emptyList(),
         val isLoading: Boolean = false,
         val turnTokens: Map<TurnId, TokenDetails> = emptyMap(),

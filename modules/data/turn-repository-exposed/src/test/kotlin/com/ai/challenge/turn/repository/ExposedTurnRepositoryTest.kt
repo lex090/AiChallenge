@@ -1,6 +1,6 @@
 package com.ai.challenge.turn.repository
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
@@ -27,7 +27,7 @@ class ExposedTurnRepositoryTest {
 
     @Test
     fun `append and getBySession round-trip`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         val turn = Turn(userMessage = "hi", agentResponse = "hello")
         repository.append(sessionId, turn)
 
@@ -39,12 +39,12 @@ class ExposedTurnRepositoryTest {
 
     @Test
     fun `getBySession returns empty list for unknown session`() = runTest {
-        assertTrue(repository.getBySession(SessionId("nonexistent")).isEmpty())
+        assertTrue(repository.getBySession(AgentSessionId("nonexistent")).isEmpty())
     }
 
     @Test
     fun `getBySession with limit returns last N turns`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         repository.append(sessionId, Turn(userMessage = "1", agentResponse = "a"))
         repository.append(sessionId, Turn(userMessage = "2", agentResponse = "b"))
         repository.append(sessionId, Turn(userMessage = "3", agentResponse = "c"))
@@ -57,7 +57,7 @@ class ExposedTurnRepositoryTest {
 
     @Test
     fun `get returns turn by id`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         val turn = Turn(userMessage = "hi", agentResponse = "hello")
         val turnId = repository.append(sessionId, turn)
 
@@ -73,8 +73,8 @@ class ExposedTurnRepositoryTest {
 
     @Test
     fun `getBySession does not include turns from other sessions`() = runTest {
-        val session1 = SessionId.generate()
-        val session2 = SessionId.generate()
+        val session1 = AgentSessionId.generate()
+        val session2 = AgentSessionId.generate()
         repository.append(session1, Turn(userMessage = "a", agentResponse = "b"))
         repository.append(session2, Turn(userMessage = "c", agentResponse = "d"))
 

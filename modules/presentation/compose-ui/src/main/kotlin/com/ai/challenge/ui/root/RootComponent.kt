@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.root
 
 import com.ai.challenge.core.agent.Agent
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
@@ -57,7 +57,7 @@ class RootComponent(
         }
     }
 
-    fun selectSession(sessionId: SessionId) {
+    fun selectSession(sessionId: AgentSessionId) {
         sessionListStore.accept(SessionListStore.Intent.SelectSession(sessionId))
         navigation.replaceCurrent(Config.Chat(sessionId = sessionId.value))
     }
@@ -71,7 +71,7 @@ class RootComponent(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun deleteSession(sessionId: SessionId) {
+    fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
             agent.deleteSession(sessionId)
             sessionListStore.accept(SessionListStore.Intent.LoadSessions)
@@ -95,7 +95,7 @@ class RootComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
                     agent = agent,
-                    sessionId = SessionId(config.sessionId),
+                    sessionId = AgentSessionId(config.sessionId),
                 )
             )
         }

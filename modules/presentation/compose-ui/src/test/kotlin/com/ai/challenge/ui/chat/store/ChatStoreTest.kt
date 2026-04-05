@@ -6,7 +6,7 @@ import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.metrics.CostDetails
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
@@ -144,7 +144,7 @@ class ChatStoreTest {
 
         var callCount = 0
         val agent = object : FakeAgent() {
-            override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> {
+            override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> {
                 callCount++
                 return if (callCount == 1) Either.Right(AgentResponse("r1", turnId1, tokens1, costs1))
                 else Either.Right(AgentResponse("r2", turnId2, tokens2, costs2))
@@ -211,46 +211,46 @@ class ChatStoreTest {
 open class FakeAgent(
     private val sendResult: Either<AgentError, AgentResponse> = Either.Right(AgentResponse("", TurnId.generate(), TokenDetails(), CostDetails())),
 ) : Agent {
-    private val sessions = ConcurrentHashMap<SessionId, AgentSession>()
-    private val turns = ConcurrentHashMap<TurnId, Pair<SessionId, Turn>>()
-    private val tokenData = ConcurrentHashMap<TurnId, Pair<SessionId, TokenDetails>>()
-    private val costData = ConcurrentHashMap<TurnId, Pair<SessionId, CostDetails>>()
+    private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
+    private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
+    private val tokenData = ConcurrentHashMap<TurnId, Pair<AgentSessionId, TokenDetails>>()
+    private val costData = ConcurrentHashMap<TurnId, Pair<AgentSessionId, CostDetails>>()
 
-    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = sendResult
-    override suspend fun createSession(title: String): SessionId {
-        val id = SessionId.generate()
+    override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = sendResult
+    override suspend fun createSession(title: String): AgentSessionId {
+        val id = AgentSessionId.generate()
         sessions[id] = AgentSession(id = id, title = title)
         return id
     }
-    override suspend fun deleteSession(id: SessionId): Boolean = sessions.remove(id) != null
+    override suspend fun deleteSession(id: AgentSessionId): Boolean = sessions.remove(id) != null
     override suspend fun listSessions(): List<AgentSession> = sessions.values.toList()
-    override suspend fun getSession(id: SessionId): AgentSession? = sessions[id]
-    override suspend fun updateSessionTitle(id: SessionId, title: String) {
+    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessions[id]
+    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) {
         sessions.computeIfPresent(id) { _, s -> s.copy(title = title) }
     }
-    override suspend fun getTurns(sessionId: SessionId, limit: Int?): List<Turn> {
+    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> {
         val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
         return if (limit != null && all.size > limit) all.takeLast(limit) else all
     }
     override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenData[turnId]?.second
-    override suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails> =
+    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
         tokenData.filter { it.value.first == sessionId }.mapValues { it.value.second }
-    override suspend fun getSessionTotalTokens(sessionId: SessionId): TokenDetails =
+    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails =
         getTokensBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
     override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costData[turnId]?.second
-    override suspend fun getCostBySession(sessionId: SessionId): Map<TurnId, CostDetails> =
+    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
         costData.filter { it.value.first == sessionId }.mapValues { it.value.second }
-    override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails =
+    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails =
         getCostBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
 
-    fun appendTurnDirect(sessionId: SessionId, turn: Turn): TurnId {
+    fun appendTurnDirect(sessionId: AgentSessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn
         return turn.id
     }
-    fun recordTokensDirect(sessionId: SessionId, turnId: TurnId, details: TokenDetails) {
+    fun recordTokensDirect(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) {
         tokenData[turnId] = sessionId to details
     }
-    fun recordCostsDirect(sessionId: SessionId, turnId: TurnId, details: CostDetails) {
+    fun recordCostsDirect(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) {
         costData[turnId] = sessionId to details
     }
 }

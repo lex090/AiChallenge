@@ -9,7 +9,7 @@ import com.ai.challenge.core.context.CompressionStrategy
 import com.ai.challenge.core.context.ContextCompressor
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.metrics.CostRepository
-import com.ai.challenge.core.session.SessionRepository
+import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.metrics.TokenRepository
 import com.ai.challenge.core.turn.TurnRepository
@@ -33,7 +33,7 @@ val appModule = module {
                 ?: error("OPENROUTER_API_KEY environment variable is not set"),
         )
     }
-    single<SessionRepository> { ExposedSessionRepository(createSessionDatabase()) }
+    single<AgentSessionRepository> { ExposedSessionRepository(createSessionDatabase()) }
     single<TurnRepository> { ExposedTurnRepository(createTurnDatabase()) }
     single<TokenRepository> { ExposedTokenRepository(createTokenDatabase()) }
     single<CostRepository> { ExposedCostRepository(createCostDatabase()) }

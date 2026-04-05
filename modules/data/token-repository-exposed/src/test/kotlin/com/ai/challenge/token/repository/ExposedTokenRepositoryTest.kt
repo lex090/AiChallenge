@@ -1,6 +1,6 @@
 package com.ai.challenge.token.repository
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
@@ -25,7 +25,7 @@ class ExposedTokenRepositoryTest {
 
     @Test
     fun `record and getByTurn round-trip`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         val turnId = TurnId.generate()
         val details = TokenDetails(promptTokens = 100, completionTokens = 50, cachedTokens = 20, cacheWriteTokens = 10, reasoningTokens = 5)
 
@@ -41,7 +41,7 @@ class ExposedTokenRepositoryTest {
 
     @Test
     fun `getBySession returns tokens for all turns in session`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
         val turnId1 = TurnId.generate()
         val turnId2 = TurnId.generate()
         val t1 = TokenDetails(promptTokens = 10)
@@ -58,8 +58,8 @@ class ExposedTokenRepositoryTest {
 
     @Test
     fun `getBySession does not include tokens from other sessions`() = runTest {
-        val session1 = SessionId.generate()
-        val session2 = SessionId.generate()
+        val session1 = AgentSessionId.generate()
+        val session2 = AgentSessionId.generate()
 
         repository.record(session1, TurnId.generate(), TokenDetails(promptTokens = 10))
         repository.record(session2, TurnId.generate(), TokenDetails(promptTokens = 20))
@@ -70,7 +70,7 @@ class ExposedTokenRepositoryTest {
 
     @Test
     fun `getSessionTotal returns accumulated tokens`() = runTest {
-        val sessionId = SessionId.generate()
+        val sessionId = AgentSessionId.generate()
 
         repository.record(sessionId, TurnId.generate(), TokenDetails(promptTokens = 10, completionTokens = 5))
         repository.record(sessionId, TurnId.generate(), TokenDetails(promptTokens = 20, completionTokens = 10))
@@ -82,6 +82,6 @@ class ExposedTokenRepositoryTest {
 
     @Test
     fun `getSessionTotal returns empty for session with no tokens`() = runTest {
-        assertEquals(TokenDetails(), repository.getSessionTotal(SessionId.generate()))
+        assertEquals(TokenDetails(), repository.getSessionTotal(AgentSessionId.generate()))
     }
 }

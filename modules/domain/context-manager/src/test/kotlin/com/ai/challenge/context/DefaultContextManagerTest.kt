@@ -3,7 +3,7 @@ package com.ai.challenge.context
 import com.ai.challenge.core.context.ContextCompressor
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
@@ -48,7 +48,7 @@ class DefaultContextManagerTest {
         val manager = createManager(maxTurns = 5, retainLast = 2)
         val history = turns(3)
 
-        val result = manager.prepareContext(SessionId("s1"), history, "new msg")
+        val result = manager.prepareContext(AgentSessionId("s1"), history, "new msg")
 
         assertFalse(result.compressed)
         assertEquals(3, result.originalTurnCount)
@@ -64,7 +64,7 @@ class DefaultContextManagerTest {
         val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val history = turns(5)
 
-        val result = manager.prepareContext(SessionId("s1"), history, "new msg")
+        val result = manager.prepareContext(AgentSessionId("s1"), history, "new msg")
 
         assertTrue(result.compressed)
         assertEquals(5, result.originalTurnCount)
@@ -89,7 +89,7 @@ class DefaultContextManagerTest {
         // First compression at 5 turns: summary covers [0,3), retain [3,5)
         // At 6,7 turns: reuse summary, no recompression (turnsSince=3,4 < 2+3=5)
         val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        val sessionId = SessionId("s1")
+        val sessionId = AgentSessionId("s1")
 
         manager.prepareContext(sessionId, turns(5), "msg5")
         assertEquals(1, fakeCompressor.callCount)
@@ -115,7 +115,7 @@ class DefaultContextManagerTest {
         // At 8 turns: turnsSinceCompression = 8-3 = 5, threshold = 2+3 = 5, 5 >= 5 → recompress
         // New splitAt = 8-2 = 6, compress turns[3..6) with previousSummary
         val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        val sessionId = SessionId("s1")
+        val sessionId = AgentSessionId("s1")
 
         manager.prepareContext(sessionId, turns(5), "msg5")
         assertEquals(1, fakeCompressor.callCount)
@@ -136,7 +136,7 @@ class DefaultContextManagerTest {
     fun `handles empty history`() = runTest {
         val manager = createManager(maxTurns = 5, retainLast = 2)
 
-        val result = manager.prepareContext(SessionId("s1"), emptyList(), "hello")
+        val result = manager.prepareContext(AgentSessionId("s1"), emptyList(), "hello")
 
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
@@ -162,12 +162,12 @@ private class FakeContextCompressor : ContextCompressor {
 }
 
 private class InMemorySummaryRepository : SummaryRepository {
-    private val store = mutableListOf<Pair<SessionId, Summary>>()
+    private val store = mutableListOf<Pair<AgentSessionId, Summary>>()
 
-    override suspend fun save(sessionId: SessionId, summary: Summary) {
+    override suspend fun save(sessionId: AgentSessionId, summary: Summary) {
         store.add(sessionId to summary)
     }
 
-    override suspend fun getBySession(sessionId: SessionId): List<Summary> =
+    override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
         store.filter { it.first == sessionId }.map { it.second }
 }

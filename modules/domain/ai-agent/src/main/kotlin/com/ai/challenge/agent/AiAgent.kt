@@ -11,8 +11,8 @@ import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.metrics.CostDetails
 import com.ai.challenge.core.metrics.CostRepository
 import com.ai.challenge.core.context.MessageRole
-import com.ai.challenge.core.session.SessionId
-import com.ai.challenge.core.session.SessionRepository
+import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.core.metrics.TokenRepository
 import com.ai.challenge.core.turn.Turn
@@ -24,14 +24,14 @@ import com.ai.challenge.llm.model.ChatResponse
 class AiAgent(
     private val service: OpenRouterService,
     private val model: String,
-    private val sessionRepository: SessionRepository,
+    private val sessionRepository: AgentSessionRepository,
     private val turnRepository: TurnRepository,
     private val tokenRepository: TokenRepository,
     private val costRepository: CostRepository,
     private val contextManager: ContextManager,
 ) : Agent {
 
-    override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
+    override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {
         val history = turnRepository.getBySession(sessionId)
 
         val context = catch({
@@ -73,18 +73,18 @@ class AiAgent(
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }
 
-    override suspend fun createSession(title: String): SessionId = sessionRepository.create(title)
-    override suspend fun deleteSession(id: SessionId): Boolean = sessionRepository.delete(id)
+    override suspend fun createSession(title: String): AgentSessionId = sessionRepository.create(title)
+    override suspend fun deleteSession(id: AgentSessionId): Boolean = sessionRepository.delete(id)
     override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
-    override suspend fun getSession(id: SessionId): AgentSession? = sessionRepository.get(id)
-    override suspend fun updateSessionTitle(id: SessionId, title: String) = sessionRepository.updateTitle(id, title)
-    override suspend fun getTurns(sessionId: SessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId, limit)
+    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id)
+    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) = sessionRepository.updateTitle(id, title)
+    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId, limit)
     override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId)
-    override suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId)
-    override suspend fun getSessionTotalTokens(sessionId: SessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId)
+    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId)
+    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId)
     override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
-    override suspend fun getCostBySession(sessionId: SessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
-    override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails = costRepository.getSessionTotal(sessionId)
+    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
+    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails = costRepository.getSessionTotal(sessionId)
 }
 
 fun MessageRole.toApiRole(): String = when (this) {

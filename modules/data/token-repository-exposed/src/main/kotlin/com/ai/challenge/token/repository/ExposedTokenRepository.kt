@@ -1,6 +1,6 @@
 package com.ai.challenge.token.repository
 
-import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.core.metrics.TokenRepository
 import com.ai.challenge.core.turn.TurnId
@@ -15,7 +15,7 @@ class ExposedTokenRepository(private val database: Database) : TokenRepository {
         }
     }
 
-    override suspend fun record(sessionId: SessionId, turnId: TurnId, details: TokenDetails) {
+    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) {
         transaction(database) {
             TokenDetailsTable.insert {
                 it[TokenDetailsTable.turnId] = turnId.value
@@ -36,7 +36,7 @@ class ExposedTokenRepository(private val database: Database) : TokenRepository {
             ?.toTokenDetails()
     }
 
-    override suspend fun getBySession(sessionId: SessionId): Map<TurnId, TokenDetails> = transaction(database) {
+    override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = transaction(database) {
         TokenDetailsTable.selectAll()
             .where { TokenDetailsTable.sessionId eq sessionId.value }
             .associate { row ->
@@ -44,7 +44,7 @@ class ExposedTokenRepository(private val database: Database) : TokenRepository {
             }
     }
 
-    override suspend fun getSessionTotal(sessionId: SessionId): TokenDetails =
+    override suspend fun getSessionTotal(sessionId: AgentSessionId): TokenDetails =
         getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
 
     private fun ResultRow.toTokenDetails() = TokenDetails(
