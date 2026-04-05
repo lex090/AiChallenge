@@ -9,15 +9,20 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/ai-agent" />
-            <option value="$PROJECT_DIR$/compose-ui" />
-            <option value="$PROJECT_DIR$/core" />
-            <option value="$PROJECT_DIR$/cost-repository-exposed" />
-            <option value="$PROJECT_DIR$/llm-service" />
-            <option value="$PROJECT_DIR$/session-repository-exposed" />
-            <option value="$PROJECT_DIR$/token-repository-exposed" />
-            <option value="$PROJECT_DIR$/turn-repository-exposed" />
-            <option value="$PROJECT_DIR$/week1" />
+            <option value="$PROJECT_DIR$/modules" />
+            <option value="$PROJECT_DIR$/modules/core" />
+            <option value="$PROJECT_DIR$/modules/data" />
+            <option value="$PROJECT_DIR$/modules/data/cost-repository-exposed" />
+            <option value="$PROJECT_DIR$/modules/data/open-router-service" />
+            <option value="$PROJECT_DIR$/modules/data/session-repository-exposed" />
+            <option value="$PROJECT_DIR$/modules/data/token-repository-exposed" />
+            <option value="$PROJECT_DIR$/modules/data/turn-repository-exposed" />
+            <option value="$PROJECT_DIR$/modules/domain" />
+            <option value="$PROJECT_DIR$/modules/domain/ai-agent" />
+            <option value="$PROJECT_DIR$/modules/presentation" />
+            <option value="$PROJECT_DIR$/modules/presentation/app" />
+            <option value="$PROJECT_DIR$/modules/presentation/compose-ui" />
+            <option value="$PROJECT_DIR$/modules/week1" />
           </set>
         </option>
       </GradleProjectSettings>
