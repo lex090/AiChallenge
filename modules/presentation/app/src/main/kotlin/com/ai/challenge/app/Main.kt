@@ -1,16 +1,17 @@
-package com.ai.challenge.ui
+package com.ai.challenge.app
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.ai.challenge.app.di.appModule
 import com.ai.challenge.core.Agent
-import com.ai.challenge.ui.di.appModule
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
 import com.arkivanov.decompose.DefaultComponentContext
 import com.arkivanov.essenty.lifecycle.LifecycleRegistry
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import org.koin.core.context.startKoin
+import javax.swing.SwingUtilities
 
 fun main() {
     val koin = startKoin {
@@ -37,4 +38,15 @@ fun main() {
             }
         }
     }
+}
+
+private fun <T> runOnUiThread(block: () -> T): T {
+    if (SwingUtilities.isEventDispatchThread()) {
+        return block()
+    }
+
+    var result: T? = null
+    SwingUtilities.invokeAndWait { result = block() }
+    @Suppress("UNCHECKED_CAST")
+    return result as T
 }

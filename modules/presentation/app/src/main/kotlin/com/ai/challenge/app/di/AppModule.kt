@@ -1,4 +1,4 @@
-package com.ai.challenge.ui.di
+package com.ai.challenge.app.di
 
 import com.ai.challenge.agent.AiAgent
 import com.ai.challenge.core.Agent

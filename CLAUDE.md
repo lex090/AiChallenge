@@ -20,7 +20,8 @@ modules/
 ├── domain/                        ← Layer 2: Domain
 │   └── ai-agent/
 ├── presentation/                  ← Layer 3: Presentation
-│   └── compose-ui/
+│   ├── compose-ui/                # Pure UI (components, stores, composables)
+│   └── app/                       # Bootstrap, DI, entry point
 └── week1/                         ← Standalone
 ```
 
@@ -38,7 +39,8 @@ modules/
 - **ai-agent** — OpenRouterAgent (Agent facade implementation), delegates to repositories
 
 ### Layer 3 — Presentation (`modules/presentation/*`)
-- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens, Koin DI. Accesses data only through Agent interface.
+- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through Agent interface.
+- **app** — Application entry point, Koin DI configuration, bootstrap. Composition root that wires all layers together.
 
 ### Standalone
 - **week1** — Demo tasks (not part of the main app)
@@ -84,7 +86,7 @@ No module may depend on a module above it.
 ## Running
 
 ```bash
-OPENROUTER_API_KEY=<key> ./gradlew :modules:presentation:compose-ui:run
+OPENROUTER_API_KEY=<key> ./gradlew :modules:presentation:app:run
 ```
 
 ## Build & Test

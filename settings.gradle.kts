@@ -27,6 +27,7 @@ include(":modules:domain:ai-agent")
 
 // Layer 3: Presentation
 include(":modules:presentation:compose-ui")
+include(":modules:presentation:app")
 
 // Standalone
 include(":modules:week1")
