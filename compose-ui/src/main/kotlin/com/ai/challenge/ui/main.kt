@@ -20,15 +20,16 @@ fun main() {
     }.koin
 
     val lifecycle = LifecycleRegistry()
-    val rootComponentContext = DefaultComponentContext(lifecycle = lifecycle)
 
-    val root = RootComponent(
-        componentContext = rootComponentContext,
-        storeFactory = DefaultStoreFactory(),
-        agent = koin.get<Agent>(),
-        sessionManager = koin.get<AgentSessionManager>(),
-        usageManager = koin.get<UsageManager>(),
-    )
+    val root = runOnUiThread {
+        RootComponent(
+            componentContext = DefaultComponentContext(lifecycle = lifecycle),
+            storeFactory = DefaultStoreFactory(),
+            agent = koin.get<Agent>(),
+            sessionManager = koin.get<AgentSessionManager>(),
+            usageManager = koin.get<UsageManager>(),
+        )
+    }
 
     application {
         Window(
