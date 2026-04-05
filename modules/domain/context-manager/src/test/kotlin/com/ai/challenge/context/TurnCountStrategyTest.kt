@@ -1,12 +1,12 @@
 package com.ai.challenge.context
 
 import com.ai.challenge.core.CompressionContext
+import com.ai.challenge.core.CompressionDecision
 import com.ai.challenge.core.Summary
 import com.ai.challenge.core.Turn
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.assertIs
 
 class TurnCountStrategyTest {
 
@@ -19,72 +19,68 @@ class TurnCountStrategyTest {
     private fun summaryAt(toTurnIndex: Int) =
         Summary(text = "summary", fromTurnIndex = 0, toTurnIndex = toTurnIndex)
 
-    // --- shouldCompress without previous compression ---
+    // --- Skip cases ---
 
     @Test
-    fun `shouldCompress returns true when no prior compression and history at maxTurns`() {
+    fun `returns Skip when no prior compression and history below maxTurns`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        assertTrue(strategy.shouldCompress(context(5)))
+        assertIs<CompressionDecision.Skip>(strategy.evaluate(context(3)))
     }
 
     @Test
-    fun `shouldCompress returns false when no prior compression and history below maxTurns`() {
+    fun `returns Skip when no prior compression and empty history`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        assertFalse(strategy.shouldCompress(context(3)))
+        assertIs<CompressionDecision.Skip>(strategy.evaluate(context(0)))
     }
 
     @Test
-    fun `shouldCompress returns true when no prior compression and history exceeds maxTurns`() {
-        val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        assertTrue(strategy.shouldCompress(context(6)))
-    }
-
-    @Test
-    fun `shouldCompress returns false when no prior compression and empty history`() {
-        val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        assertFalse(strategy.shouldCompress(context(0)))
-    }
-
-    // --- shouldCompress with previous compression ---
-
-    @Test
-    fun `shouldCompress returns false when not enough turns accumulated after compression`() {
+    fun `returns Skip when not enough turns accumulated after compression`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 5)
         // turnsSinceCompression = 8 - 3 = 5, threshold = 2 + 5 = 7, 5 < 7
-        assertFalse(strategy.shouldCompress(context(8, summaryAt(3))))
+        assertIs<CompressionDecision.Skip>(strategy.evaluate(context(8, summaryAt(3))))
+    }
+
+    // --- Compress cases ---
+
+    @Test
+    fun `returns Compress with correct partitionPoint at maxTurns`() {
+        val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
+        val decision = strategy.evaluate(context(5))
+        assertIs<CompressionDecision.Compress>(decision)
+        assertEquals(3, decision.partitionPoint)
     }
 
     @Test
-    fun `shouldCompress returns true when enough turns accumulated after compression`() {
+    fun `returns Compress when history exceeds maxTurns`() {
+        val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 3)
+        val decision = strategy.evaluate(context(6))
+        assertIs<CompressionDecision.Compress>(decision)
+        assertEquals(4, decision.partitionPoint)
+    }
+
+    @Test
+    fun `returns Compress when enough turns after prior compression`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 5)
         // turnsSinceCompression = 11 - 3 = 8, threshold = 2 + 5 = 7, 8 >= 7
-        assertTrue(strategy.shouldCompress(context(11, summaryAt(3))))
+        val decision = strategy.evaluate(context(11, summaryAt(3)))
+        assertIs<CompressionDecision.Compress>(decision)
+        assertEquals(9, decision.partitionPoint)
     }
 
     @Test
-    fun `shouldCompress returns true when exactly at threshold after compression`() {
+    fun `returns Compress when exactly at threshold after compression`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 2, compressionInterval = 5)
         // turnsSinceCompression = 10 - 3 = 7, threshold = 2 + 5 = 7, 7 >= 7
-        assertTrue(strategy.shouldCompress(context(10, summaryAt(3))))
-    }
-
-    // --- partitionPoint ---
-
-    @Test
-    fun `partitionPoint returns correct split index`() {
-        val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 3, compressionInterval = 3)
-        assertEquals(7, strategy.partitionPoint(context(10)))
+        val decision = strategy.evaluate(context(10, summaryAt(3)))
+        assertIs<CompressionDecision.Compress>(decision)
+        assertEquals(8, decision.partitionPoint)
     }
 
     @Test
-    fun `partitionPoint returns 0 when retainLast exceeds history size`() {
+    fun `partitionPoint is 0 when retainLast exceeds history size`() {
         val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 20, compressionInterval = 3)
-        assertEquals(0, strategy.partitionPoint(context(10)))
-    }
-
-    @Test
-    fun `partitionPoint returns 0 for empty history`() {
-        val strategy = TurnCountStrategy(maxTurns = 5, retainLast = 3, compressionInterval = 3)
-        assertEquals(0, strategy.partitionPoint(context(0)))
+        val decision = strategy.evaluate(context(6))
+        assertIs<CompressionDecision.Compress>(decision)
+        assertEquals(0, decision.partitionPoint)
     }
 }

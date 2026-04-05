@@ -1,6 +1,10 @@
 package com.ai.challenge.core
 
+sealed interface CompressionDecision {
+    data object Skip : CompressionDecision
+    data class Compress(val partitionPoint: Int) : CompressionDecision
+}
+
 interface CompressionStrategy {
-    fun shouldCompress(context: CompressionContext): Boolean
-    fun partitionPoint(context: CompressionContext): Int
+    fun evaluate(context: CompressionContext): CompressionDecision
 }
