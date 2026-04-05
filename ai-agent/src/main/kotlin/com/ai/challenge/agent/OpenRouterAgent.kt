@@ -3,25 +3,33 @@ package com.ai.challenge.agent
 import arrow.core.Either
 import arrow.core.raise.catch
 import arrow.core.raise.either
+import com.ai.challenge.core.Agent
+import com.ai.challenge.core.AgentError
+import com.ai.challenge.core.AgentResponse
+import com.ai.challenge.core.AgentSession
+import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.SessionId
+import com.ai.challenge.core.SessionRepository
+import com.ai.challenge.core.TokenDetails
+import com.ai.challenge.core.TokenRepository
+import com.ai.challenge.core.Turn
+import com.ai.challenge.core.TurnId
+import com.ai.challenge.core.TurnRepository
 import com.ai.challenge.llm.OpenRouterService
 import com.ai.challenge.llm.model.ChatResponse
-import com.ai.challenge.session.AgentSessionManager
-import com.ai.challenge.session.CostDetails
-import com.ai.challenge.session.RequestMetrics
-import com.ai.challenge.session.SessionId
-import com.ai.challenge.session.TokenDetails
-import com.ai.challenge.session.Turn
-import com.ai.challenge.session.UsageManager
 
 class OpenRouterAgent(
     private val service: OpenRouterService,
     private val model: String,
-    private val sessionManager: AgentSessionManager,
-    private val usageManager: UsageManager,
+    private val sessionRepository: SessionRepository,
+    private val turnRepository: TurnRepository,
+    private val tokenRepository: TokenRepository,
+    private val costRepository: CostRepository,
 ) : Agent {
 
     override suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse> = either {
-        val history = sessionManager.getHistory(sessionId)
+        val history = turnRepository.getBySession(sessionId)
 
         val chatResponse = catch({
             service.chat(model = model) {
@@ -48,27 +56,41 @@ class OpenRouterAgent(
         val text = chatResponse.choices.firstOrNull()?.message?.content
             ?: raise(AgentError.ApiError("Empty response from OpenRouter"))
 
-        val metrics = chatResponse.toRequestMetrics()
+        val tokenDetails = chatResponse.toTokenDetails()
+        val costDetails = chatResponse.toCostDetails()
         val turn = Turn(userMessage = message, agentResponse = text)
-        val turnId = sessionManager.appendTurn(sessionId, turn)
-        usageManager.record(turnId, metrics)
+        val turnId = turnRepository.append(sessionId, turn)
+        tokenRepository.record(sessionId, turnId, tokenDetails)
+        costRepository.record(sessionId, turnId, costDetails)
 
-        AgentResponse(text = text, turnId = turnId, metrics = metrics)
+        AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }
+
+    override suspend fun createSession(title: String): SessionId = sessionRepository.create(title)
+    override suspend fun deleteSession(id: SessionId): Boolean = sessionRepository.delete(id)
+    override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
+    override suspend fun getSession(id: SessionId): AgentSession? = sessionRepository.get(id)
+    override suspend fun updateSessionTitle(id: SessionId, title: String) = sessionRepository.updateTitle(id, title)
+    override suspend fun getTurns(sessionId: SessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId, limit)
+    override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId)
+    override suspend fun getTokensBySession(sessionId: SessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId)
+    override suspend fun getSessionTotalTokens(sessionId: SessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId)
+    override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
+    override suspend fun getCostBySession(sessionId: SessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
+    override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails = costRepository.getSessionTotal(sessionId)
 }
 
-private fun ChatResponse.toRequestMetrics(): RequestMetrics = RequestMetrics(
-    tokens = TokenDetails(
-        promptTokens = usage?.promptTokens ?: 0,
-        completionTokens = usage?.completionTokens ?: 0,
-        cachedTokens = usage?.promptTokensDetails?.cachedTokens ?: 0,
-        cacheWriteTokens = usage?.promptTokensDetails?.cacheWriteTokens ?: 0,
-        reasoningTokens = usage?.completionTokensDetails?.reasoningTokens ?: 0,
-    ),
-    cost = CostDetails(
-        totalCost = usage?.cost ?: cost ?: 0.0,
-        upstreamCost = usage?.costDetails?.upstreamCost ?: costDetails?.upstreamCost ?: 0.0,
-        upstreamPromptCost = usage?.costDetails?.upstreamPromptCost ?: costDetails?.upstreamPromptCost ?: 0.0,
-        upstreamCompletionsCost = usage?.costDetails?.upstreamCompletionsCost ?: costDetails?.upstreamCompletionsCost ?: 0.0,
-    ),
+private fun ChatResponse.toTokenDetails(): TokenDetails = TokenDetails(
+    promptTokens = usage?.promptTokens ?: 0,
+    completionTokens = usage?.completionTokens ?: 0,
+    cachedTokens = usage?.promptTokensDetails?.cachedTokens ?: 0,
+    cacheWriteTokens = usage?.promptTokensDetails?.cacheWriteTokens ?: 0,
+    reasoningTokens = usage?.completionTokensDetails?.reasoningTokens ?: 0,
+)
+
+private fun ChatResponse.toCostDetails(): CostDetails = CostDetails(
+    totalCost = usage?.cost ?: cost ?: 0.0,
+    upstreamCost = usage?.costDetails?.upstreamCost ?: costDetails?.upstreamCost ?: 0.0,
+    upstreamPromptCost = usage?.costDetails?.upstreamPromptCost ?: costDetails?.upstreamPromptCost ?: 0.0,
+    upstreamCompletionsCost = usage?.costDetails?.upstreamCompletionsCost ?: costDetails?.upstreamCompletionsCost ?: 0.0,
 )
