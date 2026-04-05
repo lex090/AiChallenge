@@ -17,7 +17,7 @@ repositories {
 dependencies {
     implementation(project(":modules:presentation:compose-ui"))
     implementation(project(":modules:domain:ai-agent"))
-    implementation(project(":modules:data:llm-service"))
+    implementation(project(":modules:data:open-router-service"))
     implementation(project(":modules:core"))
     implementation(project(":modules:data:session-repository-exposed"))
     implementation(project(":modules:data:turn-repository-exposed"))

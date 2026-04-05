@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":modules:data:llm-service"))
+    implementation(project(":modules:data:open-router-service"))
     testImplementation(kotlin("test"))
 }
 

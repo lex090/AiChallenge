@@ -16,7 +16,7 @@ rootProject.name = "AiChallenge"
 include(":modules:core")
 
 // Layer 1: Data
-include(":modules:data:llm-service")
+include(":modules:data:open-router-service")
 include(":modules:data:session-repository-exposed")
 include(":modules:data:turn-repository-exposed")
 include(":modules:data:token-repository-exposed")

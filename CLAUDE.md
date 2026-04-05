@@ -12,7 +12,7 @@ All modules live under `modules/`, organized by layer. Dependencies strictly top
 modules/
 ├── core/                          ← Layer 0: Foundation
 ├── data/                          ← Layer 1: Data
-│   ├── llm-service/
+│   ├── open-router-service/
 │   ├── session-repository-exposed/
 │   ├── turn-repository-exposed/
 │   ├── token-repository-exposed/
@@ -29,7 +29,7 @@ modules/
 - **core** — Domain models (AgentSession, Turn, TokenDetails, CostDetails), ID types, repository interfaces, Agent facade interface, AgentError (Arrow Either)
 
 ### Layer 1 — Data (`modules/data/*`)
-- **llm-service** — OpenRouter HTTP client, request/response models, DSL
+- **open-router-service** — OpenRouter HTTP client, request/response models, DSL
 - **session-repository-exposed** — SessionRepository implementation (Exposed + SQLite)
 - **turn-repository-exposed** — TurnRepository implementation
 - **token-repository-exposed** — TokenRepository implementation

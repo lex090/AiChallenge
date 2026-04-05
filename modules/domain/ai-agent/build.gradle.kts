@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":modules:data:llm-service"))
+    implementation(project(":modules:data:open-router-service"))
     implementation(project(":modules:core"))
     implementation(libs.arrow.core)
     testImplementation(kotlin("test"))
