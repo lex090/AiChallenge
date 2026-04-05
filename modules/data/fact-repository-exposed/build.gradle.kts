@@ -10,15 +10,13 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":modules:data:open-router-service"))
     implementation(project(":modules:core"))
-    implementation(project(":modules:domain:context-manager"))
-    implementation(libs.arrow.core)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.sqlite.jdbc)
+
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.ktor.client.mock)
-    testImplementation(libs.ktor.client.content.negotiation)
-    testImplementation(libs.ktor.serialization.kotlinx.json)
 }
 
 tasks.test {

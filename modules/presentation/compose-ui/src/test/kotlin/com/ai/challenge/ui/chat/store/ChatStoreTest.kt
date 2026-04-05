@@ -5,7 +5,13 @@ import com.ai.challenge.core.Agent
 import com.ai.challenge.core.AgentError
 import com.ai.challenge.core.AgentResponse
 import com.ai.challenge.core.AgentSession
+import com.ai.challenge.core.Branch
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchTree
+import com.ai.challenge.core.CheckpointId
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
+import com.ai.challenge.core.Fact
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.TokenDetails
 import com.ai.challenge.core.Turn
@@ -242,6 +248,15 @@ open class FakeAgent(
         costData.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotalCost(sessionId: SessionId): CostDetails =
         getCostBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+
+    override fun getContextStrategyType(): ContextStrategyType = ContextStrategyType.SlidingWindow
+    override fun setContextStrategy(type: ContextStrategyType) {}
+    override suspend fun createCheckpoint(sessionId: SessionId): Either<AgentError, CheckpointId> = Either.Right(CheckpointId.generate())
+    override suspend fun createBranch(sessionId: SessionId, checkpointTurnIndex: Int, name: String): Either<AgentError, BranchId> = Either.Right(BranchId.generate())
+    override suspend fun switchBranch(sessionId: SessionId, branchId: BranchId): Either<AgentError, Unit> = Either.Right(Unit)
+    override suspend fun listBranches(sessionId: SessionId): Either<AgentError, List<Branch>> = Either.Right(emptyList())
+    override suspend fun getBranchTree(sessionId: SessionId): Either<AgentError, BranchTree> = Either.Right(BranchTree(sessionId, emptyList()))
+    override suspend fun getSessionFacts(sessionId: SessionId): Either<AgentError, List<Fact>> = Either.Right(emptyList())
 
     fun appendTurnDirect(sessionId: SessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn

@@ -1,14 +1,22 @@
 package com.ai.challenge.agent
 
 import arrow.core.Either
+import com.ai.challenge.context.DelegatingContextManager
+import com.ai.challenge.context.SlidingWindowContextManager
 import com.ai.challenge.core.AgentError
 import com.ai.challenge.core.AgentResponse
 import com.ai.challenge.core.AgentSession
+import com.ai.challenge.core.Branch
+import com.ai.challenge.core.BranchId
+import com.ai.challenge.core.BranchRepository
 import com.ai.challenge.core.CompressedContext
 import com.ai.challenge.core.ContextManager
 import com.ai.challenge.core.ContextMessage
+import com.ai.challenge.core.ContextStrategyType
 import com.ai.challenge.core.CostDetails
 import com.ai.challenge.core.CostRepository
+import com.ai.challenge.core.Fact
+import com.ai.challenge.core.FactRepository
 import com.ai.challenge.core.MessageRole
 import com.ai.challenge.core.SessionId
 import com.ai.challenge.core.SessionRepository
@@ -46,7 +54,11 @@ class OpenRouterAgentTest {
     private val turnRepo = FakeTurnRepository()
     private val tokenRepo = FakeTokenRepository()
     private val costRepo = FakeCostRepository()
-    private val contextManager = PassThroughContextManager()
+    private val branchRepo = FakeBranchRepository()
+    private val factRepo = FakeFactRepository()
+    private val contextManager = DelegatingContextManager(
+        managers = mapOf(ContextStrategyType.SlidingWindow to PassThroughContextManager()),
+    )
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -75,6 +87,8 @@ class OpenRouterAgentTest {
             tokenRepository = tokenRepo,
             costRepository = costRepo,
             contextManager = contextManager,
+            branchRepository = branchRepo,
+            factRepository = factRepo,
         )
 
     @Test
@@ -192,7 +206,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager, branchRepo, factRepo)
         val sessionId = sessionRepo.create()
 
         val result = agent.send(sessionId, "Hi")
@@ -217,7 +231,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager, branchRepo, factRepo)
         val sessionId = sessionRepo.create()
 
         turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
@@ -288,6 +302,38 @@ private class FakeCostRepository : CostRepository {
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotal(sessionId: SessionId): CostDetails =
         getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+}
+
+private class FakeBranchRepository : BranchRepository {
+    private val branches = mutableMapOf<BranchId, Branch>()
+    private val activeBranches = mutableMapOf<SessionId, BranchId>()
+    private val branchTurns = mutableMapOf<BranchId, MutableList<Turn>>()
+
+    override suspend fun createBranch(branch: Branch): BranchId {
+        branches[branch.id] = branch
+        return branch.id
+    }
+    override suspend fun getBranches(sessionId: SessionId): List<Branch> =
+        branches.values.filter { it.sessionId == sessionId }
+    override suspend fun getBranch(branchId: BranchId): Branch? = branches[branchId]
+    override suspend fun deleteBranch(branchId: BranchId): Boolean = branches.remove(branchId) != null
+    override suspend fun getActiveBranch(sessionId: SessionId): Branch? =
+        activeBranches[sessionId]?.let { branches[it] }
+    override suspend fun setActiveBranch(sessionId: SessionId, branchId: BranchId?) {
+        if (branchId != null) activeBranches[sessionId] = branchId else activeBranches.remove(sessionId)
+    }
+    override suspend fun getTurnsForBranch(branchId: BranchId): List<Turn> =
+        branchTurns[branchId] ?: emptyList()
+    override suspend fun appendTurnToBranch(branchId: BranchId, turn: Turn): TurnId {
+        branchTurns.getOrPut(branchId) { mutableListOf() }.add(turn)
+        return turn.id
+    }
+}
+
+private class FakeFactRepository : FactRepository {
+    private val store = mutableMapOf<SessionId, List<Fact>>()
+    override suspend fun save(sessionId: SessionId, facts: List<Fact>) { store[sessionId] = facts }
+    override suspend fun getBySession(sessionId: SessionId): List<Fact> = store[sessionId] ?: emptyList()
 }
 
 private class PassThroughContextManager : ContextManager {
