@@ -1,7 +1,7 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.CompressionContext
 import com.ai.challenge.core.CompressionStrategy
-import com.ai.challenge.core.Turn
 
 class TurnCountStrategy(
     private val maxTurns: Int,
@@ -9,14 +9,15 @@ class TurnCountStrategy(
     private val compressionInterval: Int = maxTurns - retainLast,
 ) : CompressionStrategy {
 
-    override fun shouldCompress(history: List<Turn>, lastCompressedIndex: Int?): Boolean {
+    override fun shouldCompress(context: CompressionContext): Boolean {
+        val lastCompressedIndex = context.lastSummary?.toTurnIndex
         if (lastCompressedIndex == null) {
-            return history.size >= maxTurns
+            return context.history.size >= maxTurns
         }
-        val turnsSinceCompression = history.size - lastCompressedIndex
+        val turnsSinceCompression = context.history.size - lastCompressedIndex
         return turnsSinceCompression >= retainLast + compressionInterval
     }
 
-    override fun partitionPoint(history: List<Turn>): Int =
-        (history.size - retainLast).coerceAtLeast(0)
+    override fun partitionPoint(context: CompressionContext): Int =
+        (context.history.size - retainLast).coerceAtLeast(0)
 }

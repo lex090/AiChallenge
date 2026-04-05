@@ -1,6 +1,7 @@
 package com.ai.challenge.context
 
 import com.ai.challenge.core.CompressedContext
+import com.ai.challenge.core.CompressionContext
 import com.ai.challenge.core.ContextCompressor
 import com.ai.challenge.core.ContextManager
 import com.ai.challenge.core.ContextMessage
@@ -25,7 +26,9 @@ class DefaultContextManager(
         val existingSummaries = summaryRepository.getBySession(sessionId)
         val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
 
-        if (!strategy.shouldCompress(history, lastSummary?.toTurnIndex)) {
+        val compressionContext = CompressionContext(history, lastSummary)
+
+        if (!strategy.shouldCompress(compressionContext)) {
             return if (lastSummary != null) {
                 reuseExistingSummary(lastSummary, history, newMessage)
             } else {
@@ -33,7 +36,7 @@ class DefaultContextManager(
             }
         }
 
-        val splitAt = strategy.partitionPoint(history)
+        val splitAt = strategy.partitionPoint(compressionContext)
         val toRetain = history.subList(splitAt, history.size)
 
         val summaryText = if (lastSummary != null) {

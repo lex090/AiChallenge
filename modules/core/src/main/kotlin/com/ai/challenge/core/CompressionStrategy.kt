@@ -1,6 +1,6 @@
 package com.ai.challenge.core
 
 interface CompressionStrategy {
-    fun shouldCompress(history: List<Turn>, lastCompressedIndex: Int?): Boolean
-    fun partitionPoint(history: List<Turn>): Int
+    fun shouldCompress(context: CompressionContext): Boolean
+    fun partitionPoint(context: CompressionContext): Int
 }
