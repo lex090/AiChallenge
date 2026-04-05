@@ -1,4 +1,4 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.context
 
 enum class MessageRole {
     System,

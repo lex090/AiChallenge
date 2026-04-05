@@ -1,15 +1,15 @@
 package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
-import com.ai.challenge.core.Agent
-import com.ai.challenge.core.AgentError
-import com.ai.challenge.core.AgentResponse
-import com.ai.challenge.core.AgentSession
-import com.ai.challenge.core.CostDetails
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.TokenDetails
-import com.ai.challenge.core.Turn
-import com.ai.challenge.core.TurnId
+import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.agent.AgentError
+import com.ai.challenge.core.agent.AgentResponse
+import com.ai.challenge.core.session.AgentSession
+import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import kotlinx.coroutines.Dispatchers

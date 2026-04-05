@@ -1,6 +1,12 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.agent
 
 import arrow.core.Either
+import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.session.AgentSession
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnId
 
 interface Agent {
     suspend fun send(sessionId: SessionId, message: String): Either<AgentError, AgentResponse>

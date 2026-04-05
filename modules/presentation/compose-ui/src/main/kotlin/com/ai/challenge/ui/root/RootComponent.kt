@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.root
 
-import com.ai.challenge.core.Agent
-import com.ai.challenge.core.SessionId
+import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.session.SessionId
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory

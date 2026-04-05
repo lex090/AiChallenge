@@ -1,8 +1,8 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.CompressionContext
-import com.ai.challenge.core.CompressionDecision
-import com.ai.challenge.core.CompressionStrategy
+import com.ai.challenge.core.context.CompressionContext
+import com.ai.challenge.core.context.CompressionDecision
+import com.ai.challenge.core.context.CompressionStrategy
 
 class TurnCountStrategy(
     private val maxTurns: Int,

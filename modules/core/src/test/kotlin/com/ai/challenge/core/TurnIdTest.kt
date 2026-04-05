@@ -1,5 +1,6 @@
 package com.ai.challenge.core
 
+import com.ai.challenge.core.turn.TurnId
 import kotlin.test.Test
 
 class TurnIdTest {

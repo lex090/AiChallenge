@@ -1,9 +1,9 @@
 package com.ai.challenge.token.repository
 
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.TokenDetails
-import com.ai.challenge.core.TokenRepository
-import com.ai.challenge.core.TurnId
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.metrics.TokenDetails
+import com.ai.challenge.core.metrics.TokenRepository
+import com.ai.challenge.core.turn.TurnId
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 

@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.sessionlist.store
 
-import com.ai.challenge.core.SessionId
+import com.ai.challenge.core.session.SessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import kotlin.time.Instant
 

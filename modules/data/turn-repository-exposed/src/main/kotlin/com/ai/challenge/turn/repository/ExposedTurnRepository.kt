@@ -1,9 +1,9 @@
 package com.ai.challenge.turn.repository
 
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.Turn
-import com.ai.challenge.core.TurnId
-import com.ai.challenge.core.TurnRepository
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.turn.TurnRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.time.Instant

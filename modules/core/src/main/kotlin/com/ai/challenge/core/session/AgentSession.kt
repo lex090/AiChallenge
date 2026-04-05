@@ -1,4 +1,4 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.session
 
 import kotlin.time.Clock
 import kotlin.time.Instant

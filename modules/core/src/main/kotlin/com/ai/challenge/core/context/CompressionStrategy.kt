@@ -1,4 +1,4 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.context
 
 sealed interface CompressionDecision {
     data object Skip : CompressionDecision

@@ -1,4 +1,6 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.turn
+
+import com.ai.challenge.core.session.SessionId
 
 interface TurnRepository {
     suspend fun append(sessionId: SessionId, turn: Turn): TurnId

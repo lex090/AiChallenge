@@ -1,6 +1,6 @@
 package com.ai.challenge.compressor
 
-import com.ai.challenge.core.Turn
+import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.llm.OpenRouterService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine

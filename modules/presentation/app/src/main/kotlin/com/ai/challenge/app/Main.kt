@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.ai.challenge.app.di.appModule
-import com.ai.challenge.core.Agent
+import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
 import com.arkivanov.decompose.DefaultComponentContext

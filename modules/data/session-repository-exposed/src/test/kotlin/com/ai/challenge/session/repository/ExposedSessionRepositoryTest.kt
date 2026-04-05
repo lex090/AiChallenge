@@ -1,6 +1,6 @@
 package com.ai.challenge.session.repository
 
-import com.ai.challenge.core.SessionId
+import com.ai.challenge.core.session.SessionId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database
 import kotlin.test.BeforeTest

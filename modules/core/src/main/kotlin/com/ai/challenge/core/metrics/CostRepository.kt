@@ -1,4 +1,7 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.metrics
+
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.turn.TurnId
 
 interface CostRepository {
     suspend fun record(sessionId: SessionId, turnId: TurnId, details: CostDetails)

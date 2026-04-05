@@ -1,8 +1,8 @@
 package com.ai.challenge.session.repository
 
-import com.ai.challenge.core.AgentSession
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.SessionRepository
+import com.ai.challenge.core.session.AgentSession
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.session.SessionRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction

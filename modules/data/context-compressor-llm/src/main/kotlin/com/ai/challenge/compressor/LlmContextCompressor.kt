@@ -1,8 +1,8 @@
 package com.ai.challenge.compressor
 
-import com.ai.challenge.core.ContextCompressor
-import com.ai.challenge.core.Summary
-import com.ai.challenge.core.Turn
+import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.llm.OpenRouterService
 
 class LlmContextCompressor(

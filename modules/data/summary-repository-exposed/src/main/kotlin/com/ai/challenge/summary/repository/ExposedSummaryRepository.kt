@@ -1,9 +1,9 @@
 package com.ai.challenge.summary.repository
 
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.Summary
-import com.ai.challenge.core.SummaryId
-import com.ai.challenge.core.SummaryRepository
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.core.summary.SummaryId
+import com.ai.challenge.core.summary.SummaryRepository
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SchemaUtils

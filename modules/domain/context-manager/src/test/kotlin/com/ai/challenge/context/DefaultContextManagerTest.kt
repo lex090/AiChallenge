@@ -1,12 +1,12 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.ContextCompressor
-import com.ai.challenge.core.ContextMessage
-import com.ai.challenge.core.MessageRole
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.Summary
-import com.ai.challenge.core.SummaryRepository
-import com.ai.challenge.core.Turn
+import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.core.summary.SummaryRepository
+import com.ai.challenge.core.turn.Turn
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test

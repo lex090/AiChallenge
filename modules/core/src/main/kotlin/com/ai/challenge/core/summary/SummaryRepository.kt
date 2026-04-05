@@ -1,4 +1,6 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.summary
+
+import com.ai.challenge.core.session.SessionId
 
 interface SummaryRepository {
     suspend fun save(sessionId: SessionId, summary: Summary)

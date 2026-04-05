@@ -1,8 +1,8 @@
 package com.ai.challenge.cost.repository
 
-import com.ai.challenge.core.CostDetails
-import com.ai.challenge.core.SessionId
-import com.ai.challenge.core.TurnId
+import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.session.SessionId
+import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database
 import kotlin.test.BeforeTest

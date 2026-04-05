@@ -1,5 +1,6 @@
 package com.ai.challenge.core
 
+import com.ai.challenge.core.metrics.CostDetails
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

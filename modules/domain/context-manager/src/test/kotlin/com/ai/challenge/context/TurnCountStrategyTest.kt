@@ -1,9 +1,9 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.CompressionContext
-import com.ai.challenge.core.CompressionDecision
-import com.ai.challenge.core.Summary
-import com.ai.challenge.core.Turn
+import com.ai.challenge.core.context.CompressionContext
+import com.ai.challenge.core.context.CompressionDecision
+import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.core.turn.Turn
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

@@ -1,4 +1,4 @@
-package com.ai.challenge.core
+package com.ai.challenge.core.session
 
 interface SessionRepository {
     suspend fun create(title: String = ""): SessionId

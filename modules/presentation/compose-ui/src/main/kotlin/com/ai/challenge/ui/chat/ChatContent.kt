@@ -34,8 +34,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.core.CostDetails
-import com.ai.challenge.core.TokenDetails
+import com.ai.challenge.core.metrics.CostDetails
+import com.ai.challenge.core.metrics.TokenDetails
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable

@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.sessionlist.store
 
-import com.ai.challenge.core.Agent
-import com.ai.challenge.core.SessionId
+import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.session.SessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
