@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
-import com.ai.challenge.ui.settings.SessionSettingsDialog
+import com.ai.challenge.ui.settings.SessionSettingsPanel
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import kotlinx.coroutines.launch
 
@@ -64,10 +64,6 @@ fun RootContent(component: RootComponent) {
                 onDeleteSession = { sessionId ->
                     component.deleteSession(sessionId)
                 },
-                onOpenSettings = { sessionId ->
-                    component.openSessionSettings(sessionId)
-                    scope.launch { drawerState.close() }
-                },
             )
         },
     ) {
@@ -87,7 +83,7 @@ fun RootContent(component: RootComponent) {
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(
                     onClick = {
-                        sessionListState.activeSessionId?.let { component.openSessionSettings(it) }
+                        sessionListState.activeSessionId?.let { component.toggleSessionSettings(it) }
                     },
                     enabled = sessionListState.activeSessionId != null,
                 ) {
@@ -97,19 +93,24 @@ fun RootContent(component: RootComponent) {
 
             HorizontalDivider()
 
-            Children(stack = component.childStack) { child ->
-                when (val instance = child.instance) {
-                    is RootComponent.Child.Chat -> ChatContent(instance.component)
+            Row(modifier = Modifier.weight(1f)) {
+                Children(
+                    stack = component.childStack,
+                    modifier = Modifier.weight(1f),
+                ) { child ->
+                    when (val instance = child.instance) {
+                        is RootComponent.Child.Chat -> ChatContent(instance.component)
+                    }
+                }
+
+                settingsComponent?.let { settings ->
+                    SessionSettingsPanel(
+                        component = settings,
+                        visible = true,
+                    )
                 }
             }
         }
-    }
-
-    settingsComponent?.let { settings ->
-        SessionSettingsDialog(
-            component = settings,
-            onDismiss = { component.closeSessionSettings() },
-        )
     }
 }
 
@@ -119,7 +120,6 @@ private fun DrawerContent(
     onNewChat: () -> Unit,
     onSelectSession: (AgentSessionId) -> Unit,
     onDeleteSession: (AgentSessionId) -> Unit,
-    onOpenSettings: (AgentSessionId) -> Unit,
 ) {
     ModalDrawerSheet {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -146,7 +146,6 @@ private fun DrawerContent(
                         isActive = session.id == state.activeSessionId,
                         onSelect = { onSelectSession(session.id) },
                         onDelete = { onDeleteSession(session.id) },
-                        onOpenSettings = { onOpenSettings(session.id) },
                     )
                 }
             }
@@ -160,7 +159,6 @@ private fun SessionRow(
     isActive: Boolean,
     onSelect: () -> Unit,
     onDelete: () -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -179,13 +177,6 @@ private fun SessionRow(
             color = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
                     else MaterialTheme.colorScheme.onSurface,
         )
-        IconButton(onClick = onOpenSettings) {
-            Icon(
-                Icons.Default.Settings,
-                contentDescription = "Session settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Default.Delete,

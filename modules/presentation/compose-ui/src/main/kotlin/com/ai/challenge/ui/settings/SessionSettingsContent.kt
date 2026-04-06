@@ -1,88 +1,96 @@
 package com.ai.challenge.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.ai.challenge.core.context.ContextManagementType
 
 @Composable
-fun SessionSettingsDialog(
+fun SessionSettingsPanel(
     component: SessionSettingsComponent,
-    onDismiss: () -> Unit,
+    visible: Boolean,
 ) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInHorizontally(initialOffsetX = { it }),
+        exit = slideOutHorizontally(targetOffsetX = { it }),
+    ) {
+        Row(modifier = Modifier.fillMaxHeight()) {
+            VerticalDivider()
+            SessionSettingsPanelContent(component)
+        }
+    }
+}
+
+@Composable
+private fun SessionSettingsPanelContent(component: SessionSettingsComponent) {
     val state by component.state.collectAsState()
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 6.dp,
+    Surface(
+        modifier = Modifier.width(280.dp).fillMaxHeight(),
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp).width(320.dp),
-            ) {
-                Text(
-                    text = "Session Settings",
-                    style = MaterialTheme.typography.titleLarge,
+            Text(
+                text = "Session Settings",
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            HorizontalDivider()
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Context Management",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (state.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else {
+                ContextManagementTypeOption(
+                    label = "No management",
+                    description = "Full history sent as-is",
+                    selected = state.currentType is ContextManagementType.None,
+                    onClick = { component.onChangeType(ContextManagementType.None) },
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                Text(
-                    text = "Context Management",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ContextManagementTypeOption(
+                    label = "Summarize on threshold",
+                    description = "Compress via summary when history grows",
+                    selected = state.currentType is ContextManagementType.SummarizeOnThreshold,
+                    onClick = { component.onChangeType(ContextManagementType.SummarizeOnThreshold) },
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                } else {
-                    ContextManagementTypeOption(
-                        label = "No management",
-                        description = "Full history sent as-is",
-                        selected = state.currentType is ContextManagementType.None,
-                        onClick = { component.onChangeType(ContextManagementType.None) },
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    ContextManagementTypeOption(
-                        label = "Summarize on threshold",
-                        description = "Compress via summary when history grows",
-                        selected = state.currentType is ContextManagementType.SummarizeOnThreshold,
-                        onClick = { component.onChangeType(ContextManagementType.SummarizeOnThreshold) },
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Close")
-                    }
-                }
             }
         }
     }

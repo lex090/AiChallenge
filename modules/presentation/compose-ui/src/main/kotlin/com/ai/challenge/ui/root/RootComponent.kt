@@ -76,17 +76,17 @@ class RootComponent(
         }
     }
 
-    fun openSessionSettings(sessionId: AgentSessionId) {
-        _settingsComponent.value = SessionSettingsComponent(
-            componentContext = this,
-            storeFactory = storeFactory,
-            agent = agent,
-            sessionId = sessionId,
-        )
-    }
-
-    fun closeSessionSettings() {
-        _settingsComponent.value = null
+    fun toggleSessionSettings(sessionId: AgentSessionId) {
+        if (_settingsComponent.value != null) {
+            _settingsComponent.value = null
+        } else {
+            _settingsComponent.value = SessionSettingsComponent(
+                componentContext = this,
+                storeFactory = storeFactory,
+                agent = agent,
+                sessionId = sessionId,
+            )
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
