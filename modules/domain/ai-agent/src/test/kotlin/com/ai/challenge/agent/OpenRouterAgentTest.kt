@@ -5,7 +5,7 @@ import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.CompressedContext
-import com.ai.challenge.core.context.ContextManagementRepository
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
@@ -49,7 +49,7 @@ class OpenRouterAgentTest {
     private val tokenRepo = FakeTokenRepository()
     private val costRepo = FakeCostRepository()
     private val contextManager = PassThroughContextManager()
-    private val contextManagementRepo = FakeContextManagementRepository()
+    private val contextManagementRepo = FakeContextManagementTypeRepository()
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -294,7 +294,7 @@ private class FakeCostRepository : CostDetailsRepository {
         getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
 }
 
-private class FakeContextManagementRepository : ContextManagementRepository {
+private class FakeContextManagementTypeRepository : ContextManagementTypeRepository {
     private val store = mutableMapOf<AgentSessionId, ContextManagementType>()
 
     override suspend fun save(sessionId: AgentSessionId, type: ContextManagementType) {

@@ -1,7 +1,7 @@
 package com.ai.challenge.context
 
 import com.ai.challenge.core.context.ContextCompressor
-import com.ai.challenge.core.context.ContextManagementRepository
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
@@ -23,13 +23,13 @@ class DefaultContextManagerTest {
 
     private lateinit var fakeCompressor: FakeContextCompressor
     private lateinit var fakeSummaryRepo: InMemorySummaryRepository
-    private lateinit var fakeContextManagementRepo: InMemoryContextManagementRepository
+    private lateinit var fakeContextManagementRepo: InMemoryContextManagementTypeRepository
 
     @BeforeTest
     fun setup() {
         fakeCompressor = FakeContextCompressor()
         fakeSummaryRepo = InMemorySummaryRepository()
-        fakeContextManagementRepo = InMemoryContextManagementRepository()
+        fakeContextManagementRepo = InMemoryContextManagementTypeRepository()
     }
 
     private fun createManager(): DefaultContextManager =
@@ -145,7 +145,7 @@ private class InMemorySummaryRepository : SummaryRepository {
         store.filter { it.first == sessionId }.map { it.second }
 }
 
-private class InMemoryContextManagementRepository : ContextManagementRepository {
+private class InMemoryContextManagementTypeRepository : ContextManagementTypeRepository {
     private val store = mutableMapOf<AgentSessionId, ContextManagementType>()
 
     override suspend fun save(sessionId: AgentSessionId, type: ContextManagementType) {

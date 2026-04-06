@@ -1,6 +1,6 @@
 package com.ai.challenge.context.repository
 
-import com.ai.challenge.core.context.ContextManagementRepository
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import org.jetbrains.exposed.sql.Database
@@ -11,9 +11,9 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.upsert
 
-class ExposedContextManagementRepository(
+class ExposedContextManagementTypeRepository(
     private val database: Database,
-) : ContextManagementRepository {
+) : ContextManagementTypeRepository {
 
     init {
         transaction(database) {

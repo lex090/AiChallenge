@@ -8,9 +8,9 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertIs
 
-class ExposedContextManagementRepositoryTest {
+class ExposedContextManagementTypeRepositoryTest {
 
-    private lateinit var repository: ExposedContextManagementRepository
+    private lateinit var repository: ExposedContextManagementTypeRepository
 
     @BeforeTest
     fun setup() {
@@ -18,7 +18,7 @@ class ExposedContextManagementRepositoryTest {
             url = "jdbc:sqlite:/tmp/test_context_mgmt_repo_${System.nanoTime()}.db",
             driver = "org.sqlite.JDBC",
         )
-        repository = ExposedContextManagementRepository(database)
+        repository = ExposedContextManagementTypeRepository(database)
     }
 
     @Test

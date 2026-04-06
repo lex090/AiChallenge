@@ -65,6 +65,17 @@ No module may depend on a module above it.
 - **All dependencies MUST go through Gradle Version Catalog** (`gradle/libs.versions.toml`). Never hardcode dependency coordinates directly in `build.gradle.kts` files.
 - Add new library to `[libraries]` section with a `version.ref`, then reference via `libs.<name>` in build files.
 
+### No Default Parameter Values
+
+- **Do not use default parameter values** in class constructors, function declarations, or interface methods.
+- All arguments must be passed explicitly at every call site.
+- This applies to data classes, regular classes, functions, and interface methods.
+
+### Repository Naming
+
+- **Repository interfaces MUST be named `{DomainModel}Repository`** where `{DomainModel}` is the exact name of the domain model class they persist.
+- Examples: `AgentSession` → `AgentSessionRepository`, `Turn` → `TurnRepository`, `ContextManagementType` → `ContextManagementTypeRepository`.
+
 ### Error Handling
 
 - Use Arrow `Either<AgentError, T>` at domain boundaries (Agent interface).

@@ -6,7 +6,7 @@ import arrow.core.raise.either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
-import com.ai.challenge.core.context.ContextManagementRepository
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.MessageRole
@@ -31,7 +31,7 @@ class AiAgent(
     private val tokenRepository: TokenDetailsRepository,
     private val costRepository: CostDetailsRepository,
     private val contextManager: ContextManager,
-    private val contextManagementRepository: ContextManagementRepository,
+    private val contextManagementRepository: ContextManagementTypeRepository,
 ) : Agent {
 
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {

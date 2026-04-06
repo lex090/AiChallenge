@@ -4,7 +4,7 @@ import com.ai.challenge.core.context.CompressedContext
 import com.ai.challenge.core.context.CompressionContext
 import com.ai.challenge.core.context.CompressionDecision
 import com.ai.challenge.core.context.ContextCompressor
-import com.ai.challenge.core.context.ContextManagementRepository
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
@@ -14,7 +14,7 @@ import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
 
 class DefaultContextManager(
-    private val contextManagementRepository: ContextManagementRepository,
+    private val contextManagementRepository: ContextManagementTypeRepository,
     private val strategyFactory: ContextStrategyFactory,
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
