@@ -45,8 +45,14 @@ fun SessionSettingsPanel(
                 .fillMaxHeight()
                 .clipToBounds(),
         ) {
-            VerticalDivider()
-            SessionSettingsPanelContent(component)
+            Row(
+                modifier = Modifier
+                    .width(PANEL_WIDTH)
+                    .fillMaxHeight(),
+            ) {
+                VerticalDivider()
+                SessionSettingsPanelContent(component)
+            }
         }
     }
 }
