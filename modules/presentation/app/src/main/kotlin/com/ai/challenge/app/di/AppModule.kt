@@ -3,7 +3,7 @@ package com.ai.challenge.app.di
 import com.ai.challenge.agent.AiAgent
 import com.ai.challenge.compressor.LlmContextCompressor
 import com.ai.challenge.context.DefaultContextManager
-import com.ai.challenge.context.TurnCountStrategy
+import com.ai.challenge.context.SummarizeOnThresholdStrategy
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.context.ContextStrategy
 import com.ai.challenge.core.context.ContextCompressor
@@ -38,7 +38,7 @@ val appModule = module {
     single<TokenDetailsRepository> { ExposedTokenRepository(createTokenDatabase()) }
     single<CostDetailsRepository> { ExposedCostRepository(createCostDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
-    single<ContextStrategy> { TurnCountStrategy(maxTurns = 15, retainLast = 5, compressionInterval = 10) }
+    single<ContextStrategy> { SummarizeOnThresholdStrategy(maxTurns = 15, retainLast = 5, compressionInterval = 10) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
     single<ContextManager> { DefaultContextManager(strategy = get(), compressor = get(), summaryRepository = get()) }
     single<Agent> {

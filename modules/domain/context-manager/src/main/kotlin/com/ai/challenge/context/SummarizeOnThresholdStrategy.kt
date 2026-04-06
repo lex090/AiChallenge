@@ -4,10 +4,10 @@ import com.ai.challenge.core.context.CompressionContext
 import com.ai.challenge.core.context.CompressionDecision
 import com.ai.challenge.core.context.ContextStrategy
 
-class TurnCountStrategy(
+class SummarizeOnThresholdStrategy(
     private val maxTurns: Int,
     private val retainLast: Int,
-    private val compressionInterval: Int = maxTurns - retainLast,
+    private val compressionInterval: Int,
 ) : ContextStrategy {
 
     override fun evaluate(context: CompressionContext): CompressionDecision {

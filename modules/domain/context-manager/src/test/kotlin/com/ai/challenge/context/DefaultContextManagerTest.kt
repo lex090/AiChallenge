@@ -29,12 +29,12 @@ class DefaultContextManagerTest {
     }
 
     private fun createManager(
-        maxTurns: Int = 5,
-        retainLast: Int = 2,
-        compressionInterval: Int = 3,
+        maxTurns: Int,
+        retainLast: Int,
+        compressionInterval: Int,
     ): DefaultContextManager =
         DefaultContextManager(
-            strategy = TurnCountStrategy(
+            strategy = SummarizeOnThresholdStrategy(
                 maxTurns = maxTurns,
                 retainLast = retainLast,
                 compressionInterval = compressionInterval,
@@ -45,7 +45,7 @@ class DefaultContextManagerTest {
 
     @Test
     fun `returns all turns when history is below threshold`() = runTest {
-        val manager = createManager(maxTurns = 5, retainLast = 2)
+        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val history = turns(3)
 
         val result = manager.prepareContext(AgentSessionId("s1"), history, "new msg")
@@ -134,7 +134,7 @@ class DefaultContextManagerTest {
 
     @Test
     fun `handles empty history`() = runTest {
-        val manager = createManager(maxTurns = 5, retainLast = 2)
+        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
 
         val result = manager.prepareContext(AgentSessionId("s1"), emptyList(), "hello")
 
