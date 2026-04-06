@@ -1,9 +1,7 @@
 package com.ai.challenge.ui.settings
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,26 +22,29 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.context.ContextManagementType
+
+private val PANEL_WIDTH = 280.dp
 
 @Composable
 fun SessionSettingsPanel(
     component: SessionSettingsComponent,
     visible: Boolean,
 ) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = slideInHorizontally(
-            animationSpec = tween(durationMillis = 300),
-            initialOffsetX = { it },
-        ),
-        exit = slideOutHorizontally(
-            animationSpec = tween(durationMillis = 300),
-            targetOffsetX = { it },
-        ),
-    ) {
-        Row(modifier = Modifier.fillMaxHeight()) {
+    val animatedWidth by animateDpAsState(
+        targetValue = if (visible) PANEL_WIDTH else 0.dp,
+        animationSpec = tween(durationMillis = 300),
+    )
+
+    if (animatedWidth > 0.dp) {
+        Row(
+            modifier = Modifier
+                .width(animatedWidth)
+                .fillMaxHeight()
+                .clipToBounds(),
+        ) {
             VerticalDivider()
             SessionSettingsPanelContent(component)
         }
@@ -55,7 +56,7 @@ private fun SessionSettingsPanelContent(component: SessionSettingsComponent) {
     val state by component.state.collectAsState()
 
     Surface(
-        modifier = Modifier.width(280.dp).fillMaxHeight(),
+        modifier = Modifier.width(PANEL_WIDTH).fillMaxHeight(),
         tonalElevation = 1.dp,
     ) {
         Column(
