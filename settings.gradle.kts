@@ -23,6 +23,7 @@ include(":modules:data:token-repository-exposed")
 include(":modules:data:cost-repository-exposed")
 include(":modules:data:summary-repository-exposed")
 include(":modules:data:context-compressor-llm")
+include(":modules:data:context-management-repository-exposed")
 
 // Layer 2: Domain
 include(":modules:domain:ai-agent")
