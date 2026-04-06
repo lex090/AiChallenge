@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
+import com.ai.challenge.ui.settings.SessionSettingsDialog
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import kotlinx.coroutines.launch
 
@@ -44,6 +46,7 @@ fun RootContent(component: RootComponent) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val sessionListState by component.sessionListState.collectAsState()
+    val settingsComponent by component.settingsComponent.collectAsState()
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -61,6 +64,10 @@ fun RootContent(component: RootComponent) {
                 onDeleteSession = { sessionId ->
                     component.deleteSession(sessionId)
                 },
+                onOpenSettings = { sessionId ->
+                    component.openSessionSettings(sessionId)
+                    scope.launch { drawerState.close() }
+                },
             )
         },
     ) {
@@ -77,6 +84,15 @@ fun RootContent(component: RootComponent) {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(start = 8.dp),
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        sessionListState.activeSessionId?.let { component.openSessionSettings(it) }
+                    },
+                    enabled = sessionListState.activeSessionId != null,
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Session settings")
+                }
             }
 
             HorizontalDivider()
@@ -88,6 +104,13 @@ fun RootContent(component: RootComponent) {
             }
         }
     }
+
+    settingsComponent?.let { settings ->
+        SessionSettingsDialog(
+            component = settings,
+            onDismiss = { component.closeSessionSettings() },
+        )
+    }
 }
 
 @Composable
@@ -96,6 +119,7 @@ private fun DrawerContent(
     onNewChat: () -> Unit,
     onSelectSession: (AgentSessionId) -> Unit,
     onDeleteSession: (AgentSessionId) -> Unit,
+    onOpenSettings: (AgentSessionId) -> Unit,
 ) {
     ModalDrawerSheet {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -122,6 +146,7 @@ private fun DrawerContent(
                         isActive = session.id == state.activeSessionId,
                         onSelect = { onSelectSession(session.id) },
                         onDelete = { onDeleteSession(session.id) },
+                        onOpenSettings = { onOpenSettings(session.id) },
                     )
                 }
             }
@@ -135,6 +160,7 @@ private fun SessionRow(
     isActive: Boolean,
     onSelect: () -> Unit,
     onDelete: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -153,6 +179,13 @@ private fun SessionRow(
             color = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
                     else MaterialTheme.colorScheme.onSurface,
         )
+        IconButton(onClick = onOpenSettings) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = "Session settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Default.Delete,
