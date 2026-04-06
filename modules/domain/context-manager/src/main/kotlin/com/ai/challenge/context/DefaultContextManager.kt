@@ -4,9 +4,9 @@ import com.ai.challenge.core.context.CompressedContext
 import com.ai.challenge.core.context.CompressionContext
 import com.ai.challenge.core.context.CompressionDecision
 import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.core.context.ContextManagementRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
-import com.ai.challenge.core.context.ContextStrategy
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
@@ -14,7 +14,8 @@ import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
 
 class DefaultContextManager(
-    private val strategy: ContextStrategy,
+    private val contextManagementRepository: ContextManagementRepository,
+    private val strategyFactory: ContextStrategyFactory,
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
 ) : ContextManager {
@@ -24,6 +25,9 @@ class DefaultContextManager(
         history: List<Turn>,
         newMessage: String,
     ): CompressedContext {
+        val type = contextManagementRepository.getBySession(sessionId)
+        val strategy = strategyFactory.create(type)
+
         val existingSummaries = summaryRepository.getBySession(sessionId)
         val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
         val decision = strategy.evaluate(CompressionContext(history, lastSummary))
