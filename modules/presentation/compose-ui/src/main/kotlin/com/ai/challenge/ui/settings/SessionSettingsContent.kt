@@ -1,6 +1,7 @@
 package com.ai.challenge.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Column
@@ -33,8 +34,14 @@ fun SessionSettingsPanel(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = slideInHorizontally(initialOffsetX = { it }),
-        exit = slideOutHorizontally(targetOffsetX = { it }),
+        enter = slideInHorizontally(
+            animationSpec = tween(durationMillis = 300),
+            initialOffsetX = { it },
+        ),
+        exit = slideOutHorizontally(
+            animationSpec = tween(durationMillis = 300),
+            targetOffsetX = { it },
+        ),
     ) {
         Row(modifier = Modifier.fillMaxHeight()) {
             VerticalDivider()

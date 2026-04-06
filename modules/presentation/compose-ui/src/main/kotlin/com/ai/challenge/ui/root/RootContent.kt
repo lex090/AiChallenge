@@ -29,6 +29,8 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +49,10 @@ fun RootContent(component: RootComponent) {
     val scope = rememberCoroutineScope()
     val sessionListState by component.sessionListState.collectAsState()
     val settingsComponent by component.settingsComponent.collectAsState()
+    val lastSettingsComponent = remember { mutableStateOf(settingsComponent) }
+    if (settingsComponent != null) {
+        lastSettingsComponent.value = settingsComponent
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -103,10 +109,10 @@ fun RootContent(component: RootComponent) {
                     }
                 }
 
-                settingsComponent?.let { settings ->
+                lastSettingsComponent.value?.let { settings ->
                     SessionSettingsPanel(
                         component = settings,
-                        visible = true,
+                        visible = settingsComponent != null,
                     )
                 }
             }
