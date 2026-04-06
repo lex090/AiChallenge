@@ -5,6 +5,6 @@ sealed interface CompressionDecision {
     data class Compress(val partitionPoint: Int) : CompressionDecision
 }
 
-interface CompressionStrategy {
+interface ContextStrategy {
     fun evaluate(context: CompressionContext): CompressionDecision
 }

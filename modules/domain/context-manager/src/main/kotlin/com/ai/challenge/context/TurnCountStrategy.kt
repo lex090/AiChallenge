@@ -2,13 +2,13 @@ package com.ai.challenge.context
 
 import com.ai.challenge.core.context.CompressionContext
 import com.ai.challenge.core.context.CompressionDecision
-import com.ai.challenge.core.context.CompressionStrategy
+import com.ai.challenge.core.context.ContextStrategy
 
 class TurnCountStrategy(
     private val maxTurns: Int,
     private val retainLast: Int,
     private val compressionInterval: Int = maxTurns - retainLast,
-) : CompressionStrategy {
+) : ContextStrategy {
 
     override fun evaluate(context: CompressionContext): CompressionDecision {
         val shouldCompress = when (val lastIndex = context.lastSummary?.toTurnIndex) {
