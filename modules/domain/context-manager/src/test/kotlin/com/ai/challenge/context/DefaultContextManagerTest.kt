@@ -125,7 +125,7 @@ class DefaultContextManagerTest {
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
         assertEquals(1, result.messages.size)
-        assertEquals(ContextMessage(MessageRole.User, "hello"), result.messages[0])
+        assertEquals(ContextMessage(role = MessageRole.User, content = "hello"), result.messages[0])
     }
 
     @Test
@@ -142,7 +142,7 @@ class DefaultContextManagerTest {
         assertEquals(5, result.retainedTurnCount)
         assertEquals(0, result.summaryCount)
         assertEquals(11, result.messages.size)
-        assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages.last())
+        assertEquals(ContextMessage(role = MessageRole.User, content = "new msg"), result.messages.last())
     }
 
     @Test
@@ -161,7 +161,7 @@ class DefaultContextManagerTest {
         assertEquals(21, result.messages.size)
         assertEquals(MessageRole.User, result.messages.first().role)
         assertEquals("msg6", result.messages.first().content)
-        assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages.last())
+        assertEquals(ContextMessage(role = MessageRole.User, content = "new msg"), result.messages.last())
     }
 
     @Test
@@ -177,7 +177,7 @@ class DefaultContextManagerTest {
         assertEquals(0, result.retainedTurnCount)
         assertEquals(0, result.summaryCount)
         assertEquals(1, result.messages.size)
-        assertEquals(ContextMessage(MessageRole.User, "hello"), result.messages[0])
+        assertEquals(ContextMessage(role = MessageRole.User, content = "hello"), result.messages[0])
     }
 }
 
