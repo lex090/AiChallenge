@@ -18,7 +18,8 @@ modules/
 │   ├── token-repository-exposed/
 │   └── cost-repository-exposed/
 ├── domain/                        ← Layer 2: Domain
-│   └── ai-agent/
+│   ├── ai-agent/
+│   └── context-manager/
 ├── presentation/                  ← Layer 3: Presentation
 │   ├── compose-ui/                # Pure UI (components, stores, composables)
 │   └── app/                       # Bootstrap, DI, entry point
@@ -37,6 +38,7 @@ modules/
 
 ### Layer 2 — Domain (`modules/domain/*`)
 - **ai-agent** — OpenRouterAgent (Agent facade implementation), delegates to repositories
+- **context-manager** — Context management: compression, summarization, LLM compressor
 
 ### Layer 3 — Presentation (`modules/presentation/*`)
 - **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through Agent interface.
@@ -70,6 +72,17 @@ No module may depend on a module above it.
 - **Do not use default parameter values** in class constructors, function declarations, or interface methods.
 - All arguments must be passed explicitly at every call site.
 - This applies to data classes, regular classes, functions, and interface methods.
+
+### Named Arguments
+
+- **All function and constructor calls MUST use named arguments** at every call site.
+- This applies to all calls: constructors, regular functions, methods, factory functions.
+- Example: `ContextMessage(role = MessageRole.User, content = text)` instead of `ContextMessage(MessageRole.User, text)`.
+
+### Explicit Values at Call Sites
+
+- **Never rely on default parameter values when calling external or standard library code.** Always pass all arguments explicitly.
+- If a function has a default parameter, still provide the value explicitly at the call site.
 
 ### Repository Naming
 

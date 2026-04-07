@@ -12,7 +12,6 @@
             <option value="$PROJECT_DIR$/modules" />
             <option value="$PROJECT_DIR$/modules/core" />
             <option value="$PROJECT_DIR$/modules/data" />
-            <option value="$PROJECT_DIR$/modules/data/context-compressor-llm" />
             <option value="$PROJECT_DIR$/modules/data/context-management-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/data/cost-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/data/open-router-service" />

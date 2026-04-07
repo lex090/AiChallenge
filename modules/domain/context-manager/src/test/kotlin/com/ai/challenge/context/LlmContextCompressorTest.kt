@@ -1,4 +1,4 @@
-package com.ai.challenge.compressor
+package com.ai.challenge.context
 
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.llm.OpenRouterService

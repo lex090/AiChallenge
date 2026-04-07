@@ -1,12 +1,12 @@
 package com.ai.challenge.app.di
 
 import com.ai.challenge.agent.AiAgent
-import com.ai.challenge.compressor.LlmContextCompressor
 import com.ai.challenge.context.DefaultContextManager
+import com.ai.challenge.context.LlmContextCompressor
 import com.ai.challenge.context.repository.ExposedContextManagementTypeRepository
 import com.ai.challenge.context.repository.createContextManagementDatabase
 import com.ai.challenge.core.agent.Agent
-import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.context.ContextCompressor
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.cost.CostDetailsRepository
