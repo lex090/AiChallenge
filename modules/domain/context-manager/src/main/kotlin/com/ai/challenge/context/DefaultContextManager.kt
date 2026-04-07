@@ -27,36 +27,44 @@ class DefaultContextManager(
         val type = contextManagementRepository.getBySession(sessionId)
 
         return when (type) {
-            is ContextManagementType.None -> {
-                val history = turnRepository.getBySession(sessionId)
-                noCompression(history, newMessage)
-            }
+            is ContextManagementType.None -> passThrough(sessionId, newMessage)
+            is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(sessionId, newMessage)
+        }
+    }
 
-            is ContextManagementType.SummarizeOnThreshold -> {
-                val maxTurns = 15
-                val retainLast = 5
-                val compressionInterval = 10
+    private suspend fun passThrough(
+        sessionId: AgentSessionId,
+        newMessage: String,
+    ): CompressedContext {
+        val history = turnRepository.getBySession(sessionId)
+        return noCompression(history, newMessage)
+    }
 
-                val history = turnRepository.getBySession(sessionId)
-                val existingSummaries = summaryRepository.getBySession(sessionId)
-                val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
+    private suspend fun summarizeOnThreshold(
+        sessionId: AgentSessionId,
+        newMessage: String,
+    ): CompressedContext {
+        val maxTurns = 15
+        val retainLast = 5
+        val compressionInterval = 10
 
-                val shouldCompress = when (val lastIndex = lastSummary?.toTurnIndex) {
-                    null -> history.size >= maxTurns
-                    else -> history.size - lastIndex >= retainLast + compressionInterval
-                }
+        val history = turnRepository.getBySession(sessionId)
 
-                if (!shouldCompress) {
-                    when (lastSummary) {
-                        null -> noCompression(history, newMessage)
-                        else -> reuseExistingSummary(lastSummary, history, newMessage)
-                    }
-                } else {
-                    val partitionPoint = (history.size - retainLast).coerceAtLeast(0)
-                    compress(sessionId, history, newMessage, partitionPoint, lastSummary)
-                }
+        if (history.size < maxTurns) {
+            return noCompression(history, newMessage)
+        }
+
+        val lastSummary = summaryRepository.getBySession(sessionId).maxByOrNull { it.toTurnIndex }
+
+        if (lastSummary != null) {
+            val turnsSinceLastSummary = history.size - lastSummary.toTurnIndex
+            if (turnsSinceLastSummary < retainLast + compressionInterval) {
+                return reuseExistingSummary(lastSummary, history, newMessage)
             }
         }
+
+        val partitionPoint = (history.size - retainLast).coerceAtLeast(0)
+        return compress(sessionId, history, newMessage, partitionPoint, lastSummary)
     }
 
     private suspend fun compress(
