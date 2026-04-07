@@ -105,6 +105,15 @@ private fun SessionSettingsPanelContent(component: SessionSettingsComponent) {
                     selected = state.currentType is ContextManagementType.SummarizeOnThreshold,
                     onClick = { component.onChangeType(ContextManagementType.SummarizeOnThreshold) },
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ContextManagementTypeOption(
+                    label = "Sliding window",
+                    description = "Keep last 10 turns, discard older",
+                    selected = state.currentType is ContextManagementType.SlidingWindow,
+                    onClick = { component.onChangeType(type = ContextManagementType.SlidingWindow) },
+                )
             }
         }
     }
