@@ -1,12 +1,13 @@
 package com.ai.challenge.app.di
 
 import com.ai.challenge.agent.AiAgent
-import com.ai.challenge.compressor.LlmContextCompressor
 import com.ai.challenge.context.DefaultContextManager
-import com.ai.challenge.context.TurnCountStrategy
+import com.ai.challenge.context.LlmContextCompressor
+import com.ai.challenge.context.repository.ExposedContextManagementTypeRepository
+import com.ai.challenge.context.repository.createContextManagementDatabase
 import com.ai.challenge.core.agent.Agent
-import com.ai.challenge.core.context.CompressionStrategy
-import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.context.ContextCompressor
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.session.AgentSessionRepository
@@ -38,9 +39,16 @@ val appModule = module {
     single<TokenDetailsRepository> { ExposedTokenRepository(createTokenDatabase()) }
     single<CostDetailsRepository> { ExposedCostRepository(createCostDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
-    single<CompressionStrategy> { TurnCountStrategy(maxTurns = 15, retainLast = 5, compressionInterval = 10) }
+    single<ContextManagementTypeRepository> { ExposedContextManagementTypeRepository(createContextManagementDatabase()) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
-    single<ContextManager> { DefaultContextManager(strategy = get(), compressor = get(), summaryRepository = get()) }
+    single<ContextManager> {
+        DefaultContextManager(
+            contextManagementRepository = get(),
+            compressor = get(),
+            summaryRepository = get(),
+            turnRepository = get(),
+        )
+    }
     single<Agent> {
         AiAgent(
             service = get(),
@@ -50,6 +58,7 @@ val appModule = module {
             tokenRepository = get(),
             costRepository = get(),
             contextManager = get(),
+            contextManagementRepository = get(),
         )
     }
 }

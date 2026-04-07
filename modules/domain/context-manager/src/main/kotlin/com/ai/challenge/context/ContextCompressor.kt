@@ -1,4 +1,4 @@
-package com.ai.challenge.core.context
+package com.ai.challenge.context
 
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.turn.Turn

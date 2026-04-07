@@ -5,6 +5,7 @@ import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
+import com.ai.challenge.ui.settings.SessionSettingsComponent
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
 import com.arkivanov.decompose.router.stack.StackNavigation
@@ -15,7 +16,9 @@ import com.arkivanov.mvikotlin.core.instancekeeper.getStore
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.stateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
@@ -31,6 +34,9 @@ class RootComponent(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val sessionListState: StateFlow<SessionListStore.State> = sessionListStore.stateFlow
+
+    private val _settingsComponent = MutableStateFlow<SessionSettingsComponent?>(null)
+    val settingsComponent: StateFlow<SessionSettingsComponent?> = _settingsComponent.asStateFlow()
 
     private val navigation = StackNavigation<Config>()
 
@@ -67,6 +73,19 @@ class RootComponent(
             val id = agent.createSession()
             sessionListStore.accept(SessionListStore.Intent.LoadSessions)
             selectSession(id)
+        }
+    }
+
+    fun toggleSessionSettings(sessionId: AgentSessionId) {
+        if (_settingsComponent.value != null) {
+            _settingsComponent.value = null
+        } else {
+            _settingsComponent.value = SessionSettingsComponent(
+                componentContext = this,
+                storeFactory = storeFactory,
+                agent = agent,
+                sessionId = sessionId,
+            )
         }
     }
 

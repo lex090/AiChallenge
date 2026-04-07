@@ -1,6 +1,7 @@
 package com.ai.challenge.core.agent
 
 import arrow.core.Either
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.session.AgentSession
@@ -22,4 +23,6 @@ interface Agent {
     suspend fun getCostByTurn(turnId: TurnId): CostDetails?
     suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails>
     suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails
+    suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType>
+    suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit>
 }

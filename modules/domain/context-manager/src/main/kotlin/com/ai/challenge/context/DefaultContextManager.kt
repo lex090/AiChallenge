@@ -1,121 +1,165 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.context.CompressedContext
-import com.ai.challenge.core.context.CompressionContext
-import com.ai.challenge.core.context.CompressionDecision
-import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextMessage
-import com.ai.challenge.core.context.CompressionStrategy
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManager.PreparedContext
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnRepository
 
 class DefaultContextManager(
-    private val strategy: CompressionStrategy,
+    private val contextManagementRepository: ContextManagementTypeRepository,
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
+    private val turnRepository: TurnRepository,
 ) : ContextManager {
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        history: List<Turn>,
         newMessage: String,
-    ): CompressedContext {
-        val existingSummaries = summaryRepository.getBySession(sessionId)
-        val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
-        val decision = strategy.evaluate(CompressionContext(history, lastSummary))
+    ): PreparedContext {
+        val type = contextManagementRepository.getBySession(sessionId = sessionId)
 
-        return when (decision) {
-            is CompressionDecision.Skip -> when (lastSummary) {
-                null -> noCompression(history, newMessage)
-                else -> reuseExistingSummary(lastSummary, history, newMessage)
-            }
-
-            is CompressionDecision.Compress ->
-                compress(sessionId, history, newMessage, decision.partitionPoint, lastSummary)
+        return when (type) {
+            is ContextManagementType.None -> passThrough(sessionId = sessionId, newMessage = newMessage)
+            is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(
+                sessionId = sessionId,
+                newMessage = newMessage
+            )
         }
     }
 
-    private suspend fun compress(
+    // --- orchestration (side effects at boundaries) ---
+
+    private suspend fun passThrough(
         sessionId: AgentSessionId,
-        history: List<Turn>,
         newMessage: String,
+    ): PreparedContext {
+        val history = turnRepository.getBySession(sessionId = sessionId)
+        return withoutCompression(history = history, newMessage = newMessage)
+    }
+
+    private suspend fun summarizeOnThreshold(
+        sessionId: AgentSessionId,
+        newMessage: String,
+    ): PreparedContext {
+        val maxTurns = 15
+        val retainLast = 5
+        val compressionInterval = 10
+
+        val history = turnRepository.getBySession(sessionId = sessionId)
+
+        if (history.size < maxTurns) {
+            return withoutCompression(history = history, newMessage = newMessage)
+        }
+
+        val lastSummary = summaryRepository.getBySession(sessionId = sessionId).maxByOrNull { it.toTurnIndex }
+
+        if (lastSummary != null) {
+            val turnsSinceLastSummary = history.size - lastSummary.toTurnIndex
+            if (turnsSinceLastSummary < retainLast + compressionInterval) {
+                return withExistingSummary(summary = lastSummary, history = history, newMessage = newMessage)
+            }
+        }
+
+        val splitAt = (history.size - retainLast).coerceAtLeast(minimumValue = 0)
+        val summaryText = compressTurns(history = history, splitAt = splitAt, lastSummary = lastSummary)
+        saveSummary(sessionId = sessionId, summaryText = summaryText, toTurnIndex = splitAt)
+        return withNewSummary(summaryText = summaryText, history = history, splitAt = splitAt, newMessage = newMessage)
+    }
+
+    // --- side effects ---
+
+    private suspend fun compressTurns(
+        history: List<Turn>,
         splitAt: Int,
         lastSummary: Summary?,
-    ): CompressedContext {
-        val toRetain = history.subList(splitAt, history.size)
+    ): String = when (lastSummary) {
+        null -> compressor.compress(turns = history.subList(0, splitAt))
+        else -> compressor.compress(
+            turns = history.subList(lastSummary.toTurnIndex, splitAt),
+            previousSummary = lastSummary,
+        )
+    }
 
-        val summaryText = when (lastSummary) {
-            null -> compressor.compress(history.subList(0, splitAt))
-            else -> compressor.compress(
-                history.subList(lastSummary.toTurnIndex, splitAt),
-                previousSummary = lastSummary,
+    private suspend fun saveSummary(
+        sessionId: AgentSessionId,
+        summaryText: String,
+        toTurnIndex: Int,
+    ) {
+        summaryRepository.save(
+            sessionId = sessionId,
+            summary = Summary(text = summaryText, fromTurnIndex = 0, toTurnIndex = toTurnIndex),
+        )
+    }
+
+    // --- pure functions ---
+
+    private fun turnsToMessages(turns: List<Turn>): List<ContextMessage> =
+        turns.flatMap {
+            listOf(
+                ContextMessage(role = MessageRole.User, content = it.userMessage),
+                ContextMessage(role = MessageRole.Assistant, content = it.agentResponse),
             )
         }
 
-        summaryRepository.save(
-            sessionId,
-            Summary(
-                text = summaryText,
-                fromTurnIndex = 0,
-                toTurnIndex = splitAt,
-            ),
-        )
-
-        return CompressedContext(
-            messages = buildMessages(summaryText, toRetain, newMessage),
-            compressed = true,
-            originalTurnCount = history.size,
-            retainedTurnCount = toRetain.size,
-            summaryCount = 1,
-        )
-    }
-
-    private fun noCompression(history: List<Turn>, newMessage: String): CompressedContext {
-        val messages = buildList {
-            for (turn in history) {
-                add(ContextMessage(MessageRole.User, turn.userMessage))
-                add(ContextMessage(MessageRole.Assistant, turn.agentResponse))
-            }
-            add(ContextMessage(MessageRole.User, newMessage))
-        }
-        return CompressedContext(
-            messages = messages,
+    private fun withoutCompression(history: List<Turn>, newMessage: String): PreparedContext =
+        PreparedContext(
+            messages = turnsToMessages(turns = history) + ContextMessage(role = MessageRole.User, content = newMessage),
             compressed = false,
             originalTurnCount = history.size,
             retainedTurnCount = history.size,
             summaryCount = 0,
         )
-    }
 
-    private fun reuseExistingSummary(
+    private fun withExistingSummary(
         summary: Summary,
         history: List<Turn>,
         newMessage: String,
-    ): CompressedContext {
-        val turnsAfterSummary = history.subList(summary.toTurnIndex, history.size)
-        return CompressedContext(
-            messages = buildMessages(summary.text, turnsAfterSummary, newMessage),
+    ): PreparedContext {
+        val retained = history.subList(summary.toTurnIndex, history.size)
+        return PreparedContext(
+            messages = summarizedMessages(
+                summaryText = summary.text,
+                retainedTurns = retained,
+                newMessage = newMessage
+            ),
             compressed = true,
             originalTurnCount = history.size,
-            retainedTurnCount = turnsAfterSummary.size,
+            retainedTurnCount = retained.size,
             summaryCount = 1,
         )
     }
 
-    private fun buildMessages(
+    private fun withNewSummary(
+        summaryText: String,
+        history: List<Turn>,
+        splitAt: Int,
+        newMessage: String,
+    ): PreparedContext {
+        val retained = history.subList(splitAt, history.size)
+        return PreparedContext(
+            messages = summarizedMessages(summaryText = summaryText, retainedTurns = retained, newMessage = newMessage),
+            compressed = true,
+            originalTurnCount = history.size,
+            retainedTurnCount = retained.size,
+            summaryCount = 1,
+        )
+    }
+
+    private fun summarizedMessages(
         summaryText: String,
         retainedTurns: List<Turn>,
         newMessage: String,
-    ): List<ContextMessage> = buildList {
-        add(ContextMessage(MessageRole.System, "Previous conversation summary:\n$summaryText"))
-        for (turn in retainedTurns) {
-            add(ContextMessage(MessageRole.User, turn.userMessage))
-            add(ContextMessage(MessageRole.Assistant, turn.agentResponse))
+    ): List<ContextMessage> =
+        buildList {
+            add(ContextMessage(role = MessageRole.System, content = "Previous conversation summary:\n$summaryText"))
+            addAll(turnsToMessages(turns = retainedTurns))
+            add(ContextMessage(role = MessageRole.User, content = newMessage))
         }
-        add(ContextMessage(MessageRole.User, newMessage))
-    }
 }

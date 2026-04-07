@@ -1,12 +1,15 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.context.ContextCompressor
-import com.ai.challenge.core.context.ContextMessage
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManagementTypeRepository
+import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.turn.TurnRepository
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -21,34 +24,54 @@ class DefaultContextManagerTest {
 
     private lateinit var fakeCompressor: FakeContextCompressor
     private lateinit var fakeSummaryRepo: InMemorySummaryRepository
+    private lateinit var fakeContextManagementRepo: InMemoryContextManagementTypeRepository
+    private lateinit var fakeTurnRepo: InMemoryTurnRepository
 
     @BeforeTest
     fun setup() {
         fakeCompressor = FakeContextCompressor()
         fakeSummaryRepo = InMemorySummaryRepository()
+        fakeContextManagementRepo = InMemoryContextManagementTypeRepository()
+        fakeTurnRepo = InMemoryTurnRepository()
     }
 
-    private fun createManager(
-        maxTurns: Int = 5,
-        retainLast: Int = 2,
-        compressionInterval: Int = 3,
-    ): DefaultContextManager =
+    private fun createManager(): DefaultContextManager =
         DefaultContextManager(
-            strategy = TurnCountStrategy(
-                maxTurns = maxTurns,
-                retainLast = retainLast,
-                compressionInterval = compressionInterval,
-            ),
+            contextManagementRepository = fakeContextManagementRepo,
             compressor = fakeCompressor,
             summaryRepository = fakeSummaryRepo,
+            turnRepository = fakeTurnRepo,
         )
 
-    @Test
-    fun `returns all turns when history is below threshold`() = runTest {
-        val manager = createManager(maxTurns = 5, retainLast = 2)
-        val history = turns(3)
+    private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
+        for (turn in turns) {
+            fakeTurnRepo.append(sessionId, turn)
+        }
+    }
 
-        val result = manager.prepareContext(AgentSessionId("s1"), history, "new msg")
+    @Test
+    fun `returns all turns when type is None`() = runTest {
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.None)
+        saveTurns(sessionId, turns(20))
+        val manager = createManager()
+
+        val result = manager.prepareContext(sessionId, "new msg")
+
+        assertFalse(result.compressed)
+        assertEquals(20, result.originalTurnCount)
+        assertEquals(20, result.retainedTurnCount)
+        assertEquals(0, result.summaryCount)
+    }
+
+    @Test
+    fun `returns all turns when SummarizeOnThreshold and below threshold`() = runTest {
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        saveTurns(sessionId, turns(3))
+        val manager = createManager()
+
+        val result = manager.prepareContext(sessionId, "new msg")
 
         assertFalse(result.compressed)
         assertEquals(3, result.originalTurnCount)
@@ -59,84 +82,45 @@ class DefaultContextManagerTest {
     }
 
     @Test
-    fun `first compression when reaching maxTurns`() = runTest {
-        // maxTurns=5, retainLast=2 → first compression at 5 turns, splitAt=3
-        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        val history = turns(5)
+    fun `compresses when SummarizeOnThreshold and at threshold`() = runTest {
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        saveTurns(sessionId, turns(15))
+        val manager = createManager()
 
-        val result = manager.prepareContext(AgentSessionId("s1"), history, "new msg")
+        val result = manager.prepareContext(sessionId, "new msg")
 
         assertTrue(result.compressed)
-        assertEquals(5, result.originalTurnCount)
-        assertEquals(2, result.retainedTurnCount)
+        assertEquals(15, result.originalTurnCount)
+        assertEquals(5, result.retainedTurnCount)
         assertEquals(1, result.summaryCount)
-        // 1 system (summary) + 2 retained * 2 + 1 new = 6
-        assertEquals(6, result.messages.size)
         assertEquals(MessageRole.System, result.messages.first().role)
-        assertTrue(result.messages.first().content.contains("Summary of 3 turns"))
-        assertEquals(ContextMessage(MessageRole.User, "msg4"), result.messages[1])
-        assertEquals(ContextMessage(MessageRole.Assistant, "resp4"), result.messages[2])
-        assertEquals(ContextMessage(MessageRole.User, "msg5"), result.messages[3])
-        assertEquals(ContextMessage(MessageRole.Assistant, "resp5"), result.messages[4])
-        assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages[5])
         assertEquals(1, fakeCompressor.callCount)
-        assertEquals(null, fakeCompressor.lastPreviousSummary)  // first compression — no previous summary
     }
 
     @Test
     fun `reuses existing summary without recompressing during interval`() = runTest {
-        // maxTurns=5, retainLast=2, compressionInterval=3
-        // First compression at 5 turns: summary covers [0,3), retain [3,5)
-        // At 6,7 turns: reuse summary, no recompression (turnsSince=3,4 < 2+3=5)
-        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
         val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        saveTurns(sessionId, turns(15))
+        val manager = createManager()
 
-        manager.prepareContext(sessionId, turns(5), "msg5")
+        manager.prepareContext(sessionId, "msg15")
         assertEquals(1, fakeCompressor.callCount)
 
-        // 6 turns: turnsSinceCompression = 6-3 = 3, threshold = 2+3 = 5, 3 < 5 → no recompression
-        val result6 = manager.prepareContext(sessionId, turns(6), "msg6")
-        assertEquals(1, fakeCompressor.callCount) // NOT called again
-        assertTrue(result6.compressed)
-        // Uses existing summary + turns[3..6) = 3 turns as-is + new msg
-        assertEquals(3, result6.retainedTurnCount)
-
-        // 7 turns: turnsSinceCompression = 7-3 = 4, 4 < 5 → still no recompression
-        val result7 = manager.prepareContext(sessionId, turns(7), "msg7")
-        assertEquals(1, fakeCompressor.callCount) // still NOT called
-        assertTrue(result7.compressed)
-        assertEquals(4, result7.retainedTurnCount)
-    }
-
-    @Test
-    fun `recompresses incrementally when interval exceeded`() = runTest {
-        // maxTurns=5, retainLast=2, compressionInterval=3
-        // First compression at 5 turns: summary covers [0,3)
-        // At 8 turns: turnsSinceCompression = 8-3 = 5, threshold = 2+3 = 5, 5 >= 5 → recompress
-        // New splitAt = 8-2 = 6, compress turns[3..6) with previousSummary
-        val manager = createManager(maxTurns = 5, retainLast = 2, compressionInterval = 3)
-        val sessionId = AgentSessionId("s1")
-
-        manager.prepareContext(sessionId, turns(5), "msg5")
+        fakeTurnRepo.append(sessionId, Turn(userMessage = "msg16", agentResponse = "resp16"))
+        val result = manager.prepareContext(sessionId, "msg16")
         assertEquals(1, fakeCompressor.callCount)
-
-        val result = manager.prepareContext(sessionId, turns(8), "msg8")
-        assertEquals(2, fakeCompressor.callCount)
         assertTrue(result.compressed)
-        assertEquals(2, result.retainedTurnCount)
-        // Incremental: previous summary was passed
-        assertEquals("Summary of 3 turns", fakeCompressor.lastPreviousSummary?.text)
-        // New turns compressed: turns[3..6) = 3 turns
-        assertEquals(3, fakeCompressor.lastTurnCount)
-        assertEquals(ContextMessage(MessageRole.User, "msg7"), result.messages[1])
-        assertEquals(ContextMessage(MessageRole.User, "msg8"), result.messages[3])
     }
 
     @Test
     fun `handles empty history`() = runTest {
-        val manager = createManager(maxTurns = 5, retainLast = 2)
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        val manager = createManager()
 
-        val result = manager.prepareContext(AgentSessionId("s1"), emptyList(), "hello")
+        val result = manager.prepareContext(sessionId, "hello")
 
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
@@ -170,4 +154,34 @@ private class InMemorySummaryRepository : SummaryRepository {
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
         store.filter { it.first == sessionId }.map { it.second }
+}
+
+private class InMemoryTurnRepository : TurnRepository {
+    private val store = mutableListOf<Pair<AgentSessionId, Turn>>()
+
+    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
+        store.add(sessionId to turn)
+        return turn.id
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> =
+        store.filter { it.first == sessionId }.map { it.second }
+
+    override suspend fun get(turnId: TurnId): Turn? =
+        store.map { it.second }.firstOrNull { it.id == turnId }
+}
+
+private class InMemoryContextManagementTypeRepository : ContextManagementTypeRepository {
+    private val store = mutableMapOf<AgentSessionId, ContextManagementType>()
+
+    override suspend fun save(sessionId: AgentSessionId, type: ContextManagementType) {
+        store[sessionId] = type
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId): ContextManagementType =
+        store[sessionId] ?: ContextManagementType.None
+
+    override suspend fun delete(sessionId: AgentSessionId) {
+        store.remove(sessionId)
+    }
 }

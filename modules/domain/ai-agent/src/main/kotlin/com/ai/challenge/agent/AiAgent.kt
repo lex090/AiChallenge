@@ -6,11 +6,13 @@ import arrow.core.raise.either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
-import com.ai.challenge.core.session.AgentSession
+import com.ai.challenge.core.context.ContextManagementTypeRepository
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.token.TokenDetails
@@ -29,13 +31,12 @@ class AiAgent(
     private val tokenRepository: TokenDetailsRepository,
     private val costRepository: CostDetailsRepository,
     private val contextManager: ContextManager,
+    private val contextManagementRepository: ContextManagementTypeRepository,
 ) : Agent {
 
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {
-        val history = turnRepository.getBySession(sessionId)
-
         val context = catch({
-            contextManager.prepareContext(sessionId, history, message)
+            contextManager.prepareContext(sessionId = sessionId, newMessage = message)
         }) { e: Exception ->
             raise(AgentError.NetworkError(e.message ?: "Context preparation failed"))
         }
@@ -73,8 +74,17 @@ class AiAgent(
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }
 
-    override suspend fun createSession(title: String): AgentSessionId = sessionRepository.create(title)
-    override suspend fun deleteSession(id: AgentSessionId): Boolean = sessionRepository.delete(id)
+    override suspend fun createSession(title: String): AgentSessionId {
+        val sessionId = sessionRepository.create(title)
+        contextManagementRepository.save(sessionId, ContextManagementType.None)
+        return sessionId
+    }
+
+    override suspend fun deleteSession(id: AgentSessionId): Boolean {
+        contextManagementRepository.delete(id)
+        return sessionRepository.delete(id)
+    }
+
     override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
     override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id)
     override suspend fun updateSessionTitle(id: AgentSessionId, title: String) = sessionRepository.updateTitle(id, title)
@@ -85,6 +95,17 @@ class AiAgent(
     override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
     override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
     override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails = costRepository.getSessionTotal(sessionId)
+
+    override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
+        Either.Right(contextManagementRepository.getBySession(sessionId))
+
+    override suspend fun updateContextManagementType(
+        sessionId: AgentSessionId,
+        type: ContextManagementType,
+    ): Either<AgentError, Unit> {
+        contextManagementRepository.save(sessionId, type)
+        return Either.Right(Unit)
+    }
 }
 
 fun MessageRole.toApiRole(): String = when (this) {

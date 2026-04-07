@@ -4,12 +4,14 @@ import arrow.core.Either
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.context.CompressedContext
+import com.ai.challenge.core.context.ContextManagementTypeRepository
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManager.PreparedContext
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.token.TokenDetails
@@ -46,7 +48,8 @@ class OpenRouterAgentTest {
     private val turnRepo = FakeTurnRepository()
     private val tokenRepo = FakeTokenRepository()
     private val costRepo = FakeCostRepository()
-    private val contextManager = PassThroughContextManager()
+    private val contextManager = PassThroughContextManager(turnRepo)
+    private val contextManagementRepo = FakeContextManagementTypeRepository()
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -75,6 +78,7 @@ class OpenRouterAgentTest {
             tokenRepository = tokenRepo,
             costRepository = costRepo,
             contextManager = contextManager,
+            contextManagementRepository = contextManagementRepo,
         )
 
     @Test
@@ -192,7 +196,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager, contextManagementRepo)
         val sessionId = sessionRepo.create()
 
         val result = agent.send(sessionId, "Hi")
@@ -217,7 +221,7 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager)
+        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager, contextManagementRepo)
         val sessionId = sessionRepo.create()
 
         turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
@@ -290,12 +294,29 @@ private class FakeCostRepository : CostDetailsRepository {
         getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
 }
 
-private class PassThroughContextManager : ContextManager {
+private class FakeContextManagementTypeRepository : ContextManagementTypeRepository {
+    private val store = mutableMapOf<AgentSessionId, ContextManagementType>()
+
+    override suspend fun save(sessionId: AgentSessionId, type: ContextManagementType) {
+        store[sessionId] = type
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId): ContextManagementType =
+        store[sessionId] ?: ContextManagementType.None
+
+    override suspend fun delete(sessionId: AgentSessionId) {
+        store.remove(sessionId)
+    }
+}
+
+private class PassThroughContextManager(
+    private val turnRepo: TurnRepository,
+) : ContextManager {
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        history: List<Turn>,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
+        val history = turnRepo.getBySession(sessionId)
         val messages = buildList {
             for (turn in history) {
                 add(ContextMessage(MessageRole.User, turn.userMessage))
@@ -303,7 +324,7 @@ private class PassThroughContextManager : ContextManager {
             }
             add(ContextMessage(MessageRole.User, newMessage))
         }
-        return CompressedContext(
+        return PreparedContext(
             messages = messages,
             compressed = false,
             originalTurnCount = history.size,

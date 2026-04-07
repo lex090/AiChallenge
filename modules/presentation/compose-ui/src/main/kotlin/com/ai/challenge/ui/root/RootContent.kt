@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,6 +29,8 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
+import com.ai.challenge.ui.settings.SessionSettingsPanel
 import com.arkivanov.decompose.extensions.compose.stack.Children
 import kotlinx.coroutines.launch
 
@@ -44,6 +48,11 @@ fun RootContent(component: RootComponent) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val sessionListState by component.sessionListState.collectAsState()
+    val settingsComponent by component.settingsComponent.collectAsState()
+    val lastSettingsComponent = remember { mutableStateOf(settingsComponent) }
+    if (settingsComponent != null) {
+        lastSettingsComponent.value = settingsComponent
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -77,13 +86,34 @@ fun RootContent(component: RootComponent) {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(start = 8.dp),
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        sessionListState.activeSessionId?.let { component.toggleSessionSettings(it) }
+                    },
+                    enabled = sessionListState.activeSessionId != null,
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Session settings")
+                }
             }
 
             HorizontalDivider()
 
-            Children(stack = component.childStack) { child ->
-                when (val instance = child.instance) {
-                    is RootComponent.Child.Chat -> ChatContent(instance.component)
+            Row(modifier = Modifier.weight(1f)) {
+                Children(
+                    stack = component.childStack,
+                    modifier = Modifier.weight(1f),
+                ) { child ->
+                    when (val instance = child.instance) {
+                        is RootComponent.Child.Chat -> ChatContent(instance.component)
+                    }
+                }
+
+                lastSettingsComponent.value?.let { settings ->
+                    SessionSettingsPanel(
+                        component = settings,
+                        visible = settingsComponent != null,
+                    )
                 }
             }
         }

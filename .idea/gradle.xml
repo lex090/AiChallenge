@@ -12,13 +12,16 @@
             <option value="$PROJECT_DIR$/modules" />
             <option value="$PROJECT_DIR$/modules/core" />
             <option value="$PROJECT_DIR$/modules/data" />
+            <option value="$PROJECT_DIR$/modules/data/context-management-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/data/cost-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/data/open-router-service" />
             <option value="$PROJECT_DIR$/modules/data/session-repository-exposed" />
+            <option value="$PROJECT_DIR$/modules/data/summary-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/data/token-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/data/turn-repository-exposed" />
             <option value="$PROJECT_DIR$/modules/domain" />
             <option value="$PROJECT_DIR$/modules/domain/ai-agent" />
+            <option value="$PROJECT_DIR$/modules/domain/context-manager" />
             <option value="$PROJECT_DIR$/modules/presentation" />
             <option value="$PROJECT_DIR$/modules/presentation/app" />
             <option value="$PROJECT_DIR$/modules/presentation/compose-ui" />

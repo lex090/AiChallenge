@@ -4,6 +4,7 @@ import arrow.core.Either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
@@ -242,6 +243,10 @@ open class FakeAgent(
         costData.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails =
         getCostBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+    override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
+        Either.Right(ContextManagementType.None)
+    override suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit> =
+        Either.Right(Unit)
 
     fun appendTurnDirect(sessionId: AgentSessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn
