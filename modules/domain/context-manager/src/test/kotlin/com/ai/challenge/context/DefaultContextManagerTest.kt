@@ -2,8 +2,8 @@ package com.ai.challenge.context
 
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.context.ContextMessage
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository

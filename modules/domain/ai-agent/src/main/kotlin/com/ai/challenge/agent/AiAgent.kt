@@ -9,7 +9,7 @@ import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.session.AgentSession

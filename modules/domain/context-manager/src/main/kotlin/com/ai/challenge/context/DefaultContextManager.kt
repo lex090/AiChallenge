@@ -1,11 +1,11 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.context.CompressedContext
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextMessage
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManager.PreparedContext
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
@@ -22,7 +22,7 @@ class DefaultContextManager(
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
         val type = contextManagementRepository.getBySession(sessionId = sessionId)
 
         return when (type) {
@@ -39,7 +39,7 @@ class DefaultContextManager(
     private suspend fun passThrough(
         sessionId: AgentSessionId,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
         val history = turnRepository.getBySession(sessionId = sessionId)
         return withoutCompression(history = history, newMessage = newMessage)
     }
@@ -47,7 +47,7 @@ class DefaultContextManager(
     private suspend fun summarizeOnThreshold(
         sessionId: AgentSessionId,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
         val maxTurns = 15
         val retainLast = 5
         val compressionInterval = 10
@@ -108,8 +108,8 @@ class DefaultContextManager(
             )
         }
 
-    private fun withoutCompression(history: List<Turn>, newMessage: String): CompressedContext =
-        CompressedContext(
+    private fun withoutCompression(history: List<Turn>, newMessage: String): PreparedContext =
+        PreparedContext(
             messages = turnsToMessages(turns = history) + ContextMessage(role = MessageRole.User, content = newMessage),
             compressed = false,
             originalTurnCount = history.size,
@@ -121,9 +121,9 @@ class DefaultContextManager(
         summary: Summary,
         history: List<Turn>,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
         val retained = history.subList(summary.toTurnIndex, history.size)
-        return CompressedContext(
+        return PreparedContext(
             messages = summarizedMessages(
                 summaryText = summary.text,
                 retainedTurns = retained,
@@ -141,9 +141,9 @@ class DefaultContextManager(
         history: List<Turn>,
         splitAt: Int,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
         val retained = history.subList(splitAt, history.size)
-        return CompressedContext(
+        return PreparedContext(
             messages = summarizedMessages(summaryText = summaryText, retainedTurns = retained, newMessage = newMessage),
             compressed = true,
             originalTurnCount = history.size,

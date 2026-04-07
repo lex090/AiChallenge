@@ -4,14 +4,14 @@ import arrow.core.Either
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.context.CompressedContext
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
-import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.ContextManager.PreparedContext
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
+import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.token.TokenDetails
@@ -315,7 +315,7 @@ private class PassThroughContextManager(
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
         newMessage: String,
-    ): CompressedContext {
+    ): PreparedContext {
         val history = turnRepo.getBySession(sessionId)
         val messages = buildList {
             for (turn in history) {
@@ -324,7 +324,7 @@ private class PassThroughContextManager(
             }
             add(ContextMessage(MessageRole.User, newMessage))
         }
-        return CompressedContext(
+        return PreparedContext(
             messages = messages,
             compressed = false,
             originalTurnCount = history.size,
