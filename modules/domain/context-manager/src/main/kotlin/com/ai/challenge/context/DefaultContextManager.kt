@@ -11,18 +11,20 @@ import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnRepository
 
 class DefaultContextManager(
     private val contextManagementRepository: ContextManagementTypeRepository,
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
+    private val turnRepository: TurnRepository,
 ) : ContextManager {
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        history: List<Turn>,
         newMessage: String,
     ): CompressedContext {
+        val history = turnRepository.getBySession(sessionId)
         val type = contextManagementRepository.getBySession(sessionId)
         val existingSummaries = summaryRepository.getBySession(sessionId)
         val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }

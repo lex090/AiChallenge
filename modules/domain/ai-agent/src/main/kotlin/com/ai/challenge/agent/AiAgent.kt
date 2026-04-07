@@ -35,10 +35,8 @@ class AiAgent(
 ) : Agent {
 
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {
-        val history = turnRepository.getBySession(sessionId)
-
         val context = catch({
-            contextManager.prepareContext(sessionId, history, message)
+            contextManager.prepareContext(sessionId = sessionId, newMessage = message)
         }) { e: Exception ->
             raise(AgentError.NetworkError(e.message ?: "Context preparation failed"))
         }

@@ -46,6 +46,7 @@ val appModule = module {
             contextManagementRepository = get(),
             compressor = get(),
             summaryRepository = get(),
+            turnRepository = get(),
         )
     }
     single<Agent> {

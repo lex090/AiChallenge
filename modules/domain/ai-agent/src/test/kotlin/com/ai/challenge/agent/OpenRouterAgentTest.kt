@@ -48,7 +48,7 @@ class OpenRouterAgentTest {
     private val turnRepo = FakeTurnRepository()
     private val tokenRepo = FakeTokenRepository()
     private val costRepo = FakeCostRepository()
-    private val contextManager = PassThroughContextManager()
+    private val contextManager = PassThroughContextManager(turnRepo)
     private val contextManagementRepo = FakeContextManagementTypeRepository()
 
     private fun createMockClient(responseJson: String): HttpClient {
@@ -309,12 +309,14 @@ private class FakeContextManagementTypeRepository : ContextManagementTypeReposit
     }
 }
 
-private class PassThroughContextManager : ContextManager {
+private class PassThroughContextManager(
+    private val turnRepo: TurnRepository,
+) : ContextManager {
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        history: List<Turn>,
         newMessage: String,
     ): CompressedContext {
+        val history = turnRepo.getBySession(sessionId)
         val messages = buildList {
             for (turn in history) {
                 add(ContextMessage(MessageRole.User, turn.userMessage))

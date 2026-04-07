@@ -9,6 +9,8 @@ import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.turn.TurnRepository
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -24,12 +26,14 @@ class DefaultContextManagerTest {
     private lateinit var fakeCompressor: FakeContextCompressor
     private lateinit var fakeSummaryRepo: InMemorySummaryRepository
     private lateinit var fakeContextManagementRepo: InMemoryContextManagementTypeRepository
+    private lateinit var fakeTurnRepo: InMemoryTurnRepository
 
     @BeforeTest
     fun setup() {
         fakeCompressor = FakeContextCompressor()
         fakeSummaryRepo = InMemorySummaryRepository()
         fakeContextManagementRepo = InMemoryContextManagementTypeRepository()
+        fakeTurnRepo = InMemoryTurnRepository()
     }
 
     private fun createManager(): DefaultContextManager =
@@ -37,16 +41,23 @@ class DefaultContextManagerTest {
             contextManagementRepository = fakeContextManagementRepo,
             compressor = fakeCompressor,
             summaryRepository = fakeSummaryRepo,
+            turnRepository = fakeTurnRepo,
         )
+
+    private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
+        for (turn in turns) {
+            fakeTurnRepo.append(sessionId, turn)
+        }
+    }
 
     @Test
     fun `returns all turns when type is None`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId, ContextManagementType.None)
+        saveTurns(sessionId, turns(20))
         val manager = createManager()
-        val history = turns(20)
 
-        val result = manager.prepareContext(sessionId, history, "new msg")
+        val result = manager.prepareContext(sessionId, "new msg")
 
         assertFalse(result.compressed)
         assertEquals(20, result.originalTurnCount)
@@ -58,10 +69,10 @@ class DefaultContextManagerTest {
     fun `returns all turns when SummarizeOnThreshold and below threshold`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        saveTurns(sessionId, turns(3))
         val manager = createManager()
-        val history = turns(3)
 
-        val result = manager.prepareContext(sessionId, history, "new msg")
+        val result = manager.prepareContext(sessionId, "new msg")
 
         assertFalse(result.compressed)
         assertEquals(3, result.originalTurnCount)
@@ -75,10 +86,10 @@ class DefaultContextManagerTest {
     fun `compresses when SummarizeOnThreshold and at threshold`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        saveTurns(sessionId, turns(15))
         val manager = createManager()
-        val history = turns(15)
 
-        val result = manager.prepareContext(sessionId, history, "new msg")
+        val result = manager.prepareContext(sessionId, "new msg")
 
         assertTrue(result.compressed)
         assertEquals(15, result.originalTurnCount)
@@ -92,12 +103,14 @@ class DefaultContextManagerTest {
     fun `reuses existing summary without recompressing during interval`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
+        saveTurns(sessionId, turns(15))
         val manager = createManager()
 
-        manager.prepareContext(sessionId, turns(15), "msg15")
+        manager.prepareContext(sessionId, "msg15")
         assertEquals(1, fakeCompressor.callCount)
 
-        val result = manager.prepareContext(sessionId, turns(16), "msg16")
+        fakeTurnRepo.append(sessionId, Turn(userMessage = "msg16", agentResponse = "resp16"))
+        val result = manager.prepareContext(sessionId, "msg16")
         assertEquals(1, fakeCompressor.callCount)
         assertTrue(result.compressed)
     }
@@ -108,7 +121,7 @@ class DefaultContextManagerTest {
         fakeContextManagementRepo.save(sessionId, ContextManagementType.SummarizeOnThreshold)
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId, emptyList(), "hello")
+        val result = manager.prepareContext(sessionId, "hello")
 
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
@@ -142,6 +155,21 @@ private class InMemorySummaryRepository : SummaryRepository {
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
         store.filter { it.first == sessionId }.map { it.second }
+}
+
+private class InMemoryTurnRepository : TurnRepository {
+    private val store = mutableListOf<Pair<AgentSessionId, Turn>>()
+
+    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
+        store.add(sessionId to turn)
+        return turn.id
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> =
+        store.filter { it.first == sessionId }.map { it.second }
+
+    override suspend fun get(turnId: TurnId): Turn? =
+        store.map { it.second }.firstOrNull { it.id == turnId }
 }
 
 private class InMemoryContextManagementTypeRepository : ContextManagementTypeRepository {
