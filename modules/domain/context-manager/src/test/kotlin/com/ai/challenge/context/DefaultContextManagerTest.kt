@@ -127,6 +127,58 @@ class DefaultContextManagerTest {
         assertEquals(1, result.messages.size)
         assertEquals(ContextMessage(MessageRole.User, "hello"), result.messages[0])
     }
+
+    @Test
+    fun `sliding window returns all turns when history is smaller than window`() = runTest {
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SlidingWindow)
+        saveTurns(sessionId, turns(5))
+        val manager = createManager()
+
+        val result = manager.prepareContext(sessionId, "new msg")
+
+        assertFalse(result.compressed)
+        assertEquals(5, result.originalTurnCount)
+        assertEquals(5, result.retainedTurnCount)
+        assertEquals(0, result.summaryCount)
+        assertEquals(11, result.messages.size)
+        assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages.last())
+    }
+
+    @Test
+    fun `sliding window retains only last 10 turns when history exceeds window`() = runTest {
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SlidingWindow)
+        saveTurns(sessionId, turns(15))
+        val manager = createManager()
+
+        val result = manager.prepareContext(sessionId, "new msg")
+
+        assertFalse(result.compressed)
+        assertEquals(15, result.originalTurnCount)
+        assertEquals(10, result.retainedTurnCount)
+        assertEquals(0, result.summaryCount)
+        assertEquals(21, result.messages.size)
+        assertEquals(MessageRole.User, result.messages.first().role)
+        assertEquals("msg6", result.messages.first().content)
+        assertEquals(ContextMessage(MessageRole.User, "new msg"), result.messages.last())
+    }
+
+    @Test
+    fun `sliding window handles empty history`() = runTest {
+        val sessionId = AgentSessionId("s1")
+        fakeContextManagementRepo.save(sessionId, ContextManagementType.SlidingWindow)
+        val manager = createManager()
+
+        val result = manager.prepareContext(sessionId, "hello")
+
+        assertFalse(result.compressed)
+        assertEquals(0, result.originalTurnCount)
+        assertEquals(0, result.retainedTurnCount)
+        assertEquals(0, result.summaryCount)
+        assertEquals(1, result.messages.size)
+        assertEquals(ContextMessage(MessageRole.User, "hello"), result.messages[0])
+    }
 }
 
 private class FakeContextCompressor : ContextCompressor {
