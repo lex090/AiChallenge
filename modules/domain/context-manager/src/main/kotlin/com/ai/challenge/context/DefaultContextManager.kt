@@ -19,6 +19,10 @@ class DefaultContextManager(
     private val turnRepository: TurnRepository,
 ) : ContextManager {
 
+    private companion object {
+        const val WINDOW_SIZE = 10
+    }
+
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
         newMessage: String,
@@ -30,6 +34,10 @@ class DefaultContextManager(
             is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(
                 sessionId = sessionId,
                 newMessage = newMessage
+            )
+            is ContextManagementType.SlidingWindow -> slidingWindow(
+                sessionId = sessionId,
+                newMessage = newMessage,
             )
         }
     }
@@ -71,6 +79,21 @@ class DefaultContextManager(
         val summaryText = compressTurns(history = history, splitAt = splitAt, lastSummary = lastSummary)
         saveSummary(sessionId = sessionId, summaryText = summaryText, toTurnIndex = splitAt)
         return withNewSummary(summaryText = summaryText, history = history, splitAt = splitAt, newMessage = newMessage)
+    }
+
+    private suspend fun slidingWindow(
+        sessionId: AgentSessionId,
+        newMessage: String,
+    ): PreparedContext {
+        val history = turnRepository.getBySession(sessionId = sessionId)
+        val windowed = history.takeLast(n = WINDOW_SIZE)
+        return PreparedContext(
+            messages = turnsToMessages(turns = windowed) + ContextMessage(role = MessageRole.User, content = newMessage),
+            compressed = false,
+            originalTurnCount = history.size,
+            retainedTurnCount = windowed.size,
+            summaryCount = 0,
+        )
     }
 
     // --- side effects ---
