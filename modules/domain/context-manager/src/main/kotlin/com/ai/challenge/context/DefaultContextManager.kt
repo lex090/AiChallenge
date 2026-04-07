@@ -24,21 +24,22 @@ class DefaultContextManager(
         sessionId: AgentSessionId,
         newMessage: String,
     ): CompressedContext {
-        val history = turnRepository.getBySession(sessionId)
         val type = contextManagementRepository.getBySession(sessionId)
-        val existingSummaries = summaryRepository.getBySession(sessionId)
-        val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
 
         return when (type) {
-            is ContextManagementType.None -> when (lastSummary) {
-                null -> noCompression(history, newMessage)
-                else -> reuseExistingSummary(lastSummary, history, newMessage)
+            is ContextManagementType.None -> {
+                val history = turnRepository.getBySession(sessionId)
+                noCompression(history, newMessage)
             }
 
             is ContextManagementType.SummarizeOnThreshold -> {
                 val maxTurns = 15
                 val retainLast = 5
                 val compressionInterval = 10
+
+                val history = turnRepository.getBySession(sessionId)
+                val existingSummaries = summaryRepository.getBySession(sessionId)
+                val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
 
                 val shouldCompress = when (val lastIndex = lastSummary?.toTurnIndex) {
                     null -> history.size >= maxTurns
