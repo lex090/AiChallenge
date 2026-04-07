@@ -131,11 +131,11 @@ class DefaultContextManagerTest {
     @Test
     fun `sliding window returns all turns when history is smaller than window`() = runTest {
         val sessionId = AgentSessionId("s1")
-        fakeContextManagementRepo.save(sessionId, ContextManagementType.SlidingWindow)
-        saveTurns(sessionId, turns(5))
+        fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SlidingWindow)
+        saveTurns(sessionId = sessionId, turns = turns(count = 5))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId, "new msg")
+        val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
 
         assertFalse(result.compressed)
         assertEquals(5, result.originalTurnCount)
@@ -148,11 +148,11 @@ class DefaultContextManagerTest {
     @Test
     fun `sliding window retains only last 10 turns when history exceeds window`() = runTest {
         val sessionId = AgentSessionId("s1")
-        fakeContextManagementRepo.save(sessionId, ContextManagementType.SlidingWindow)
-        saveTurns(sessionId, turns(15))
+        fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SlidingWindow)
+        saveTurns(sessionId = sessionId, turns = turns(count = 15))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId, "new msg")
+        val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
 
         assertFalse(result.compressed)
         assertEquals(15, result.originalTurnCount)
@@ -167,10 +167,10 @@ class DefaultContextManagerTest {
     @Test
     fun `sliding window handles empty history`() = runTest {
         val sessionId = AgentSessionId("s1")
-        fakeContextManagementRepo.save(sessionId, ContextManagementType.SlidingWindow)
+        fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SlidingWindow)
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId, "hello")
+        val result = manager.prepareContext(sessionId = sessionId, newMessage = "hello")
 
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
