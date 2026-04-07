@@ -1,9 +1,8 @@
 package com.ai.challenge.context
 
 import com.ai.challenge.core.context.CompressedContext
-import com.ai.challenge.core.context.CompressionContext
-import com.ai.challenge.core.context.CompressionDecision
 import com.ai.challenge.core.context.ContextCompressor
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
@@ -15,7 +14,6 @@ import com.ai.challenge.core.turn.Turn
 
 class DefaultContextManager(
     private val contextManagementRepository: ContextManagementTypeRepository,
-    private val strategyFactory: ContextStrategyFactory,
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
 ) : ContextManager {
@@ -26,20 +24,35 @@ class DefaultContextManager(
         newMessage: String,
     ): CompressedContext {
         val type = contextManagementRepository.getBySession(sessionId)
-        val strategy = strategyFactory.create(type)
-
         val existingSummaries = summaryRepository.getBySession(sessionId)
         val lastSummary = existingSummaries.maxByOrNull { it.toTurnIndex }
-        val decision = strategy.evaluate(CompressionContext(history, lastSummary))
 
-        return when (decision) {
-            is CompressionDecision.Skip -> when (lastSummary) {
+        return when (type) {
+            is ContextManagementType.None -> when (lastSummary) {
                 null -> noCompression(history, newMessage)
                 else -> reuseExistingSummary(lastSummary, history, newMessage)
             }
 
-            is CompressionDecision.Compress ->
-                compress(sessionId, history, newMessage, decision.partitionPoint, lastSummary)
+            is ContextManagementType.SummarizeOnThreshold -> {
+                val maxTurns = 15
+                val retainLast = 5
+                val compressionInterval = 10
+
+                val shouldCompress = when (val lastIndex = lastSummary?.toTurnIndex) {
+                    null -> history.size >= maxTurns
+                    else -> history.size - lastIndex >= retainLast + compressionInterval
+                }
+
+                if (!shouldCompress) {
+                    when (lastSummary) {
+                        null -> noCompression(history, newMessage)
+                        else -> reuseExistingSummary(lastSummary, history, newMessage)
+                    }
+                } else {
+                    val partitionPoint = (history.size - retainLast).coerceAtLeast(0)
+                    compress(sessionId, history, newMessage, partitionPoint, lastSummary)
+                }
+            }
         }
     }
 

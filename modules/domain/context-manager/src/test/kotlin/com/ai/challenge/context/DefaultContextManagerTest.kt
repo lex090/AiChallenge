@@ -35,7 +35,6 @@ class DefaultContextManagerTest {
     private fun createManager(): DefaultContextManager =
         DefaultContextManager(
             contextManagementRepository = fakeContextManagementRepo,
-            strategyFactory = ContextStrategyFactory(),
             compressor = fakeCompressor,
             summaryRepository = fakeSummaryRepo,
         )

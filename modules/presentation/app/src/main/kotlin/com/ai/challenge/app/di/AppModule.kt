@@ -2,7 +2,6 @@ package com.ai.challenge.app.di
 
 import com.ai.challenge.agent.AiAgent
 import com.ai.challenge.compressor.LlmContextCompressor
-import com.ai.challenge.context.ContextStrategyFactory
 import com.ai.challenge.context.DefaultContextManager
 import com.ai.challenge.context.repository.ExposedContextManagementTypeRepository
 import com.ai.challenge.context.repository.createContextManagementDatabase
@@ -41,12 +40,10 @@ val appModule = module {
     single<CostDetailsRepository> { ExposedCostRepository(createCostDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
     single<ContextManagementTypeRepository> { ExposedContextManagementTypeRepository(createContextManagementDatabase()) }
-    single { ContextStrategyFactory() }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
     single<ContextManager> {
         DefaultContextManager(
             contextManagementRepository = get(),
-            strategyFactory = get(),
             compressor = get(),
             summaryRepository = get(),
         )
