@@ -76,6 +76,8 @@ val appModule = module {
             costRepository = get(),
             contextManager = get(),
             contextManagementRepository = get(),
+            branchRepository = get(),
+            branchTurnRepository = get(),
         )
     }
 }

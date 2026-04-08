@@ -1,6 +1,8 @@
 package com.ai.challenge.core.agent
 
 import arrow.core.Either
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.token.TokenDetails
@@ -25,4 +27,9 @@ interface Agent {
     suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails
     suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType>
     suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit>
+    suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId): Either<AgentError, BranchId>
+    suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit>
+    suspend fun getBranches(sessionId: AgentSessionId): Either<AgentError, List<Branch>>
+    suspend fun switchBranch(sessionId: AgentSessionId, branchId: BranchId): Either<AgentError, Unit>
+    suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?>
 }
