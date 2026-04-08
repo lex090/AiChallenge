@@ -261,6 +261,8 @@ open class FakeAgent(
         Either.Right(value = null)
     override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> =
         Either.Right(value = getTurns(sessionId = sessionId))
+    override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> =
+        Either.Right(value = emptyMap())
 
     fun appendTurnDirect(sessionId: AgentSessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn

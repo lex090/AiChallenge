@@ -223,6 +223,21 @@ class AiAgent(
         return trunk + myTurns
     }
 
+    override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> = either {
+        val branches = branchRepository.getBySession(sessionId = sessionId)
+        val result = mutableMapOf<BranchId, BranchId?>()
+        for (branch in branches) {
+            val turnId = branch.parentTurnId
+            val parentBranchId = if (turnId != null) {
+                branchTurnRepository.findBranchByTurnId(turnId = turnId)
+            } else {
+                null
+            }
+            result[branch.id] = parentBranchId
+        }
+        result
+    }
+
     private suspend fun cascadeDeleteBranch(branchId: BranchId, sessionId: AgentSessionId) {
         val turnIds = branchTurnRepository.getTurnIds(branchId = branchId)
         val allBranches = branchRepository.getBySession(sessionId = sessionId)

@@ -33,4 +33,5 @@ interface Agent {
     suspend fun switchBranch(sessionId: AgentSessionId, branchId: BranchId): Either<AgentError, Unit>
     suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?>
     suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>>
+    suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>>
 }
