@@ -17,6 +17,7 @@ class DefaultContextManager(
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
     private val turnRepository: TurnRepository,
+    private val branchingContextManager: BranchingContextManager,
 ) : ContextManager {
 
     override suspend fun prepareContext(
@@ -29,7 +30,11 @@ class DefaultContextManager(
             is ContextManagementType.None -> passThrough(sessionId = sessionId, newMessage = newMessage)
             is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(
                 sessionId = sessionId,
-                newMessage = newMessage
+                newMessage = newMessage,
+            )
+            is ContextManagementType.Branching -> branchingContextManager.prepareContext(
+                sessionId = sessionId,
+                newMessage = newMessage,
             )
         }
     }

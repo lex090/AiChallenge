@@ -1,12 +1,19 @@
 package com.ai.challenge.app.di
 
 import com.ai.challenge.agent.AiAgent
+import com.ai.challenge.branch.repository.ExposedBranchRepository
+import com.ai.challenge.branch.repository.createBranchDatabase
+import com.ai.challenge.branch.turn.repository.ExposedBranchTurnRepository
+import com.ai.challenge.branch.turn.repository.createBranchTurnDatabase
+import com.ai.challenge.context.BranchingContextManager
 import com.ai.challenge.context.DefaultContextManager
 import com.ai.challenge.context.LlmContextCompressor
 import com.ai.challenge.context.repository.ExposedContextManagementTypeRepository
 import com.ai.challenge.context.repository.createContextManagementDatabase
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.context.ContextCompressor
+import com.ai.challenge.core.branch.BranchRepository
+import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.cost.CostDetailsRepository
@@ -41,12 +48,22 @@ val appModule = module {
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
     single<ContextManagementTypeRepository> { ExposedContextManagementTypeRepository(createContextManagementDatabase()) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
+    single<BranchRepository> { ExposedBranchRepository(createBranchDatabase()) }
+    single<BranchTurnRepository> { ExposedBranchTurnRepository(createBranchTurnDatabase()) }
+    single {
+        BranchingContextManager(
+            turnRepository = get(),
+            branchRepository = get(),
+            branchTurnRepository = get(),
+        )
+    }
     single<ContextManager> {
         DefaultContextManager(
             contextManagementRepository = get(),
             compressor = get(),
             summaryRepository = get(),
             turnRepository = get(),
+            branchingContextManager = get(),
         )
     }
     single<Agent> {

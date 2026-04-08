@@ -1,5 +1,9 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.branch.BranchRepository
+import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
@@ -41,6 +45,11 @@ class DefaultContextManagerTest {
             compressor = fakeCompressor,
             summaryRepository = fakeSummaryRepo,
             turnRepository = fakeTurnRepo,
+            branchingContextManager = BranchingContextManager(
+                turnRepository = fakeTurnRepo,
+                branchRepository = InMemoryBranchRepository(),
+                branchTurnRepository = InMemoryBranchTurnRepository(),
+            ),
         )
 
     private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
@@ -154,21 +163,6 @@ private class InMemorySummaryRepository : SummaryRepository {
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
         store.filter { it.first == sessionId }.map { it.second }
-}
-
-private class InMemoryTurnRepository : TurnRepository {
-    private val store = mutableListOf<Pair<AgentSessionId, Turn>>()
-
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
-        store.add(sessionId to turn)
-        return turn.id
-    }
-
-    override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> =
-        store.filter { it.first == sessionId }.map { it.second }
-
-    override suspend fun get(turnId: TurnId): Turn? =
-        store.map { it.second }.firstOrNull { it.id == turnId }
 }
 
 private class InMemoryContextManagementTypeRepository : ContextManagementTypeRepository {
