@@ -259,6 +259,8 @@ open class FakeAgent(
         Either.Left(value = AgentError.ApiError(message = "Not implemented"))
     override suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?> =
         Either.Right(value = null)
+    override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> =
+        Either.Right(value = getTurns(sessionId = sessionId))
 
     fun appendTurnDirect(sessionId: AgentSessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn

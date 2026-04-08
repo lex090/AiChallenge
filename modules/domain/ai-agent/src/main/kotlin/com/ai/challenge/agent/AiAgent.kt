@@ -195,6 +195,34 @@ class AiAgent(
     override suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?> =
         Either.Right(value = branchRepository.getActiveBranch(sessionId = sessionId))
 
+    override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> = either {
+        val type = contextManagementRepository.getBySession(sessionId)
+        if (type !is ContextManagementType.Branching) {
+            return@either turnRepository.getBySession(sessionId = sessionId)
+        }
+        val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
+            ?: return@either turnRepository.getBySession(sessionId = sessionId)
+        collectBranchPathTurns(branchId = activeBranch.id)
+    }
+
+    private suspend fun collectBranchPathTurns(branchId: BranchId): List<Turn> {
+        val branch = branchRepository.get(branchId = branchId)
+            ?: return emptyList()
+        val myTurnIds = branchTurnRepository.getTurnIds(branchId = branchId)
+        val myTurns = myTurnIds.mapNotNull { turnRepository.get(turnId = it) }
+
+        val parentTurnId = branch.parentTurnId ?: return myTurns
+
+        val parentBranchId = branchTurnRepository.findBranchByTurnId(turnId = parentTurnId)
+            ?: return myTurns
+        val parentPath = collectBranchPathTurns(branchId = parentBranchId)
+
+        val cutIndex = parentPath.indexOfFirst { it.id == parentTurnId }
+        val trunk = if (cutIndex >= 0) parentPath.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentPath
+
+        return trunk + myTurns
+    }
+
     private suspend fun cascadeDeleteBranch(branchId: BranchId, sessionId: AgentSessionId) {
         val turnIds = branchTurnRepository.getTurnIds(branchId = branchId)
         val allBranches = branchRepository.getBySession(sessionId = sessionId)
