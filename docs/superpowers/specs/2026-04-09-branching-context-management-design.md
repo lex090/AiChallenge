@@ -41,9 +41,11 @@ data class Branch(
     val sessionId: AgentSessionId,
     val name: String,
     val parentTurnId: TurnId?,   // null для main ветки
-    val isMain: Boolean,
+    val isActive: Boolean,
     val createdAt: Instant,
-)
+) {
+    val isMain: Boolean get() = parentTurnId == null
+}
 ```
 
 ### ContextManagementType — новый вариант
@@ -72,6 +74,8 @@ interface BranchRepository {
     suspend fun get(branchId: BranchId): Branch?
     suspend fun getBySession(sessionId: AgentSessionId): List<Branch>
     suspend fun getMainBranch(sessionId: AgentSessionId): Branch?
+    suspend fun getActiveBranch(sessionId: AgentSessionId): Branch?
+    suspend fun setActive(sessionId: AgentSessionId, branchId: BranchId)
     suspend fun delete(branchId: BranchId)
 }
 ```
@@ -88,15 +92,6 @@ interface BranchTurnRepository {
 }
 ```
 
-### ActiveBranchRepository
-
-```kotlin
-interface ActiveBranchRepository {
-    suspend fun set(sessionId: AgentSessionId, branchId: BranchId)
-    suspend fun get(sessionId: AgentSessionId): BranchId?
-    suspend fun delete(sessionId: AgentSessionId)
-}
-```
 
 ---
 
@@ -110,7 +105,7 @@ object BranchesTable : Table("branches") {
     val sessionId = varchar("session_id", 36)
     val name = varchar("name", 255)
     val parentTurnId = varchar("parent_turn_id", 36).nullable()
-    val isMain = bool("is_main")
+    val isActive = bool("is_active")
     val createdAt = long("created_at")
     override val primaryKey = PrimaryKey(id)
 }
@@ -127,16 +122,6 @@ object BranchTurnsTable : Table("branch_turns") {
 }
 ```
 
-### ActiveBranchTable
-
-```kotlin
-object ActiveBranchTable : Table("active_branch") {
-    val sessionId = varchar("session_id", 36)
-    val branchId = varchar("branch_id", 36)
-    override val primaryKey = PrimaryKey(sessionId)
-}
-```
-
 ---
 
 ## Context Management Logic
@@ -145,7 +130,7 @@ object ActiveBranchTable : Table("active_branch") {
 
 `DefaultContextManager` делегирует в `BranchingContextManager` когда стратегия = `Branching`. `BranchingContextManager` реализует интерфейс `ContextManager`.
 
-Сигнатура `prepareContext(sessionId, newMessage)` не меняется. `BranchingContextManager` сам определяет активную ветку через `ActiveBranchRepository`.
+Сигнатура `prepareContext(sessionId, newMessage)` не меняется. `BranchingContextManager` сам определяет активную ветку через `BranchRepository.getActiveBranch(sessionId)`.
 
 ### BranchingContextManager
 
@@ -156,15 +141,15 @@ class BranchingContextManager(
     private val turnRepository: TurnRepository,
     private val branchRepository: BranchRepository,
     private val branchTurnRepository: BranchTurnRepository,
-    private val activeBranchRepository: ActiveBranchRepository,
 ) : ContextManager {
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
         newMessage: String,
     ): PreparedContext {
-        val branchId = activeBranchRepository.get(sessionId)
+        val activeBranch = branchRepository.getActiveBranch(sessionId)
             ?: error("No active branch for session")
+        val branchId = activeBranch.id
         val turns = collectBranchPath(branchId)
         // Формируем messages из turns + newMessage → PreparedContext
     }
@@ -210,8 +195,8 @@ AiAgent.send(sessionId, message):
      (BranchingContextManager читает activeBranch, собирает path)
   2. LLM call с PreparedContext.messages
   3. Создать Turn → turnRepository.append(sessionId, turn)
-  4. Получить activeBranchId из activeBranchRepository
-  5. branchTurnRepository.append(activeBranchId, turnId, nextOrderIndex)
+  4. Получить activeBranch из branchRepository.getActiveBranch(sessionId)
+  5. branchTurnRepository.append(activeBranch.id, turnId, nextOrderIndex)
   6. Записать token/cost details
 ```
 
@@ -220,7 +205,7 @@ AiAgent.send(sessionId, message):
 ```
 createBranch(sessionId, name, parentTurnId):
   1. Проверить стратегия = Branching
-  2. Branch(id=generate(), sessionId, name, parentTurnId, isMain=false, createdAt=now())
+  2. Branch(id=generate(), sessionId, name, parentTurnId, isActive=false, createdAt=now())
   3. branchRepository.create(branch)
   4. return branchId
 ```
@@ -247,7 +232,7 @@ deleteBranch(branchId):
 ```
 switchBranch(sessionId, branchId):
   1. Проверить ветка принадлежит сессии
-  2. activeBranchRepository.set(sessionId, branchId)
+  2. branchRepository.setActive(sessionId, branchId)
 ```
 
 ### Переключение стратегии на Branching
@@ -258,9 +243,8 @@ switchBranch(sessionId, branchId):
 updateContextManagementType(sessionId, Branching):
   1. contextManagementRepository.save(sessionId, Branching)
   2. Проверить: существует ли main ветка для сессии?
-  3. Если нет — создать main Branch(parentTurnId=null, isMain=true, name="main")
+  3. Если нет — создать main Branch(parentTurnId=null, isActive=true, name="main")
   4. Существующие turns сессии → привязать к main через BranchTurnRepository
-  5. activeBranchRepository.set(sessionId, mainBranchId)
 ```
 
 При переключении с Branching на другую стратегию — ветки и маппинги остаются в БД (не удаляются). Если пользователь вернётся на Branching — всё восстановится.
@@ -363,7 +347,6 @@ interface Agent {
 ### Новые модули (data layer)
 - `modules/data/branch-repository-exposed/` — BranchRepository implementation
 - `modules/data/branch-turn-repository-exposed/` — BranchTurnRepository implementation
-- `modules/data/active-branch-repository-exposed/` — ActiveBranchRepository implementation
 
 ### Изменения в существующих модулях
 - `modules/core/` — новые типы (BranchId, Branch), интерфейсы репозиториев, Branching в ContextManagementType
@@ -384,7 +367,7 @@ interface Agent {
 - Edge cases: ветка без turns, удаление активной ветки → переключение на main
 
 ### Repository Tests
-- CRUD операции для BranchRepository, BranchTurnRepository, ActiveBranchRepository
+- CRUD операции для BranchRepository, BranchTurnRepository
 - Порядок turns (orderIndex) сохраняется корректно
 - Каскадное удаление через deleteByBranch
 
