@@ -105,6 +105,15 @@ private fun SessionSettingsPanelContent(component: SessionSettingsComponent) {
                     selected = state.currentType is ContextManagementType.SummarizeOnThreshold,
                     onClick = { component.onChangeType(ContextManagementType.SummarizeOnThreshold) },
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ContextManagementTypeOption(
+                    label = "Branching",
+                    description = "Create dialog branches from any message",
+                    selected = state.currentType is ContextManagementType.Branching,
+                    onClick = { component.onChangeType(ContextManagementType.Branching) },
+                )
             }
         }
     }
