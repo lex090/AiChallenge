@@ -31,6 +31,7 @@ class DefaultContextManager(
                 sessionId = sessionId,
                 newMessage = newMessage
             )
+            is ContextManagementType.StickyFacts -> passThrough(sessionId = sessionId, newMessage = newMessage)
         }
     }
 
