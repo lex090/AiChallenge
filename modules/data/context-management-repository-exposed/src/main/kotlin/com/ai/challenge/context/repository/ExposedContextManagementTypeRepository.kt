@@ -49,10 +49,12 @@ class ExposedContextManagementTypeRepository(
 private fun ContextManagementType.toStorageString(): String = when (this) {
     is ContextManagementType.None -> "none"
     is ContextManagementType.SummarizeOnThreshold -> "summarize_on_threshold"
+    is ContextManagementType.StickyFacts -> "sticky_facts"
 }
 
 private fun String.toContextManagementType(): ContextManagementType = when (this) {
     "none" -> ContextManagementType.None
     "summarize_on_threshold" -> ContextManagementType.SummarizeOnThreshold
+    "sticky_facts" -> ContextManagementType.StickyFacts
     else -> ContextManagementType.None
 }
