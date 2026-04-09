@@ -215,9 +215,8 @@ class AiAgent(
         val myTurns = myTurnIds.mapNotNull { turnRepository.get(turnId = it) }
 
         val parentTurnId = branch.parentTurnId ?: return myTurns
+        val parentBranchId = branch.parentBranchId ?: return myTurns
 
-        val parentBranchId = branchTurnRepository.findBranchByTurnId(turnId = parentTurnId)
-            ?: return myTurns
         val parentPath = collectBranchPathTurns(branchId = parentBranchId)
 
         val cutIndex = parentPath.indexOfFirst { it.id == parentTurnId }

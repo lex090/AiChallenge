@@ -42,9 +42,8 @@ class BranchingContextManager(
         val myTurns = myTurnIds.mapNotNull { turnRepository.get(turnId = it) }
 
         val parentTurnId = branch.parentTurnId ?: return myTurns
+        val parentBranchId = branch.parentBranchId ?: return myTurns
 
-        val parentBranchId = branchTurnRepository.findBranchByTurnId(turnId = parentTurnId)
-            ?: error("Could not find branch owning turn ${parentTurnId.value}")
         val parentPath = collectBranchPath(branchId = parentBranchId)
 
         val cutIndex = parentPath.indexOfFirst { it.id == parentTurnId }

@@ -22,13 +22,14 @@ class BranchingContextManagerTest {
     private fun createBranch(
         id: BranchId,
         parentTurnId: TurnId?,
+        parentBranchId: BranchId?,
         isActive: Boolean,
     ): Branch = Branch(
         id = id,
         sessionId = sessionId,
         name = "branch-${id.value}",
         parentTurnId = parentTurnId,
-        parentBranchId = null,
+        parentBranchId = parentBranchId,
         isActive = isActive,
         createdAt = Clock.System.now(),
     )
@@ -60,7 +61,7 @@ class BranchingContextManagerTest {
         val turn1 = createTurn(userMessage = "user1", agentResponse = "assistant1")
         val turn2 = createTurn(userMessage = "user2", agentResponse = "assistant2")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, isActive = true))
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, parentBranchId = null, isActive = true))
         turnRepo.append(sessionId = sessionId, turn = turn1)
         turnRepo.append(sessionId = sessionId, turn = turn2)
         branchTurnRepo.append(branchId = mainBranchId, turnId = turn1.id, orderIndex = 0)
@@ -100,8 +101,8 @@ class BranchingContextManagerTest {
         val turn3 = createTurn(userMessage = "main-user3", agentResponse = "main-assistant3")
         val childTurn1 = createTurn(userMessage = "child-user1", agentResponse = "child-assistant1")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, isActive = false))
-        branchRepo.create(branch = createBranch(id = childBranchId, parentTurnId = turn2.id, isActive = true))
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, parentBranchId = null, isActive = false))
+        branchRepo.create(branch = createBranch(id = childBranchId, parentTurnId = turn2.id, parentBranchId = mainBranchId, isActive = true))
 
         turnRepo.append(sessionId = sessionId, turn = turn1)
         turnRepo.append(sessionId = sessionId, turn = turn2)
@@ -146,9 +147,9 @@ class BranchingContextManagerTest {
         val childTurn2 = createTurn(userMessage = "child2", agentResponse = "child-resp2")
         val grandchildTurn1 = createTurn(userMessage = "grandchild1", agentResponse = "grandchild-resp1")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, isActive = false))
-        branchRepo.create(branch = createBranch(id = childBranchId, parentTurnId = mainTurn1.id, isActive = false))
-        branchRepo.create(branch = createBranch(id = grandchildBranchId, parentTurnId = childTurn1.id, isActive = true))
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, parentBranchId = null, isActive = false))
+        branchRepo.create(branch = createBranch(id = childBranchId, parentTurnId = mainTurn1.id, parentBranchId = mainBranchId, isActive = false))
+        branchRepo.create(branch = createBranch(id = grandchildBranchId, parentTurnId = childTurn1.id, parentBranchId = childBranchId, isActive = true))
 
         turnRepo.append(sessionId = sessionId, turn = mainTurn1)
         turnRepo.append(sessionId = sessionId, turn = mainTurn2)
@@ -192,8 +193,8 @@ class BranchingContextManagerTest {
         val mainTurn1 = createTurn(userMessage = "main1", agentResponse = "main-resp1")
         val mainTurn2 = createTurn(userMessage = "main2", agentResponse = "main-resp2")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, isActive = false))
-        branchRepo.create(branch = createBranch(id = childBranchId, parentTurnId = mainTurn1.id, isActive = true))
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentTurnId = null, parentBranchId = null, isActive = false))
+        branchRepo.create(branch = createBranch(id = childBranchId, parentTurnId = mainTurn1.id, parentBranchId = mainBranchId, isActive = true))
 
         turnRepo.append(sessionId = sessionId, turn = mainTurn1)
         turnRepo.append(sessionId = sessionId, turn = mainTurn2)
