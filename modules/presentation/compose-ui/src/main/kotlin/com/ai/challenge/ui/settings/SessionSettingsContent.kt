@@ -114,6 +114,15 @@ private fun SessionSettingsPanelContent(component: SessionSettingsComponent) {
                     selected = state.currentType is ContextManagementType.SlidingWindow,
                     onClick = { component.onChangeType(type = ContextManagementType.SlidingWindow) },
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ContextManagementTypeOption(
+                    label = "Sticky Facts",
+                    description = "Extracts key facts, sends facts + last messages",
+                    selected = state.currentType is ContextManagementType.StickyFacts,
+                    onClick = { component.onChangeType(ContextManagementType.StickyFacts) },
+                )
             }
         }
     }

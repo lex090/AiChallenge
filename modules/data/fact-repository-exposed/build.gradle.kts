@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.ai.challenge"
@@ -12,14 +11,12 @@ repositories {
 
 dependencies {
     implementation(project(":modules:core"))
-    implementation(project(":modules:data:open-router-service"))
-    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.sqlite.jdbc)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.ktor.client.mock)
-    testImplementation(libs.ktor.client.content.negotiation)
-    testImplementation(libs.ktor.serialization.kotlinx.json)
 }
 
 tasks.test {
