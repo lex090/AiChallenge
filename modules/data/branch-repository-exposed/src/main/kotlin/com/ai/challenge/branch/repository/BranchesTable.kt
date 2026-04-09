@@ -7,6 +7,7 @@ object BranchesTable : Table("branches") {
     val sessionId = varchar("session_id", 36)
     val name = varchar("name", 255)
     val parentTurnId = varchar("parent_turn_id", 36).nullable()
+    val parentBranchId = varchar("parent_branch_id", 36).nullable()
     val isActive = bool("is_active")
     val createdAt = long("created_at")
 

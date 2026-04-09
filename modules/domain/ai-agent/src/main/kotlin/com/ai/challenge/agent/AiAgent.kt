@@ -131,6 +131,7 @@ class AiAgent(
                     sessionId = sessionId,
                     name = "main",
                     parentTurnId = null,
+                    parentBranchId = null,
                     isActive = true,
                     createdAt = Clock.System.now(),
                 )
@@ -152,6 +153,7 @@ class AiAgent(
         sessionId: AgentSessionId,
         name: String,
         parentTurnId: TurnId,
+        fromBranchId: BranchId,
     ): Either<AgentError, BranchId> = either {
         val type = contextManagementRepository.getBySession(sessionId = sessionId)
         if (type !is ContextManagementType.Branching) {
@@ -162,6 +164,7 @@ class AiAgent(
             sessionId = sessionId,
             name = name,
             parentTurnId = parentTurnId,
+            parentBranchId = fromBranchId,
             isActive = false,
             createdAt = Clock.System.now(),
         )
@@ -225,17 +228,7 @@ class AiAgent(
 
     override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> = either {
         val branches = branchRepository.getBySession(sessionId = sessionId)
-        val result = mutableMapOf<BranchId, BranchId?>()
-        for (branch in branches) {
-            val turnId = branch.parentTurnId
-            val parentBranchId = if (turnId != null) {
-                branchTurnRepository.findBranchByTurnId(turnId = turnId)
-            } else {
-                null
-            }
-            result[branch.id] = parentBranchId
-        }
-        result
+        branches.associate { it.id to it.parentBranchId }
     }
 
     private suspend fun cascadeDeleteBranch(branchId: BranchId, sessionId: AgentSessionId) {

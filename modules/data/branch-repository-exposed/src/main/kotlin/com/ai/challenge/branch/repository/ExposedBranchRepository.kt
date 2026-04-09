@@ -34,6 +34,7 @@ class ExposedBranchRepository(
                 it[sessionId] = branch.sessionId.value
                 it[name] = branch.name
                 it[parentTurnId] = branch.parentTurnId?.value
+                it[parentBranchId] = branch.parentBranchId?.value
                 it[isActive] = branch.isActive
                 it[createdAt] = branch.createdAt.toEpochMilliseconds()
             }
@@ -90,6 +91,7 @@ class ExposedBranchRepository(
         sessionId = AgentSessionId(value = this[BranchesTable.sessionId]),
         name = this[BranchesTable.name],
         parentTurnId = this[BranchesTable.parentTurnId]?.let { TurnId(value = it) },
+        parentBranchId = this[BranchesTable.parentBranchId]?.let { BranchId(value = it) },
         isActive = this[BranchesTable.isActive],
         createdAt = Instant.fromEpochMilliseconds(this[BranchesTable.createdAt]),
     )

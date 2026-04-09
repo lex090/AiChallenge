@@ -27,7 +27,7 @@ interface Agent {
     suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails
     suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType>
     suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit>
-    suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId): Either<AgentError, BranchId>
+    suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId, fromBranchId: BranchId): Either<AgentError, BranchId>
     suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit>
     suspend fun getBranches(sessionId: AgentSessionId): Either<AgentError, List<Branch>>
     suspend fun switchBranch(sessionId: AgentSessionId, branchId: BranchId): Either<AgentError, Unit>

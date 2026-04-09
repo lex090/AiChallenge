@@ -9,6 +9,7 @@ data class Branch(
     val sessionId: AgentSessionId,
     val name: String,
     val parentTurnId: TurnId?,
+    val parentBranchId: BranchId?,
     val isActive: Boolean,
     val createdAt: Instant,
 ) {
