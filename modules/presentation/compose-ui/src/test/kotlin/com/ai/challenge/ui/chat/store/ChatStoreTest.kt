@@ -4,6 +4,8 @@ import arrow.core.Either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.cost.CostDetails
@@ -246,7 +248,21 @@ open class FakeAgent(
     override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
         Either.Right(ContextManagementType.None)
     override suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit> =
-        Either.Right(Unit)
+        Either.Right(value = Unit)
+    override suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId, fromBranchId: BranchId): Either<AgentError, BranchId> =
+        Either.Left(value = AgentError.ApiError(message = "Not implemented"))
+    override suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit> =
+        Either.Left(value = AgentError.ApiError(message = "Not implemented"))
+    override suspend fun getBranches(sessionId: AgentSessionId): Either<AgentError, List<Branch>> =
+        Either.Right(value = emptyList())
+    override suspend fun switchBranch(sessionId: AgentSessionId, branchId: BranchId): Either<AgentError, Unit> =
+        Either.Left(value = AgentError.ApiError(message = "Not implemented"))
+    override suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?> =
+        Either.Right(value = null)
+    override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> =
+        Either.Right(value = getTurns(sessionId = sessionId))
+    override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> =
+        Either.Right(value = emptyMap())
 
     fun appendTurnDirect(sessionId: AgentSessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn

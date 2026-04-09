@@ -22,6 +22,7 @@ class DefaultContextManager(
     private val turnRepository: TurnRepository,
     private val factExtractor: FactExtractor,
     private val factRepository: FactRepository,
+    private val branchingContextManager: BranchingContextManager,
 ) : ContextManager {
 
     private companion object {
@@ -38,7 +39,11 @@ class DefaultContextManager(
             is ContextManagementType.None -> passThrough(sessionId = sessionId, newMessage = newMessage)
             is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(
                 sessionId = sessionId,
-                newMessage = newMessage
+                newMessage = newMessage,
+            )
+            is ContextManagementType.Branching -> branchingContextManager.prepareContext(
+                sessionId = sessionId,
+                newMessage = newMessage,
             )
             is ContextManagementType.SlidingWindow -> slidingWindow(
                 sessionId = sessionId,

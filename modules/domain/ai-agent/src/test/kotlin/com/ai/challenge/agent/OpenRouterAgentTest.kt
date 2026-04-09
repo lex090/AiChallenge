@@ -3,6 +3,10 @@ package com.ai.challenge.agent
 import arrow.core.Either
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.branch.BranchRepository
+import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
@@ -50,6 +54,8 @@ class OpenRouterAgentTest {
     private val costRepo = FakeCostRepository()
     private val contextManager = PassThroughContextManager(turnRepo)
     private val contextManagementRepo = FakeContextManagementTypeRepository()
+    private val branchRepo = FakeBranchRepository()
+    private val branchTurnRepo = FakeBranchTurnRepository()
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -79,6 +85,8 @@ class OpenRouterAgentTest {
             costRepository = costRepo,
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
+            branchRepository = branchRepo,
+            branchTurnRepository = branchTurnRepo,
         )
 
     @Test
@@ -196,7 +204,18 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager, contextManagementRepo)
+        val agent = AiAgent(
+            service = service,
+            model = "test-model",
+            sessionRepository = sessionRepo,
+            turnRepository = turnRepo,
+            tokenRepository = tokenRepo,
+            costRepository = costRepo,
+            contextManager = contextManager,
+            contextManagementRepository = contextManagementRepo,
+            branchRepository = branchRepo,
+            branchTurnRepository = branchTurnRepo,
+        )
         val sessionId = sessionRepo.create()
 
         val result = agent.send(sessionId, "Hi")
@@ -221,7 +240,18 @@ class OpenRouterAgentTest {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
         }
         val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(service, "test-model", sessionRepo, turnRepo, tokenRepo, costRepo, contextManager, contextManagementRepo)
+        val agent = AiAgent(
+            service = service,
+            model = "test-model",
+            sessionRepository = sessionRepo,
+            turnRepository = turnRepo,
+            tokenRepository = tokenRepo,
+            costRepository = costRepo,
+            contextManager = contextManager,
+            contextManagementRepository = contextManagementRepo,
+            branchRepository = branchRepo,
+            branchTurnRepository = branchTurnRepo,
+        )
         val sessionId = sessionRepo.create()
 
         turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
@@ -316,7 +346,7 @@ private class PassThroughContextManager(
         sessionId: AgentSessionId,
         newMessage: String,
     ): PreparedContext {
-        val history = turnRepo.getBySession(sessionId)
+        val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         val messages = buildList {
             for (turn in history) {
                 add(ContextMessage(MessageRole.User, turn.userMessage))
@@ -331,5 +361,63 @@ private class PassThroughContextManager(
             retainedTurnCount = history.size,
             summaryCount = 0,
         )
+    }
+}
+
+private class FakeBranchRepository : BranchRepository {
+    private val branches = mutableMapOf<BranchId, Branch>()
+    private val activeBranches = mutableMapOf<AgentSessionId, BranchId>()
+
+    override suspend fun create(branch: Branch): BranchId {
+        branches[branch.id] = branch
+        if (branch.isActive) {
+            activeBranches[branch.sessionId] = branch.id
+        }
+        return branch.id
+    }
+
+    override suspend fun get(branchId: BranchId): Branch? = branches[branchId]
+
+    override suspend fun getBySession(sessionId: AgentSessionId): List<Branch> =
+        branches.values.filter { it.sessionId == sessionId }
+
+    override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? =
+        branches.values.firstOrNull { it.sessionId == sessionId && it.isMain }
+
+    override suspend fun getActiveBranch(sessionId: AgentSessionId): Branch? {
+        val activeId = activeBranches[sessionId] ?: return null
+        return branches[activeId]
+    }
+
+    override suspend fun setActive(sessionId: AgentSessionId, branchId: BranchId) {
+        activeBranches[sessionId] = branchId
+    }
+
+    override suspend fun delete(branchId: BranchId) {
+        val branch = branches.remove(branchId)
+        if (branch != null) {
+            activeBranches.entries.removeIf { it.value == branchId }
+        }
+    }
+}
+
+private class FakeBranchTurnRepository : BranchTurnRepository {
+    private val entries = mutableListOf<Triple<BranchId, TurnId, Int>>()
+
+    override suspend fun append(branchId: BranchId, turnId: TurnId, orderIndex: Int) {
+        entries.add(Triple(branchId, turnId, orderIndex))
+    }
+
+    override suspend fun getTurnIds(branchId: BranchId): List<TurnId> =
+        entries.filter { it.first == branchId }.sortedBy { it.third }.map { it.second }
+
+    override suspend fun findBranchByTurnId(turnId: TurnId): BranchId? =
+        entries.firstOrNull { it.second == turnId }?.first
+
+    override suspend fun getMaxOrderIndex(branchId: BranchId): Int? =
+        entries.filter { it.first == branchId }.maxOfOrNull { it.third }
+
+    override suspend fun deleteByBranch(branchId: BranchId) {
+        entries.removeIf { it.first == branchId }
     }
 }

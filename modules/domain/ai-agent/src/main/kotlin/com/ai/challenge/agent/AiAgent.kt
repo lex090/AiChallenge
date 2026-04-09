@@ -6,6 +6,10 @@ import arrow.core.raise.either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.agent.AgentError
 import com.ai.challenge.core.agent.AgentResponse
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.branch.BranchRepository
+import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
@@ -22,6 +26,7 @@ import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.turn.TurnRepository
 import com.ai.challenge.llm.OpenRouterService
 import com.ai.challenge.llm.model.ChatResponse
+import kotlin.time.Clock
 
 class AiAgent(
     private val service: OpenRouterService,
@@ -32,6 +37,8 @@ class AiAgent(
     private val costRepository: CostDetailsRepository,
     private val contextManager: ContextManager,
     private val contextManagementRepository: ContextManagementTypeRepository,
+    private val branchRepository: BranchRepository,
+    private val branchTurnRepository: BranchTurnRepository,
 ) : Agent {
 
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {
@@ -68,6 +75,18 @@ class AiAgent(
         val costDetails = chatResponse.toCostDetails()
         val turn = Turn(userMessage = message, agentResponse = text)
         val turnId = turnRepository.append(sessionId, turn)
+        val contextType = contextManagementRepository.getBySession(sessionId)
+        if (contextType is ContextManagementType.Branching) {
+            val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
+            if (activeBranch != null) {
+                val maxIndex = branchTurnRepository.getMaxOrderIndex(branchId = activeBranch.id)
+                branchTurnRepository.append(
+                    branchId = activeBranch.id,
+                    turnId = turnId,
+                    orderIndex = (maxIndex ?: -1) + 1,
+                )
+            }
+        }
         tokenRepository.record(sessionId, turnId, tokenDetails)
         costRepository.record(sessionId, turnId, costDetails)
 
@@ -103,8 +122,121 @@ class AiAgent(
         sessionId: AgentSessionId,
         type: ContextManagementType,
     ): Either<AgentError, Unit> {
-        contextManagementRepository.save(sessionId, type)
-        return Either.Right(Unit)
+        contextManagementRepository.save(sessionId = sessionId, type = type)
+        if (type is ContextManagementType.Branching) {
+            val existing = branchRepository.getMainBranch(sessionId = sessionId)
+            if (existing == null) {
+                val mainBranch = Branch(
+                    id = BranchId.generate(),
+                    sessionId = sessionId,
+                    name = "main",
+                    parentBranchId = null,
+                    isActive = true,
+                    createdAt = Clock.System.now(),
+                )
+                branchRepository.create(branch = mainBranch)
+                val turns = turnRepository.getBySession(sessionId = sessionId, limit = null)
+                for ((index, turn) in turns.withIndex()) {
+                    branchTurnRepository.append(
+                        branchId = mainBranch.id,
+                        turnId = turn.id,
+                        orderIndex = index,
+                    )
+                }
+            }
+        }
+        return Either.Right(value = Unit)
+    }
+
+    override suspend fun createBranch(
+        sessionId: AgentSessionId,
+        name: String,
+        parentTurnId: TurnId,
+        fromBranchId: BranchId,
+    ): Either<AgentError, BranchId> = either {
+        val type = contextManagementRepository.getBySession(sessionId = sessionId)
+        if (type !is ContextManagementType.Branching) {
+            raise(AgentError.ApiError(message = "Branching is not enabled for this session"))
+        }
+        val branch = Branch(
+            id = BranchId.generate(),
+            sessionId = sessionId,
+            name = name,
+            parentBranchId = fromBranchId,
+            isActive = false,
+            createdAt = Clock.System.now(),
+        )
+        branchRepository.create(branch = branch)
+        val parentTurnIds = branchTurnRepository.getTurnIds(branchId = fromBranchId)
+        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
+        val trunkTurnIds = if (cutIndex >= 0) parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentTurnIds
+        for ((index, turnId) in trunkTurnIds.withIndex()) {
+            branchTurnRepository.append(branchId = branch.id, turnId = turnId, orderIndex = index)
+        }
+        branch.id
+    }
+
+    override suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit> = either {
+        val branch = branchRepository.get(branchId = branchId)
+            ?: raise(AgentError.ApiError(message = "Branch not found"))
+        if (branch.isMain) {
+            raise(AgentError.ApiError(message = "Cannot delete main branch"))
+        }
+        cascadeDeleteBranch(branchId = branchId, sessionId = branch.sessionId)
+    }
+
+    override suspend fun getBranches(sessionId: AgentSessionId): Either<AgentError, List<Branch>> =
+        Either.Right(value = branchRepository.getBySession(sessionId = sessionId))
+
+    override suspend fun switchBranch(
+        sessionId: AgentSessionId,
+        branchId: BranchId,
+    ): Either<AgentError, Unit> = either {
+        val branch = branchRepository.get(branchId = branchId)
+            ?: raise(AgentError.ApiError(message = "Branch not found"))
+        if (branch.sessionId != sessionId) {
+            raise(AgentError.ApiError(message = "Branch does not belong to this session"))
+        }
+        branchRepository.setActive(sessionId = sessionId, branchId = branchId)
+    }
+
+    override suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?> =
+        Either.Right(value = branchRepository.getActiveBranch(sessionId = sessionId))
+
+    override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> = either {
+        val type = contextManagementRepository.getBySession(sessionId)
+        if (type !is ContextManagementType.Branching) {
+            return@either turnRepository.getBySession(sessionId = sessionId)
+        }
+        val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
+            ?: return@either turnRepository.getBySession(sessionId = sessionId)
+        val turnIds = branchTurnRepository.getTurnIds(branchId = activeBranch.id)
+        turnIds.mapNotNull { turnRepository.get(turnId = it) }
+    }
+
+    override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> = either {
+        val branches = branchRepository.getBySession(sessionId = sessionId)
+        branches.associate { it.id to it.parentBranchId }
+    }
+
+    private suspend fun cascadeDeleteBranch(branchId: BranchId, sessionId: AgentSessionId) {
+        val allBranches = branchRepository.getBySession(sessionId = sessionId)
+        val childBranches = allBranches.filter { it.parentBranchId == branchId }
+
+        for (child in childBranches) {
+            cascadeDeleteBranch(branchId = child.id, sessionId = sessionId)
+        }
+
+        val wasActive = branchRepository.get(branchId = branchId)?.isActive ?: false
+        branchTurnRepository.deleteByBranch(branchId = branchId)
+        branchRepository.delete(branchId = branchId)
+
+        if (wasActive) {
+            val mainBranch = branchRepository.getMainBranch(sessionId = sessionId)
+            if (mainBranch != null) {
+                branchRepository.setActive(sessionId = sessionId, branchId = mainBranch.id)
+            }
+        }
     }
 }
 

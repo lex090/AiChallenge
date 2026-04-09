@@ -89,6 +89,13 @@ class RootComponent(
         }
     }
 
+    fun refreshActiveChatBranches() {
+        val activeChild = childStack.value.active.instance
+        if (activeChild is Child.Chat) {
+            activeChild.component.refreshBranches()
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
