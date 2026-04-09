@@ -28,6 +28,7 @@ class BranchingContextManagerTest {
         sessionId = sessionId,
         name = "branch-${id.value}",
         parentTurnId = parentTurnId,
+        parentBranchId = null,
         isActive = isActive,
         createdAt = Clock.System.now(),
     )

@@ -249,7 +249,7 @@ open class FakeAgent(
         Either.Right(ContextManagementType.None)
     override suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit> =
         Either.Right(value = Unit)
-    override suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId): Either<AgentError, BranchId> =
+    override suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId, fromBranchId: BranchId): Either<AgentError, BranchId> =
         Either.Left(value = AgentError.ApiError(message = "Not implemented"))
     override suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit> =
         Either.Left(value = AgentError.ApiError(message = "Not implemented"))

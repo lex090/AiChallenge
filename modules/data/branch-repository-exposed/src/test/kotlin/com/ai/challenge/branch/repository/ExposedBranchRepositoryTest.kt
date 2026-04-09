@@ -34,6 +34,7 @@ class ExposedBranchRepositoryTest {
             sessionId = AgentSessionId(value = "s1"),
             name = "main",
             parentTurnId = null,
+            parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
         )
@@ -55,6 +56,7 @@ class ExposedBranchRepositoryTest {
             sessionId = sessionId,
             name = "main",
             parentTurnId = null,
+            parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
         )
@@ -63,6 +65,7 @@ class ExposedBranchRepositoryTest {
             sessionId = sessionId,
             name = "experiment",
             parentTurnId = TurnId(value = "t1"),
+            parentBranchId = null,
             isActive = false,
             createdAt = Clock.System.now(),
         )
@@ -81,6 +84,7 @@ class ExposedBranchRepositoryTest {
             sessionId = sessionId,
             name = "main",
             parentTurnId = null,
+            parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
         )
@@ -99,6 +103,7 @@ class ExposedBranchRepositoryTest {
             sessionId = sessionId,
             name = "main",
             parentTurnId = null,
+            parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
         )
@@ -117,6 +122,7 @@ class ExposedBranchRepositoryTest {
             sessionId = sessionId,
             name = "main",
             parentTurnId = null,
+            parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
         )
@@ -125,6 +131,7 @@ class ExposedBranchRepositoryTest {
             sessionId = sessionId,
             name = "experiment",
             parentTurnId = TurnId(value = "t1"),
+            parentBranchId = null,
             isActive = false,
             createdAt = Clock.System.now(),
         )
@@ -149,6 +156,7 @@ class ExposedBranchRepositoryTest {
             sessionId = AgentSessionId(value = "s1"),
             name = "experiment",
             parentTurnId = TurnId(value = "t1"),
+            parentBranchId = null,
             isActive = false,
             createdAt = Clock.System.now(),
         )
