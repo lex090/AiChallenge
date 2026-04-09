@@ -1,5 +1,7 @@
 package com.ai.challenge.ui.chat.store
 
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.token.TokenDetails
@@ -12,6 +14,10 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
     sealed interface Intent {
         data class SendMessage(val text: String) : Intent
         data class LoadSession(val sessionId: AgentSessionId) : Intent
+        data class CreateBranch(val name: String, val parentTurnId: TurnId) : Intent
+        data class SwitchBranch(val branchId: BranchId) : Intent
+        data class DeleteBranch(val branchId: BranchId) : Intent
+        data object LoadBranches : Intent
     }
 
     data class State(
@@ -22,5 +28,9 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
         val turnCosts: Map<TurnId, CostDetails> = emptyMap(),
         val sessionTokens: TokenDetails = TokenDetails(),
         val sessionCosts: CostDetails = CostDetails(),
+        val branches: List<Branch> = emptyList(),
+        val activeBranch: Branch? = null,
+        val isBranchingEnabled: Boolean = false,
+        val branchParentMap: Map<BranchId, BranchId?> = emptyMap(),
     )
 }

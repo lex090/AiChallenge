@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +53,14 @@ fun RootContent(component: RootComponent) {
     val lastSettingsComponent = remember { mutableStateOf(settingsComponent) }
     if (settingsComponent != null) {
         lastSettingsComponent.value = settingsComponent
+    }
+
+    val currentSettings = settingsComponent
+    if (currentSettings != null) {
+        val settingsState by currentSettings.state.collectAsState()
+        LaunchedEffect(settingsState.currentType) {
+            component.refreshActiveChatBranches()
+        }
     }
 
     ModalNavigationDrawer(
