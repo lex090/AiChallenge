@@ -130,7 +130,6 @@ class AiAgent(
                     id = BranchId.generate(),
                     sessionId = sessionId,
                     name = "main",
-                    parentTurnId = null,
                     parentBranchId = null,
                     isActive = true,
                     createdAt = Clock.System.now(),
@@ -163,12 +162,18 @@ class AiAgent(
             id = BranchId.generate(),
             sessionId = sessionId,
             name = name,
-            parentTurnId = parentTurnId,
             parentBranchId = fromBranchId,
             isActive = false,
             createdAt = Clock.System.now(),
         )
         branchRepository.create(branch = branch)
+        val parentTurnIds = branchTurnRepository.getTurnIds(branchId = fromBranchId)
+        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
+        val trunkTurnIds = if (cutIndex >= 0) parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentTurnIds
+        for ((index, turnId) in trunkTurnIds.withIndex()) {
+            branchTurnRepository.append(branchId = branch.id, turnId = turnId, orderIndex = index)
+        }
+        branch.id
     }
 
     override suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit> = either {
@@ -205,24 +210,8 @@ class AiAgent(
         }
         val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
             ?: return@either turnRepository.getBySession(sessionId = sessionId)
-        collectBranchPathTurns(branchId = activeBranch.id)
-    }
-
-    private suspend fun collectBranchPathTurns(branchId: BranchId): List<Turn> {
-        val branch = branchRepository.get(branchId = branchId)
-            ?: return emptyList()
-        val myTurnIds = branchTurnRepository.getTurnIds(branchId = branchId)
-        val myTurns = myTurnIds.mapNotNull { turnRepository.get(turnId = it) }
-
-        val parentTurnId = branch.parentTurnId ?: return myTurns
-        val parentBranchId = branch.parentBranchId ?: return myTurns
-
-        val parentPath = collectBranchPathTurns(branchId = parentBranchId)
-
-        val cutIndex = parentPath.indexOfFirst { it.id == parentTurnId }
-        val trunk = if (cutIndex >= 0) parentPath.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentPath
-
-        return trunk + myTurns
+        val turnIds = branchTurnRepository.getTurnIds(branchId = activeBranch.id)
+        turnIds.mapNotNull { turnRepository.get(turnId = it) }
     }
 
     override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> = either {
@@ -231,10 +220,8 @@ class AiAgent(
     }
 
     private suspend fun cascadeDeleteBranch(branchId: BranchId, sessionId: AgentSessionId) {
-        val turnIds = branchTurnRepository.getTurnIds(branchId = branchId)
         val allBranches = branchRepository.getBySession(sessionId = sessionId)
-        val turnIdSet = turnIds.toSet()
-        val childBranches = allBranches.filter { it.parentTurnId != null && it.parentTurnId in turnIdSet }
+        val childBranches = allBranches.filter { it.parentBranchId == branchId }
 
         for (child in childBranches) {
             cascadeDeleteBranch(branchId = child.id, sessionId = sessionId)

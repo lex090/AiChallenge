@@ -382,7 +382,7 @@ private class FakeBranchRepository : BranchRepository {
         branches.values.filter { it.sessionId == sessionId }
 
     override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? =
-        branches.values.firstOrNull { it.sessionId == sessionId && it.parentTurnId == null }
+        branches.values.firstOrNull { it.sessionId == sessionId && it.isMain }
 
     override suspend fun getActiveBranch(sessionId: AgentSessionId): Branch? {
         val activeId = activeBranches[sessionId] ?: return null

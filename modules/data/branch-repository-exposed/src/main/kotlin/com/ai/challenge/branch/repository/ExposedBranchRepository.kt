@@ -4,7 +4,6 @@ import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.TurnId
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -33,7 +32,6 @@ class ExposedBranchRepository(
                 it[id] = branch.id.value
                 it[sessionId] = branch.sessionId.value
                 it[name] = branch.name
-                it[parentTurnId] = branch.parentTurnId?.value
                 it[parentBranchId] = branch.parentBranchId?.value
                 it[isActive] = branch.isActive
                 it[createdAt] = branch.createdAt.toEpochMilliseconds()
@@ -57,7 +55,7 @@ class ExposedBranchRepository(
 
     override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? = transaction(database) {
         BranchesTable.selectAll()
-            .where { (BranchesTable.sessionId eq sessionId.value) and BranchesTable.parentTurnId.isNull() }
+            .where { (BranchesTable.sessionId eq sessionId.value) and BranchesTable.parentBranchId.isNull() }
             .singleOrNull()
             ?.toBranch()
     }
@@ -90,7 +88,6 @@ class ExposedBranchRepository(
         id = BranchId(value = this[BranchesTable.id]),
         sessionId = AgentSessionId(value = this[BranchesTable.sessionId]),
         name = this[BranchesTable.name],
-        parentTurnId = this[BranchesTable.parentTurnId]?.let { TurnId(value = it) },
         parentBranchId = this[BranchesTable.parentBranchId]?.let { BranchId(value = it) },
         isActive = this[BranchesTable.isActive],
         createdAt = Instant.fromEpochMilliseconds(this[BranchesTable.createdAt]),

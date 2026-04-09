@@ -3,7 +3,6 @@ package com.ai.challenge.branch.repository
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database
 import kotlin.test.BeforeTest
@@ -33,7 +32,6 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = AgentSessionId(value = "s1"),
             name = "main",
-            parentTurnId = null,
             parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
@@ -43,7 +41,6 @@ class ExposedBranchRepositoryTest {
         val result = repository.get(branchId = branch.id)
         assertNotNull(result)
         assertEquals("main", result.name)
-        assertNull(result.parentTurnId)
         assertTrue(result.isActive)
         assertTrue(result.isMain)
     }
@@ -55,7 +52,6 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = sessionId,
             name = "main",
-            parentTurnId = null,
             parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
@@ -64,8 +60,7 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = sessionId,
             name = "experiment",
-            parentTurnId = TurnId(value = "t1"),
-            parentBranchId = null,
+            parentBranchId = main.id,
             isActive = false,
             createdAt = Clock.System.now(),
         )
@@ -77,13 +72,12 @@ class ExposedBranchRepositoryTest {
     }
 
     @Test
-    fun `getMainBranch returns branch with null parentTurnId`() = runTest {
+    fun `getMainBranch returns branch with null parentBranchId`() = runTest {
         val sessionId = AgentSessionId(value = "s1")
         val main = Branch(
             id = BranchId.generate(),
             sessionId = sessionId,
             name = "main",
-            parentTurnId = null,
             parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
@@ -102,7 +96,6 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = sessionId,
             name = "main",
-            parentTurnId = null,
             parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
@@ -121,7 +114,6 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = sessionId,
             name = "main",
-            parentTurnId = null,
             parentBranchId = null,
             isActive = true,
             createdAt = Clock.System.now(),
@@ -130,8 +122,7 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = sessionId,
             name = "experiment",
-            parentTurnId = TurnId(value = "t1"),
-            parentBranchId = null,
+            parentBranchId = main.id,
             isActive = false,
             createdAt = Clock.System.now(),
         )
@@ -155,8 +146,7 @@ class ExposedBranchRepositoryTest {
             id = BranchId.generate(),
             sessionId = AgentSessionId(value = "s1"),
             name = "experiment",
-            parentTurnId = TurnId(value = "t1"),
-            parentBranchId = null,
+            parentBranchId = BranchId.generate(),
             isActive = false,
             createdAt = Clock.System.now(),
         )
