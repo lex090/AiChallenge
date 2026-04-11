@@ -1,5 +1,6 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.llm.OpenRouterService
@@ -43,8 +44,8 @@ class LlmContextCompressorTest {
         val compressor = LlmContextCompressor(service = service, model = "test-model")
 
         val turns = listOf(
-            Turn(id = TurnId.generate(), userMessage = "Hello", agentResponse = "Hi there!", timestamp = Clock.System.now()),
-            Turn(id = TurnId.generate(), userMessage = "How are you?", agentResponse = "I'm fine!", timestamp = Clock.System.now()),
+            Turn(id = TurnId.generate(), sessionId = AgentSessionId(value = "test-session"), userMessage = "Hello", agentResponse = "Hi there!", timestamp = Clock.System.now()),
+            Turn(id = TurnId.generate(), sessionId = AgentSessionId(value = "test-session"), userMessage = "How are you?", agentResponse = "I'm fine!", timestamp = Clock.System.now()),
         )
 
         val result = compressor.compress(turns)

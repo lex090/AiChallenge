@@ -35,6 +35,7 @@ class BranchingContextManagerTest {
     private fun createTurn(userMessage: String, agentResponse: String): Turn =
         Turn(
             id = TurnId.generate(),
+            sessionId = sessionId,
             userMessage = userMessage,
             agentResponse = agentResponse,
             timestamp = Clock.System.now(),
@@ -61,8 +62,8 @@ class BranchingContextManagerTest {
         val turn2 = createTurn(userMessage = "user2", agentResponse = "assistant2")
 
         branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = true))
-        turnRepo.append(sessionId = sessionId, turn = turn1)
-        turnRepo.append(sessionId = sessionId, turn = turn2)
+        turnRepo.append(turn = turn1)
+        turnRepo.append(turn = turn2)
         branchTurnRepo.append(branchId = mainBranchId, turnId = turn1.id, orderIndex = 0)
         branchTurnRepo.append(branchId = mainBranchId, turnId = turn2.id, orderIndex = 1)
 
@@ -103,10 +104,10 @@ class BranchingContextManagerTest {
         branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false))
         branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = true))
 
-        turnRepo.append(sessionId = sessionId, turn = turn1)
-        turnRepo.append(sessionId = sessionId, turn = turn2)
-        turnRepo.append(sessionId = sessionId, turn = turn3)
-        turnRepo.append(sessionId = sessionId, turn = childTurn1)
+        turnRepo.append(turn = turn1)
+        turnRepo.append(turn = turn2)
+        turnRepo.append(turn = turn3)
+        turnRepo.append(turn = childTurn1)
 
         branchTurnRepo.append(branchId = mainBranchId, turnId = turn1.id, orderIndex = 0)
         branchTurnRepo.append(branchId = mainBranchId, turnId = turn2.id, orderIndex = 1)
@@ -153,11 +154,11 @@ class BranchingContextManagerTest {
         branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = false))
         branchRepo.create(branch = createBranch(id = grandchildBranchId, parentBranchId = childBranchId, isActive = true))
 
-        turnRepo.append(sessionId = sessionId, turn = mainTurn1)
-        turnRepo.append(sessionId = sessionId, turn = mainTurn2)
-        turnRepo.append(sessionId = sessionId, turn = childTurn1)
-        turnRepo.append(sessionId = sessionId, turn = childTurn2)
-        turnRepo.append(sessionId = sessionId, turn = grandchildTurn1)
+        turnRepo.append(turn = mainTurn1)
+        turnRepo.append(turn = mainTurn2)
+        turnRepo.append(turn = childTurn1)
+        turnRepo.append(turn = childTurn2)
+        turnRepo.append(turn = grandchildTurn1)
 
         branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn1.id, orderIndex = 0)
         branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn2.id, orderIndex = 1)
@@ -203,8 +204,8 @@ class BranchingContextManagerTest {
         branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false))
         branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = true))
 
-        turnRepo.append(sessionId = sessionId, turn = mainTurn1)
-        turnRepo.append(sessionId = sessionId, turn = mainTurn2)
+        turnRepo.append(turn = mainTurn1)
+        turnRepo.append(turn = mainTurn2)
 
         branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn1.id, orderIndex = 0)
         branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn2.id, orderIndex = 1)

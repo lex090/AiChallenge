@@ -29,8 +29,8 @@ class ExposedTurnRepositoryTest {
     @Test
     fun `append and getBySession round-trip`() = runTest {
         val sessionId = AgentSessionId.generate()
-        val turn = Turn(id = TurnId.generate(), userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now())
-        repository.append(sessionId, turn)
+        val turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now())
+        repository.append(turn = turn)
 
         val history = repository.getBySession(sessionId = sessionId, limit = null)
         assertEquals(1, history.size)
@@ -46,9 +46,9 @@ class ExposedTurnRepositoryTest {
     @Test
     fun `getBySession with limit returns last N turns`() = runTest {
         val sessionId = AgentSessionId.generate()
-        repository.append(sessionId, Turn(id = TurnId.generate(), userMessage = "1", agentResponse = "a", timestamp = Clock.System.now()))
-        repository.append(sessionId, Turn(id = TurnId.generate(), userMessage = "2", agentResponse = "b", timestamp = Clock.System.now()))
-        repository.append(sessionId, Turn(id = TurnId.generate(), userMessage = "3", agentResponse = "c", timestamp = Clock.System.now()))
+        repository.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "1", agentResponse = "a", timestamp = Clock.System.now()))
+        repository.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "2", agentResponse = "b", timestamp = Clock.System.now()))
+        repository.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "3", agentResponse = "c", timestamp = Clock.System.now()))
 
         val history = repository.getBySession(sessionId = sessionId, limit = 2)
         assertEquals(2, history.size)
@@ -59,8 +59,8 @@ class ExposedTurnRepositoryTest {
     @Test
     fun `get returns turn by id`() = runTest {
         val sessionId = AgentSessionId.generate()
-        val turn = Turn(id = TurnId.generate(), userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now())
-        val turnId = repository.append(sessionId, turn)
+        val turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now())
+        val turnId = repository.append(turn = turn)
 
         val result = repository.get(turnId)
         assertNotNull(result)
@@ -76,8 +76,8 @@ class ExposedTurnRepositoryTest {
     fun `getBySession does not include turns from other sessions`() = runTest {
         val session1 = AgentSessionId.generate()
         val session2 = AgentSessionId.generate()
-        repository.append(session1, Turn(id = TurnId.generate(), userMessage = "a", agentResponse = "b", timestamp = Clock.System.now()))
-        repository.append(session2, Turn(id = TurnId.generate(), userMessage = "c", agentResponse = "d", timestamp = Clock.System.now()))
+        repository.append(turn = Turn(id = TurnId.generate(), sessionId = session1, userMessage = "a", agentResponse = "b", timestamp = Clock.System.now()))
+        repository.append(turn = Turn(id = TurnId.generate(), sessionId = session2, userMessage = "c", agentResponse = "d", timestamp = Clock.System.now()))
 
         val result = repository.getBySession(sessionId = session1, limit = null)
         assertEquals(1, result.size)

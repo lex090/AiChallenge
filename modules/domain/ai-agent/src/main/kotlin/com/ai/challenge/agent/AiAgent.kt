@@ -73,8 +73,8 @@ class AiAgent(
 
         val tokenDetails = chatResponse.toTokenDetails()
         val costDetails = chatResponse.toCostDetails()
-        val turn = Turn(id = TurnId.generate(), userMessage = message, agentResponse = text, timestamp = Clock.System.now())
-        val turnId = turnRepository.append(sessionId = sessionId, turn = turn)
+        val turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = message, agentResponse = text, timestamp = Clock.System.now())
+        val turnId = turnRepository.append(turn = turn)
         val contextType = contextManagementRepository.getBySession(sessionId = sessionId)
         if (contextType is ContextManagementType.Branching) {
             val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)

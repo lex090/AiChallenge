@@ -60,7 +60,7 @@ class ChatStoreTest {
     fun `LoadSession sets sessionId and loads history as UiMessages`() = runTest {
         val agent = FakeAgent()
         val sessionId = agent.createSession(title = "")
-        agent.appendTurnDirect(sessionId, Turn(id = TurnId.generate(), userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now()))
+        agent.appendTurnDirect(sessionId, Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now()))
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -175,8 +175,8 @@ class ChatStoreTest {
         val agent = FakeAgent()
         val sessionId = agent.createSession(title = "")
 
-        val turn1 = Turn(id = TurnId.generate(), userMessage = "a", agentResponse = "b", timestamp = Clock.System.now())
-        val turn2 = Turn(id = TurnId.generate(), userMessage = "c", agentResponse = "d", timestamp = Clock.System.now())
+        val turn1 = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "a", agentResponse = "b", timestamp = Clock.System.now())
+        val turn2 = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "c", agentResponse = "d", timestamp = Clock.System.now())
         val turnId1 = agent.appendTurnDirect(sessionId, turn1)
         val turnId2 = agent.appendTurnDirect(sessionId, turn2)
         agent.recordTokensDirect(sessionId, turnId1, TokenDetails(promptTokens = 10, completionTokens = 5, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))

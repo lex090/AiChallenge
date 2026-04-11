@@ -255,7 +255,7 @@ class OpenRouterAgentTest {
         )
         val sessionId = sessionRepo.create(title = "")
 
-        turnRepo.append(sessionId, Turn(id = TurnId.generate(), userMessage = "Hi", agentResponse = "Hello!", timestamp = Clock.System.now()))
+        turnRepo.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "Hi", agentResponse = "Hello!", timestamp = Clock.System.now()))
 
         agent.send(sessionId, "Remember me?")
 
@@ -290,17 +290,17 @@ private class FakeSessionRepository : AgentSessionRepository {
 }
 
 private class FakeTurnRepository : TurnRepository {
-    private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
+    private val turns = ConcurrentHashMap<TurnId, Turn>()
 
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
-        turns[turn.id] = sessionId to turn
+    override suspend fun append(turn: Turn): TurnId {
+        turns[turn.id] = turn
         return turn.id
     }
     override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> {
-        val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
+        val all = turns.values.filter { it.sessionId == sessionId }.sortedBy { it.timestamp }
         return if (limit != null && all.size > limit) all.takeLast(limit) else all
     }
-    override suspend fun get(turnId: TurnId): Turn? = turns[turnId]?.second
+    override suspend fun get(turnId: TurnId): Turn? = turns[turnId]
 }
 
 private class FakeTokenRepository : TokenDetailsRepository {

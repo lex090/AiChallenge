@@ -63,16 +63,16 @@ internal class InMemoryBranchTurnRepository : BranchTurnRepository {
 }
 
 internal class InMemoryTurnRepository : TurnRepository {
-    private val store = mutableListOf<Pair<AgentSessionId, Turn>>()
+    private val store = mutableListOf<Turn>()
 
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
-        store.add(sessionId to turn)
+    override suspend fun append(turn: Turn): TurnId {
+        store.add(turn)
         return turn.id
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> =
-        store.filter { it.first == sessionId }.map { it.second }
+        store.filter { it.sessionId == sessionId }
 
     override suspend fun get(turnId: TurnId): Turn? =
-        store.map { it.second }.firstOrNull { it.id == turnId }
+        store.firstOrNull { it.id == turnId }
 }
