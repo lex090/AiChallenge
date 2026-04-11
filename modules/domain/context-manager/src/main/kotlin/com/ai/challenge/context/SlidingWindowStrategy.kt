@@ -9,7 +9,7 @@ import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.session.AgentSessionId
 
-class BranchingContextManager(
+class SlidingWindowStrategy(
     private val repository: AgentSessionRepository,
 ) : ContextStrategy {
 
@@ -19,14 +19,14 @@ class BranchingContextManager(
         newMessage: MessageContent,
         config: ContextStrategyConfig,
     ): PreparedContext {
-        val turns = repository.getTurnsByBranch(branchId = branchId)
-        val messages = turnsToMessages(turns = turns) +
-            ContextMessage(role = MessageRole.User, content = newMessage)
+        val slidingConfig = config as ContextStrategyConfig.SlidingWindow
+        val history = repository.getTurnsByBranch(branchId = branchId)
+        val windowed = history.takeLast(n = slidingConfig.windowSize)
         return PreparedContext(
-            messages = messages,
+            messages = turnsToMessages(turns = windowed) + ContextMessage(role = MessageRole.User, content = newMessage),
             compressed = false,
-            originalTurnCount = turns.size,
-            retainedTurnCount = turns.size,
+            originalTurnCount = history.size,
+            retainedTurnCount = windowed.size,
             summaryCount = 0,
         )
     }

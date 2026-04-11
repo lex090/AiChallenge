@@ -3,9 +3,9 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.core.context.ContextStrategyConfig
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.TurnId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,7 +19,7 @@ class BranchingContextManagerTest {
         BranchingContextManager(repository = repo)
 
     @Test
-    fun `prepareContext for main branch with turns`() = runTest {
+    fun `prepare for main branch with turns`() = runTest {
         val repo = InMemoryAgentSessionRepository()
         val mainBranchId = BranchId.generate()
 
@@ -33,7 +33,12 @@ class BranchingContextManagerTest {
         repo.appendTurn(branchId = mainBranchId, turn = turn2)
 
         val manager = buildManager(repo = repo)
-        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage = MessageContent(value = "newMessage"))
+        val result = manager.prepare(
+            sessionId = sessionId,
+            branchId = mainBranchId,
+            newMessage = MessageContent(value = "newMessage"),
+            config = ContextStrategyConfig.Branching,
+        )
 
         assertFalse(result.compressed)
         assertEquals(2, result.originalTurnCount)
@@ -53,7 +58,7 @@ class BranchingContextManagerTest {
     }
 
     @Test
-    fun `prepareContext for child branch includes trunk`() = runTest {
+    fun `prepare for child branch includes trunk`() = runTest {
         val repo = InMemoryAgentSessionRepository()
         val mainBranchId = BranchId.generate()
         val childBranchId = BranchId.generate()
@@ -74,7 +79,12 @@ class BranchingContextManagerTest {
         repo.appendTurn(branchId = childBranchId, turn = childTurn1)
 
         val manager = buildManager(repo = repo)
-        val result = manager.prepareContext(sessionId = sessionId, branchId = childBranchId, newMessage = MessageContent(value = "new"))
+        val result = manager.prepare(
+            sessionId = sessionId,
+            branchId = childBranchId,
+            newMessage = MessageContent(value = "new"),
+            config = ContextStrategyConfig.Branching,
+        )
 
         assertEquals(7, result.messages.size)
         assertEquals(MessageContent(value = "main-user1"), result.messages[0].content)
@@ -89,7 +99,7 @@ class BranchingContextManagerTest {
     }
 
     @Test
-    fun `prepareContext for empty branch with trunk`() = runTest {
+    fun `prepare for empty branch with trunk`() = runTest {
         val repo = InMemoryAgentSessionRepository()
         val mainBranchId = BranchId.generate()
         val childBranchId = BranchId.generate()
@@ -107,7 +117,12 @@ class BranchingContextManagerTest {
         repo.createBranch(branch = createTestBranch(id = childBranchId, sessionId = sessionId, sourceTurnId = mainTurn1.id, turnIds = listOf(mainTurn1.id)))
 
         val manager = buildManager(repo = repo)
-        val result = manager.prepareContext(sessionId = sessionId, branchId = childBranchId, newMessage = MessageContent(value = "new"))
+        val result = manager.prepare(
+            sessionId = sessionId,
+            branchId = childBranchId,
+            newMessage = MessageContent(value = "new"),
+            config = ContextStrategyConfig.Branching,
+        )
 
         assertEquals(3, result.messages.size)
         assertEquals(MessageContent(value = "main1"), result.messages[0].content)

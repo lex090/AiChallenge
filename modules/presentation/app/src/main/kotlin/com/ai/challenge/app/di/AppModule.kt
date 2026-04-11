@@ -6,14 +6,21 @@ import com.ai.challenge.agent.AiSessionService
 import com.ai.challenge.agent.AiUsageService
 import com.ai.challenge.context.BranchingContextManager
 import com.ai.challenge.context.ContextCompressor
-import com.ai.challenge.context.DefaultContextManager
+import com.ai.challenge.context.ContextPreparationService
+import com.ai.challenge.context.ContextStrategy
 import com.ai.challenge.context.FactExtractor
 import com.ai.challenge.context.LlmContextCompressor
 import com.ai.challenge.context.LlmFactExtractor
+import com.ai.challenge.context.PassthroughStrategy
+import com.ai.challenge.context.SlidingWindowStrategy
+import com.ai.challenge.context.StickyFactsStrategy
+import com.ai.challenge.context.SummarizeOnThresholdStrategy
 import com.ai.challenge.core.chat.BranchService
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
+import com.ai.challenge.core.context.ContextStrategyConfig
 import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.llm.LlmPort
@@ -56,15 +63,51 @@ val appModule = module {
     // Context management
     single<ContextCompressor> { LlmContextCompressor(llmPort = get()) }
     single<FactExtractor> { LlmFactExtractor(llmPort = get()) }
-    single { BranchingContextManager(repository = get()) }
-    single<ContextManager> {
-        DefaultContextManager(
+
+    // Context strategies
+    single { PassthroughStrategy(repository = get()) }
+    single { SlidingWindowStrategy(repository = get()) }
+    single {
+        SummarizeOnThresholdStrategy(
             repository = get(),
             compressor = get(),
             summaryRepository = get(),
-            factExtractor = get(),
+        )
+    }
+    single {
+        StickyFactsStrategy(
+            repository = get(),
             factRepository = get(),
-            branchingContextManager = get(),
+            factExtractor = get(),
+        )
+    }
+    single { BranchingContextManager(repository = get()) }
+
+    single<ContextManager> {
+        ContextPreparationService(
+            strategies = mapOf(
+                ContextManagementType.None to get<PassthroughStrategy>() as ContextStrategy,
+                ContextManagementType.SummarizeOnThreshold to get<SummarizeOnThresholdStrategy>() as ContextStrategy,
+                ContextManagementType.SlidingWindow to get<SlidingWindowStrategy>() as ContextStrategy,
+                ContextManagementType.StickyFacts to get<StickyFactsStrategy>() as ContextStrategy,
+                ContextManagementType.Branching to get<BranchingContextManager>() as ContextStrategy,
+            ),
+            configs = mapOf(
+                ContextManagementType.None to ContextStrategyConfig.None as ContextStrategyConfig,
+                ContextManagementType.SummarizeOnThreshold to ContextStrategyConfig.SummarizeOnThreshold(
+                    maxTurnsBeforeCompression = 15,
+                    retainLastTurns = 5,
+                    compressionInterval = 10,
+                ) as ContextStrategyConfig,
+                ContextManagementType.SlidingWindow to ContextStrategyConfig.SlidingWindow(
+                    windowSize = 10,
+                ) as ContextStrategyConfig,
+                ContextManagementType.StickyFacts to ContextStrategyConfig.StickyFacts(
+                    retainLastTurns = 5,
+                ) as ContextStrategyConfig,
+                ContextManagementType.Branching to ContextStrategyConfig.Branching as ContextStrategyConfig,
+            ),
+            repository = get(),
         )
     }
 

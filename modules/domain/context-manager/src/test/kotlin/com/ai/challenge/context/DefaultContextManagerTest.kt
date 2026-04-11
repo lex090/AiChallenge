@@ -4,6 +4,7 @@ import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.ContextStrategyConfig
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.model.FactKey
 import com.ai.challenge.core.context.model.FactValue
@@ -20,7 +21,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class DefaultContextManagerTest {
+class ContextPreparationServiceTest {
 
     private val sessionId = AgentSessionId(value = "s1")
     private val mainBranchId = BranchId.generate()
@@ -46,19 +47,41 @@ class DefaultContextManagerTest {
     private fun setupSession(type: ContextManagementType) {
         val session = createTestSession(sessionId = sessionId, contextManagementType = type)
         fakeRepo.addSession(session)
-        // create main branch synchronously not possible, we'll do it in coroutine
     }
 
-    private fun createManager(): DefaultContextManager =
-        DefaultContextManager(
-            repository = fakeRepo,
-            compressor = fakeCompressor,
-            summaryRepository = fakeSummaryRepo,
-            factExtractor = fakeFactExtractor,
-            factRepository = fakeFactRepo,
-            branchingContextManager = BranchingContextManager(
-                repository = fakeRepo,
+    private fun createManager(): ContextPreparationService =
+        ContextPreparationService(
+            strategies = mapOf(
+                ContextManagementType.None to PassthroughStrategy(repository = fakeRepo) as ContextStrategy,
+                ContextManagementType.SummarizeOnThreshold to SummarizeOnThresholdStrategy(
+                    repository = fakeRepo,
+                    compressor = fakeCompressor,
+                    summaryRepository = fakeSummaryRepo,
+                ) as ContextStrategy,
+                ContextManagementType.SlidingWindow to SlidingWindowStrategy(repository = fakeRepo) as ContextStrategy,
+                ContextManagementType.StickyFacts to StickyFactsStrategy(
+                    repository = fakeRepo,
+                    factRepository = fakeFactRepo,
+                    factExtractor = fakeFactExtractor,
+                ) as ContextStrategy,
+                ContextManagementType.Branching to BranchingContextManager(repository = fakeRepo) as ContextStrategy,
             ),
+            configs = mapOf(
+                ContextManagementType.None to ContextStrategyConfig.None as ContextStrategyConfig,
+                ContextManagementType.SummarizeOnThreshold to ContextStrategyConfig.SummarizeOnThreshold(
+                    maxTurnsBeforeCompression = 15,
+                    retainLastTurns = 5,
+                    compressionInterval = 10,
+                ) as ContextStrategyConfig,
+                ContextManagementType.SlidingWindow to ContextStrategyConfig.SlidingWindow(
+                    windowSize = 10,
+                ) as ContextStrategyConfig,
+                ContextManagementType.StickyFacts to ContextStrategyConfig.StickyFacts(
+                    retainLastTurns = 5,
+                ) as ContextStrategyConfig,
+                ContextManagementType.Branching to ContextStrategyConfig.Branching as ContextStrategyConfig,
+            ),
+            repository = fakeRepo,
         )
 
     private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
@@ -383,4 +406,3 @@ private class FakeFactExtractor : FactExtractor {
         return factsToReturn
     }
 }
-
