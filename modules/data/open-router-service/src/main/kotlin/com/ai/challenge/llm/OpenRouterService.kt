@@ -38,10 +38,20 @@ class OpenRouterService(
 
         private fun formatJsonInMessage(message: String): String =
             try {
-                val trimmed = message.trim()
-                if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-                    val element = prettyJson.decodeFromString<JsonElement>(trimmed)
-                    prettyJson.encodeToString(serializer = JsonElement.serializer(), value = element)
+                val lines = message.lines()
+                val bodyStartIndex = lines.indexOfLast { it == "BODY START" }
+                val bodyEndIndex = lines.lastIndexOf("BODY END")
+                if (bodyStartIndex >= 0 && bodyEndIndex > bodyStartIndex) {
+                    val bodyText = lines.subList(bodyStartIndex + 1, bodyEndIndex).joinToString(separator = "\n").trim()
+                    if (bodyText.startsWith("{") || bodyText.startsWith("[")) {
+                        val element = prettyJson.decodeFromString<JsonElement>(bodyText)
+                        val formatted = prettyJson.encodeToString(serializer = JsonElement.serializer(), value = element)
+                        val before = lines.subList(0, bodyStartIndex + 1).joinToString(separator = "\n")
+                        val after = lines.subList(bodyEndIndex, lines.size).joinToString(separator = "\n")
+                        "$before\n$formatted\n$after"
+                    } else {
+                        message
+                    }
                 } else {
                     message
                 }
