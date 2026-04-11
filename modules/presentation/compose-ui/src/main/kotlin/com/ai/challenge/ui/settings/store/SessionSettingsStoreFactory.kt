@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.settings.store
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.agent.SessionManager
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 class SessionSettingsStoreFactory(
     private val storeFactory: StoreFactory,
-    private val agent: Agent,
+    private val sessionManager: SessionManager,
 ) {
     fun create(): SessionSettingsStore =
         object : SessionSettingsStore,
@@ -22,7 +22,7 @@ class SessionSettingsStoreFactory(
                     currentType = ContextManagementType.None,
                     isLoading = false,
                 ),
-                executorFactory = { ExecutorImpl(agent) },
+                executorFactory = { ExecutorImpl(sessionManager = sessionManager) },
                 reducer = ReducerImpl,
             ) {}
 
@@ -37,7 +37,7 @@ class SessionSettingsStoreFactory(
     }
 
     private class ExecutorImpl(
-        private val agent: Agent,
+        private val sessionManager: SessionManager,
     ) : CoroutineExecutor<SessionSettingsStore.Intent, Nothing, SessionSettingsStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: SessionSettingsStore.Intent) {
@@ -50,9 +50,9 @@ class SessionSettingsStoreFactory(
         private fun handleLoadSettings(sessionId: AgentSessionId) {
             dispatch(Msg.Loading)
             scope.launch {
-                when (val result = agent.getContextManagementType(sessionId)) {
-                    is Either.Right -> dispatch(Msg.SettingsLoaded(sessionId, result.value))
-                    is Either.Left -> dispatch(Msg.SettingsLoaded(sessionId, ContextManagementType.None))
+                when (val result = sessionManager.getContextManagementType(sessionId = sessionId)) {
+                    is Either.Right -> dispatch(Msg.SettingsLoaded(sessionId = sessionId, type = result.value))
+                    is Either.Left -> dispatch(Msg.SettingsLoaded(sessionId = sessionId, type = ContextManagementType.None))
                 }
                 dispatch(Msg.LoadingComplete)
             }
@@ -62,8 +62,8 @@ class SessionSettingsStoreFactory(
             val sessionId = state().sessionId ?: return
             dispatch(Msg.Loading)
             scope.launch {
-                when (agent.updateContextManagementType(sessionId, type)) {
-                    is Either.Right -> dispatch(Msg.TypeChanged(type))
+                when (sessionManager.updateContextManagementType(sessionId = sessionId, type = type)) {
+                    is Either.Right -> dispatch(Msg.TypeChanged(type = type))
                     is Either.Left -> {}
                 }
                 dispatch(Msg.LoadingComplete)

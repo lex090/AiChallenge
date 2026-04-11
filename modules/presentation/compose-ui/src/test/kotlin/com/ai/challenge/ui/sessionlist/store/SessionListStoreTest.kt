@@ -30,7 +30,7 @@ class SessionListStoreTest {
     @Test
     fun `initial state has empty session list`() {
         val agent = FakeAgent()
-        val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
+        val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionManager = agent).create()
         assertTrue(store.state.sessions.isEmpty())
         assertNull(store.state.activeSessionId)
         store.dispose()
@@ -42,7 +42,7 @@ class SessionListStoreTest {
         (agent.createSession(title = "Chat 1") as Either.Right).value
         (agent.createSession(title = "Chat 2") as Either.Right).value
 
-        val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
+        val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionManager = agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
         advanceUntilIdle()
 
@@ -53,7 +53,7 @@ class SessionListStoreTest {
     @Test
     fun `CreateSession creates new session and makes it active`() = runTest {
         val agent = FakeAgent()
-        val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
+        val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionManager = agent).create()
 
         store.accept(SessionListStore.Intent.CreateSession)
         advanceUntilIdle()
@@ -69,7 +69,7 @@ class SessionListStoreTest {
         val agent = FakeAgent()
         val id = (agent.createSession(title = "To delete") as Either.Right).value
 
-        val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
+        val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionManager = agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
         advanceUntilIdle()
 
@@ -87,7 +87,7 @@ class SessionListStoreTest {
         val id1 = (agent.createSession(title = "First") as Either.Right).value
         val id2 = (agent.createSession(title = "Second") as Either.Right).value
 
-        val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
+        val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionManager = agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
         advanceUntilIdle()
 
@@ -106,7 +106,7 @@ class SessionListStoreTest {
         val agent = FakeAgent()
         val id = (agent.createSession(title = "Test") as Either.Right).value
 
-        val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
+        val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionManager = agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
         advanceUntilIdle()
 

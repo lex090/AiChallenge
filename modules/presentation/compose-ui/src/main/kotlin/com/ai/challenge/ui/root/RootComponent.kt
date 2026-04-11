@@ -1,7 +1,10 @@
 package com.ai.challenge.ui.root
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.agent.BranchManager
+import com.ai.challenge.core.agent.ChatAgent
+import com.ai.challenge.core.agent.SessionManager
+import com.ai.challenge.core.agent.UsageTracker
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
@@ -26,11 +29,14 @@ import kotlinx.serialization.Serializable
 class RootComponent(
     componentContext: ComponentContext,
     private val storeFactory: StoreFactory,
-    private val agent: Agent,
+    private val sessionManager: SessionManager,
+    private val chatAgent: ChatAgent,
+    private val usageTracker: UsageTracker,
+    private val branchManager: BranchManager,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
-        SessionListStoreFactory(storeFactory, agent).create()
+        SessionListStoreFactory(storeFactory = storeFactory, sessionManager = sessionManager).create()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -52,11 +58,11 @@ class RootComponent(
 
     init {
         runBlocking {
-            when (val result = agent.listSessions()) {
+            when (val result = sessionManager.listSessions()) {
                 is Either.Right -> {
                     val sessions = result.value
                     if (sessions.isEmpty()) {
-                        when (val createResult = agent.createSession(title = "")) {
+                        when (val createResult = sessionManager.createSession(title = "")) {
                             is Either.Right -> {
                                 sessionListStore.accept(SessionListStore.Intent.LoadSessions)
                                 selectSession(sessionId = createResult.value)
@@ -80,7 +86,7 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            when (val result = agent.createSession(title = "")) {
+            when (val result = sessionManager.createSession(title = "")) {
                 is Either.Right -> {
                     sessionListStore.accept(SessionListStore.Intent.LoadSessions)
                     selectSession(sessionId = result.value)
@@ -97,7 +103,7 @@ class RootComponent(
             _settingsComponent.value = SessionSettingsComponent(
                 componentContext = this,
                 storeFactory = storeFactory,
-                agent = agent,
+                sessionManager = sessionManager,
                 sessionId = sessionId,
             )
         }
@@ -113,11 +119,11 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
-            when (agent.deleteSession(id = sessionId)) {
+            when (sessionManager.deleteSession(id = sessionId)) {
                 is Either.Right -> {
                     sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
-                    when (val remaining = agent.listSessions()) {
+                    when (val remaining = sessionManager.listSessions()) {
                         is Either.Right -> {
                             if (remaining.value.isEmpty()) {
                                 createNewSession()
@@ -142,7 +148,10 @@ class RootComponent(
                 ChatComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
-                    agent = agent,
+                    chatAgent = chatAgent,
+                    sessionManager = sessionManager,
+                    usageTracker = usageTracker,
+                    branchManager = branchManager,
                     sessionId = AgentSessionId(config.sessionId),
                 )
             )

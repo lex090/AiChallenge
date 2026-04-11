@@ -14,6 +14,10 @@ import com.ai.challenge.fact.repository.createFactDatabase
 import com.ai.challenge.context.repository.ExposedContextManagementTypeRepository
 import com.ai.challenge.context.repository.createContextManagementDatabase
 import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.agent.BranchManager
+import com.ai.challenge.core.agent.ChatAgent
+import com.ai.challenge.core.agent.SessionManager
+import com.ai.challenge.core.agent.UsageTracker
 import com.ai.challenge.context.ContextCompressor
 import com.ai.challenge.core.branch.BranchRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
@@ -83,4 +87,8 @@ val appModule = module {
             branchRepository = get(),
         )
     }
+    single<ChatAgent> { get<Agent>() }
+    single<SessionManager> { get<Agent>() }
+    single<UsageTracker> { get<Agent>() }
+    single<BranchManager> { get<Agent>() }
 }

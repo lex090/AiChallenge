@@ -41,7 +41,13 @@ class ChatStoreTest {
     fun tearDown() { Dispatchers.resetMain() }
 
     private fun createStore(agent: Agent = FakeAgent()): ChatStore =
-        ChatStoreFactory(DefaultStoreFactory(), agent).create()
+        ChatStoreFactory(
+            storeFactory = DefaultStoreFactory(),
+            chatAgent = agent,
+            sessionManager = agent,
+            usageTracker = agent,
+            branchManager = agent,
+        ).create()
 
     @Test
     fun `initial state is empty with no session`() {
@@ -63,7 +69,7 @@ class ChatStoreTest {
         agent.appendTurnDirect(sessionId, Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now()))
         val store = createStore(agent)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
 
         assertEquals(sessionId, store.state.sessionId)
@@ -82,7 +88,7 @@ class ChatStoreTest {
         val sessionId = (agent.createSession(title = "") as Either.Right).value
         val store = createStore(agent)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hi"))
         advanceUntilIdle()
@@ -103,7 +109,7 @@ class ChatStoreTest {
         val sessionId = (agent.createSession(title = "") as Either.Right).value
         val store = createStore(agent)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hi"))
         advanceUntilIdle()
@@ -125,7 +131,7 @@ class ChatStoreTest {
         val sessionId = (agent.createSession(title = "") as Either.Right).value
         val store = createStore(agent)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hello"))
         advanceUntilIdle()
@@ -157,7 +163,7 @@ class ChatStoreTest {
         val sessionId = (agent.createSession(title = "") as Either.Right).value
         val store = createStore(agent)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hello"))
         advanceUntilIdle()
@@ -185,7 +191,7 @@ class ChatStoreTest {
         agent.recordCostsDirect(sessionId, turnId2, CostDetails(totalCost = 0.002, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
 
         val store = createStore(agent)
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
 
         assertEquals(TokenDetails(promptTokens = 10, completionTokens = 5, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), store.state.turnTokens[turnId1])
@@ -201,7 +207,7 @@ class ChatStoreTest {
         val sessionId = (agent.createSession(title = "") as Either.Right).value
         val store = createStore(agent)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hello world, this is a long message for auto-title testing purposes"))
         advanceUntilIdle()
