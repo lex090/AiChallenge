@@ -2,8 +2,8 @@ package com.ai.challenge.session.repository
 
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.AgentSessionRepository
-import com.ai.challenge.core.chat.model.BranchName
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -45,15 +45,12 @@ class ExposedAgentSessionRepository(
         }
     }
 
-    // === Session Lifecycle ===
-
     override suspend fun save(session: AgentSession): AgentSession {
         transaction(db = database) {
             SessionsTable.insert {
                 it[id] = session.id.value
                 it[title] = session.title.value
                 it[contextManagementType] = session.contextManagementType.toStorageString()
-                it[activeBranchId] = session.activeBranchId.value
                 it[createdAt] = session.createdAt.value.toEpochMilliseconds()
                 it[updatedAt] = session.updatedAt.value.toEpochMilliseconds()
             }
@@ -93,25 +90,21 @@ class ExposedAgentSessionRepository(
             SessionsTable.update(where = { SessionsTable.id eq session.id.value }) {
                 it[title] = session.title.value
                 it[contextManagementType] = session.contextManagementType.toStorageString()
-                it[activeBranchId] = session.activeBranchId.value
                 it[updatedAt] = session.updatedAt.value.toEpochMilliseconds()
             }
         }
         return session
     }
 
-    // === Branches ===
-
     override suspend fun createBranch(branch: Branch): Branch {
         transaction(database) {
             BranchesTable.insert {
                 it[id] = branch.id.value
                 it[sessionId] = branch.sessionId.value
-                it[parentId] = branch.parentId?.value
-                it[name] = branch.name.value
+                it[sourceTurnId] = branch.sourceTurnId?.value
                 it[createdAt] = branch.createdAt.value.toEpochMilliseconds()
             }
-            for ((index, turnId) in branch.turnIds.withIndex()) {
+            for ((index, turnId) in branch.turnSequence.values.withIndex()) {
                 BranchTurnsTable.insert {
                     it[branchId] = branch.id.value
                     it[BranchTurnsTable.turnId] = turnId.value
@@ -137,7 +130,7 @@ class ExposedAgentSessionRepository(
 
     override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? = transaction(database) {
         BranchesTable.selectAll()
-            .where { (BranchesTable.sessionId eq sessionId.value) and BranchesTable.parentId.isNull() }
+            .where { (BranchesTable.sessionId eq sessionId.value) and BranchesTable.sourceTurnId.isNull() }
             .singleOrNull()
             ?.toBranch()
     }
@@ -154,8 +147,6 @@ class ExposedAgentSessionRepository(
             BranchTurnsTable.deleteWhere { BranchTurnsTable.branchId eq branchId.value }
         }
     }
-
-    // === Turns ===
 
     override suspend fun appendTurn(branchId: BranchId, turn: Turn): Turn {
         transaction(database) {
@@ -188,21 +179,6 @@ class ExposedAgentSessionRepository(
         return turn
     }
 
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = transaction(database) {
-        val query = TurnsTable.selectAll()
-            .where { TurnsTable.sessionId eq sessionId.value }
-            .orderBy(TurnsTable.createdAt, SortOrder.ASC)
-
-        val rows = if (limit != null) {
-            val allRows = query.toList()
-            if (allRows.size > limit) allRows.takeLast(limit) else allRows
-        } else {
-            query.toList()
-        }
-
-        rows.map { it.toTurn() }
-    }
-
     override suspend fun getTurnsByBranch(branchId: BranchId): List<Turn> = transaction(database) {
         val turnIds = BranchTurnsTable.selectAll()
             .where { BranchTurnsTable.branchId eq branchId.value }
@@ -224,13 +200,10 @@ class ExposedAgentSessionRepository(
             ?.toTurn()
     }
 
-    // === Mapping ===
-
     private fun ResultRow.toAgentSession() = AgentSession(
         id = AgentSessionId(value = this[SessionsTable.id]),
         title = SessionTitle(value = this[SessionsTable.title]),
         contextManagementType = this[SessionsTable.contextManagementType].toContextManagementType(),
-        activeBranchId = BranchId(value = this[SessionsTable.activeBranchId]),
         createdAt = CreatedAt(value = Instant.fromEpochMilliseconds(this[SessionsTable.createdAt])),
         updatedAt = UpdatedAt(value = Instant.fromEpochMilliseconds(this[SessionsTable.updatedAt])),
     )
@@ -244,9 +217,8 @@ class ExposedAgentSessionRepository(
         return Branch(
             id = BranchId(value = branchIdValue),
             sessionId = AgentSessionId(value = this[BranchesTable.sessionId]),
-            parentId = this[BranchesTable.parentId]?.let { BranchId(value = it) },
-            name = BranchName(value = this[BranchesTable.name]),
-            turnIds = turnIds,
+            sourceTurnId = this[BranchesTable.sourceTurnId]?.let { TurnId(value = it) },
+            turnSequence = TurnSequence(values = turnIds),
             createdAt = CreatedAt(value = Instant.fromEpochMilliseconds(this[BranchesTable.createdAt])),
         )
     }
