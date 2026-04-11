@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.root
 
-import arrow.core.Either
+import arrow.core.getOrElse
 import com.ai.challenge.core.chat.BranchService
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
@@ -67,22 +67,23 @@ class RootComponent(
 
     init {
         runBlocking {
-            val newSession = applicationInitService.ensureAtLeastOneSession()
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-            when (newSession) {
-                is Either.Right -> {
-                    val session = newSession.value
-                    if (session != null) {
-                        selectSession(sessionId = session.id)
-                    } else {
-                        when (val result = sessionService.list()) {
-                            is Either.Right -> selectSession(sessionId = result.value.first().id)
-                            is Either.Left -> {}
+            applicationInitService.ensureAtLeastOneSession()
+                .fold(
+                    ifLeft = { error -> println("Failed to initialize session: ${error.message}") },
+                    ifRight = { session ->
+                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                        if (session != null) {
+                            selectSession(sessionId = session.id)
+                        } else {
+                            val firstSession = sessionService.list()
+                                .getOrElse { emptyList() }
+                                .firstOrNull()
+                            if (firstSession != null) {
+                                selectSession(sessionId = firstSession.id)
+                            }
                         }
-                    }
-                }
-                is Either.Left -> {}
-            }
+                    },
+                )
         }
     }
 
@@ -93,13 +94,14 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            when (val result = createSessionUseCase.execute(title = SessionTitle(value = ""))) {
-                is Either.Right -> {
-                    sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                    selectSession(sessionId = result.value.id)
-                }
-                is Either.Left -> {}
-            }
+            createSessionUseCase.execute(title = SessionTitle(value = ""))
+                .fold(
+                    ifLeft = { error -> println("Failed to create session: ${error.message}") },
+                    ifRight = { session ->
+                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                        selectSession(sessionId = session.id)
+                    },
+                )
         }
     }
 
@@ -126,26 +128,23 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
-            when (deleteSessionUseCase.execute(sessionId = sessionId)) {
-                is Either.Right -> {
-                    sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+            deleteSessionUseCase.execute(sessionId = sessionId)
+                .fold(
+                    ifLeft = { error -> println("Failed to delete session: ${error.message}") },
+                    ifRight = {
+                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
-                    when (val remaining = sessionService.list()) {
-                        is Either.Right -> {
-                            if (remaining.value.isEmpty()) {
-                                createNewSession()
-                            } else {
-                                val currentActive = sessionListStore.stateFlow.value.activeSessionId
-                                if (currentActive == sessionId) {
-                                    selectSession(sessionId = remaining.value.first().id)
-                                }
+                        val remaining = sessionService.list().getOrElse { emptyList() }
+                        if (remaining.isEmpty()) {
+                            createNewSession()
+                        } else {
+                            val currentActive = sessionListStore.stateFlow.value.activeSessionId
+                            if (currentActive == sessionId) {
+                                selectSession(sessionId = remaining.first().id)
                             }
                         }
-                        is Either.Left -> {}
-                    }
-                }
-                is Either.Left -> {}
-            }
+                    },
+                )
         }
     }
 
