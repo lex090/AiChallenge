@@ -1,12 +1,11 @@
 package com.ai.challenge.core.agent
 
-import com.ai.challenge.core.cost.CostDetails
-import com.ai.challenge.core.token.TokenDetails
+import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.usage.model.UsageRecord
 
 data class AgentResponse(
-    val text: String,
+    val text: MessageContent,
     val turnId: TurnId,
-    val tokenDetails: TokenDetails,
-    val costDetails: CostDetails,
+    val usage: UsageRecord,
 )

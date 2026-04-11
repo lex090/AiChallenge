@@ -1,13 +1,17 @@
 package com.ai.challenge.core.summary
 
+import com.ai.challenge.core.context.model.SummaryContent
+import com.ai.challenge.core.context.model.TurnIndex
 import com.ai.challenge.core.session.AgentSessionId
-import kotlin.time.Instant
+import com.ai.challenge.core.shared.CreatedAt
 
+/**
+ * Value Object — summarization result for a range of turns.
+ */
 data class Summary(
-    val id: SummaryId,
     val sessionId: AgentSessionId,
-    val text: String,
-    val fromTurnIndex: Int,
-    val toTurnIndex: Int,
-    val createdAt: Instant,
+    val content: SummaryContent,
+    val fromTurnIndex: TurnIndex,
+    val toTurnIndex: TurnIndex,
+    val createdAt: CreatedAt,
 )
