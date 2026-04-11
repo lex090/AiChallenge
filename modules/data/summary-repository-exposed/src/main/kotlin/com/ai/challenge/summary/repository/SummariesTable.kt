@@ -3,7 +3,7 @@ package com.ai.challenge.summary.repository
 import org.jetbrains.exposed.sql.Table
 
 object SummariesTable : Table("summaries") {
-    val id = varchar("id", 36)
+    val id = integer("id").autoIncrement()
     val sessionId = varchar("session_id", 36)
     val text = text("text")
     val fromTurnIndex = integer("from_turn_index")
