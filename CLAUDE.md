@@ -89,10 +89,13 @@ No module may depend on a module above it.
 - **Repository interfaces MUST be named `{DomainModel}Repository`** where `{DomainModel}` is the exact name of the domain model class they persist.
 - Examples: `AgentSession` → `AgentSessionRepository`, `Turn` → `TurnRepository`, `ContextManagementType` → `ContextManagementTypeRepository`.
 
-### Error Handling
+### Error Handling (Arrow Either)
 
-- Use Arrow `Either<AgentError, T>` at domain boundaries (Agent interface).
-- No try/catch in presentation layer — pattern-match on Either.
+- Use Arrow `Either<DomainError, T>` at domain boundaries (service interfaces).
+- No `try/catch` in presentation layer.
+- **Before writing or modifying Arrow code**, fetch the latest Arrow documentation via MCP context7 (`resolve-library-id` → `query-docs`) to verify current idiomatic patterns. Arrow API evolves between versions — do not rely on memorized patterns.
+- **Never silently drop errors** — `is Either.Left -> {}` is forbidden. Every error must be surfaced (via `Msg.Error`, logging) or handled with an explicit fallback.
+- Prefer Arrow DSL (`either { }`, `ensure`, `ensureNotNull`, `catch`, `bind`, `fold`, `getOrElse`) over manual `Either.Left/Right` construction and verbose `when` pattern matching.
 
 ### Presentation Layer (compose-ui)
 
