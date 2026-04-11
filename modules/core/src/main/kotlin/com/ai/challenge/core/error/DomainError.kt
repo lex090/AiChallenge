@@ -4,6 +4,18 @@ import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 
+/**
+ * Value Object — sealed hierarchy of domain errors.
+ *
+ * Used with Arrow Either at domain boundaries:
+ * `Either<DomainError, T>`. Presentation layer pattern-matches
+ * on error type — no try/catch.
+ *
+ * Infrastructure errors: [NetworkError], [ApiError], [DatabaseError]
+ * Resource errors: [SessionNotFound], [BranchNotFound], [TurnNotFound]
+ * Business rule violations: [MainBranchCannotBeDeleted],
+ *   [BranchingNotEnabled], [BranchNotOwnedBySession]
+ */
 sealed interface DomainError {
     val message: String
 

@@ -6,6 +6,24 @@ import com.ai.challenge.core.shared.CreatedAt
 import com.ai.challenge.core.shared.UpdatedAt
 import kotlin.time.Clock
 
+/**
+ * Aggregate Root — root of the "Conversation" aggregate.
+ *
+ * Represents one conversation between user and AI agent.
+ * Single entry point for all operations within a session:
+ * creating branches, appending turns.
+ *
+ * Transactional boundary: all changes to [Branch] and [Turn]
+ * go through this aggregate and are saved atomically.
+ *
+ * Invariants:
+ * - Always has exactly one main [Branch] ([Branch.sourceTurnId] == null)
+ * - [Branch] can only be created if [contextManagementType] == [ContextManagementType.Branching]
+ * - Main [Branch] cannot be deleted
+ * - [title] is auto-generated from first message if empty
+ *
+ * Child entities: [Branch], [Turn]
+ */
 data class AgentSession(
     val id: AgentSessionId,
     val title: SessionTitle,

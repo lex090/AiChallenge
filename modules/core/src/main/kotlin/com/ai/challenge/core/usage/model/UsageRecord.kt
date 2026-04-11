@@ -1,15 +1,20 @@
 package com.ai.challenge.core.usage.model
 
 /**
- * Composite Value Object — usage metrics for a single turn.
+ * Value Object — usage metrics for a single [Turn].
  *
- * Merges tokens and cost into a single unit.
- * Replaces two separate objects (TokenDetails + CostDetails)
- * that were always created, stored, and read together.
+ * Has no identity — defined only by its attributes.
+ * Immutable. Created once with [Turn] and never modified.
+ * Two UsageRecords with identical fields are fully interchangeable.
+ *
+ * Supports aggregation through [plus] operator for computing
+ * session-level totals via UsageService.
  *
  * Preserves full granularity from OpenRouter API:
  * 5 token fields (prompt, completion, cached, cacheWrite, reasoning)
  * 4 cost fields (total, upstream, upstreamPrompt, upstreamCompletion)
+ *
+ * Embedded in [Turn] as a composite part — not stored separately.
  */
 data class UsageRecord(
     val promptTokens: TokenCount,
