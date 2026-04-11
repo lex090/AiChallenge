@@ -1,5 +1,6 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManager
@@ -15,11 +16,10 @@ class BranchingContextManager(
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
-        val session = repository.get(id = sessionId)
-            ?: error("Session not found: ${sessionId.value}")
-        val turns = repository.getTurnsByBranch(branchId = session.activeBranchId)
+        val turns = repository.getTurnsByBranch(branchId = branchId)
         val messages = turnsToMessages(turns = turns) +
             ContextMessage(role = MessageRole.User, content = newMessage)
         return PreparedContext(

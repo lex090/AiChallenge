@@ -1,5 +1,6 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManagementType
@@ -34,6 +35,7 @@ class DefaultContextManager(
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
         val session = repository.get(id = sessionId)
@@ -41,42 +43,49 @@ class DefaultContextManager(
         val type = session.contextManagementType
 
         return when (type) {
-            is ContextManagementType.None -> passThrough(sessionId = sessionId, newMessage = newMessage)
+            is ContextManagementType.None -> passThrough(branchId = branchId, newMessage = newMessage)
             is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(
                 sessionId = sessionId,
+                branchId = branchId,
                 newMessage = newMessage,
             )
             is ContextManagementType.Branching -> branchingContextManager.prepareContext(
                 sessionId = sessionId,
+                branchId = branchId,
                 newMessage = newMessage,
             )
             is ContextManagementType.SlidingWindow -> slidingWindow(
-                sessionId = sessionId,
+                branchId = branchId,
                 newMessage = newMessage,
             )
-            is ContextManagementType.StickyFacts -> stickyFacts(sessionId = sessionId, newMessage = newMessage)
+            is ContextManagementType.StickyFacts -> stickyFacts(
+                sessionId = sessionId,
+                branchId = branchId,
+                newMessage = newMessage,
+            )
         }
     }
 
     // --- orchestration (side effects at boundaries) ---
 
     private suspend fun passThrough(
-        sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
-        val history = repository.getTurns(sessionId = sessionId, limit = null)
+        val history = repository.getTurnsByBranch(branchId = branchId)
         return withoutCompression(history = history, newMessage = newMessage)
     }
 
     private suspend fun summarizeOnThreshold(
         sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
         val maxTurns = 15
         val retainLast = 5
         val compressionInterval = 10
 
-        val history = repository.getTurns(sessionId = sessionId, limit = null)
+        val history = repository.getTurnsByBranch(branchId = branchId)
 
         if (history.size < maxTurns) {
             return withoutCompression(history = history, newMessage = newMessage)
@@ -98,10 +107,10 @@ class DefaultContextManager(
     }
 
     private suspend fun slidingWindow(
-        sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
-        val history = repository.getTurns(sessionId = sessionId, limit = null)
+        val history = repository.getTurnsByBranch(branchId = branchId)
         val windowed = history.takeLast(n = WINDOW_SIZE)
         return PreparedContext(
             messages = turnsToMessages(turns = windowed) + ContextMessage(role = MessageRole.User, content = newMessage),
@@ -114,12 +123,13 @@ class DefaultContextManager(
 
     private suspend fun stickyFacts(
         sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
         val retainLast = 5
 
         val currentFacts = factRepository.getBySession(sessionId = sessionId)
-        val history = repository.getTurns(sessionId = sessionId, limit = null)
+        val history = repository.getTurnsByBranch(branchId = branchId)
         val lastAssistantResponse = history.lastOrNull()?.assistantMessage
 
         val updatedFacts = factExtractor.extract(
