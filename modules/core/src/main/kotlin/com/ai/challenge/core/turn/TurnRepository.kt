@@ -1,9 +1,0 @@
-package com.ai.challenge.core.turn
-
-import com.ai.challenge.core.session.AgentSessionId
-
-interface TurnRepository {
-    suspend fun append(turn: Turn): TurnId
-    suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn>
-    suspend fun get(turnId: TurnId): Turn?
-}
