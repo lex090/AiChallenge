@@ -53,7 +53,7 @@ class RootComponent(
         runBlocking {
             val sessions = agent.listSessions()
             if (sessions.isEmpty()) {
-                val id = agent.createSession()
+                val id = agent.createSession(title = "")
                 sessionListStore.accept(SessionListStore.Intent.LoadSessions)
                 selectSession(id)
             } else {
@@ -70,7 +70,7 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            val id = agent.createSession()
+            val id = agent.createSession(title = "")
             sessionListStore.accept(SessionListStore.Intent.LoadSessions)
             selectSession(id)
         }

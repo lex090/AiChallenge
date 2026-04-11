@@ -84,7 +84,7 @@ class ChatStoreFactory(
             scope.launch {
                 val history = when (val r = agent.getActiveBranchTurns(sessionId = sessionId)) {
                     is Either.Right -> r.value
-                    is Either.Left -> agent.getTurns(sessionId)
+                    is Either.Left -> agent.getTurns(sessionId = sessionId, limit = null)
                 }
                 val messages = history.flatMap { turn ->
                     listOf(
@@ -94,8 +94,8 @@ class ChatStoreFactory(
                 }
                 val turnTokens = agent.getTokensBySession(sessionId)
                 val turnCosts = agent.getCostBySession(sessionId)
-                val sessionTokens = turnTokens.values.fold(TokenDetails()) { acc, t -> acc + t }
-                val sessionCosts = turnCosts.values.fold(CostDetails()) { acc, c -> acc + c }
+                val sessionTokens = turnTokens.values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
+                val sessionCosts = turnCosts.values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
                 dispatch(Msg.SessionLoaded(
                     sessionId = sessionId,
                     messages = messages,
@@ -186,7 +186,7 @@ class ChatStoreFactory(
                     is Either.Right -> {
                         val history = when (val r = agent.getActiveBranchTurns(sessionId = sessionId)) {
                             is Either.Right -> r.value
-                            is Either.Left -> agent.getTurns(sessionId = sessionId)
+                            is Either.Left -> agent.getTurns(sessionId = sessionId, limit = null)
                         }
                         val messages = history.flatMap { turn ->
                             listOf(
@@ -196,8 +196,8 @@ class ChatStoreFactory(
                         }
                         val turnTokens = agent.getTokensBySession(sessionId = sessionId)
                         val turnCosts = agent.getCostBySession(sessionId = sessionId)
-                        val sessionTokens = turnTokens.values.fold(TokenDetails()) { acc, t -> acc + t }
-                        val sessionCosts = turnCosts.values.fold(CostDetails()) { acc, c -> acc + c }
+                        val sessionTokens = turnTokens.values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
+                        val sessionCosts = turnCosts.values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
                         val branches = when (val r = agent.getBranches(sessionId = sessionId)) {
                             is Either.Right -> r.value
                             is Either.Left -> emptyList()

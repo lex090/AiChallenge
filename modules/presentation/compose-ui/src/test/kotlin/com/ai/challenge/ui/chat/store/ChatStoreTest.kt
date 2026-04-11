@@ -14,6 +14,7 @@ import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.ui.model.UiMessage
+import kotlin.time.Clock
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -50,16 +51,16 @@ class ChatStoreTest {
         assertNull(store.state.sessionId)
         assertEquals(emptyMap(), store.state.turnTokens)
         assertEquals(emptyMap(), store.state.turnCosts)
-        assertEquals(TokenDetails(), store.state.sessionTokens)
-        assertEquals(CostDetails(), store.state.sessionCosts)
+        assertEquals(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), store.state.sessionTokens)
+        assertEquals(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0), store.state.sessionCosts)
         store.dispose()
     }
 
     @Test
     fun `LoadSession sets sessionId and loads history as UiMessages`() = runTest {
         val agent = FakeAgent()
-        val sessionId = agent.createSession()
-        agent.appendTurnDirect(sessionId, Turn(userMessage = "hi", agentResponse = "hello"))
+        val sessionId = agent.createSession(title = "")
+        agent.appendTurnDirect(sessionId, Turn(id = TurnId.generate(), userMessage = "hi", agentResponse = "hello", timestamp = Clock.System.now()))
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -77,8 +78,8 @@ class ChatStoreTest {
     @Test
     fun `SendMessage adds user message and agent response`() = runTest {
         val turnId = TurnId.generate()
-        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("Hello from agent!", turnId, TokenDetails(), CostDetails())))
-        val sessionId = agent.createSession()
+        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("Hello from agent!", turnId, TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))))
+        val sessionId = agent.createSession(title = "")
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -99,7 +100,7 @@ class ChatStoreTest {
     @Test
     fun `SendMessage adds error message on agent failure`() = runTest {
         val agent = FakeAgent(sendResult = Either.Left(AgentError.NetworkError("Timeout")))
-        val sessionId = agent.createSession()
+        val sessionId = agent.createSession(title = "")
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -118,10 +119,10 @@ class ChatStoreTest {
     @Test
     fun `SendMessage populates turnTokens, turnCosts, sessionTokens, sessionCosts`() = runTest {
         val turnId = TurnId.generate()
-        val tokens = TokenDetails(promptTokens = 100, completionTokens = 50)
-        val costs = CostDetails(totalCost = 0.001)
+        val tokens = TokenDetails(promptTokens = 100, completionTokens = 50, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
+        val costs = CostDetails(totalCost = 0.001, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)
         val agent = FakeAgent(sendResult = Either.Right(AgentResponse("Hi!", turnId, tokens, costs)))
-        val sessionId = agent.createSession()
+        val sessionId = agent.createSession(title = "")
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -140,10 +141,10 @@ class ChatStoreTest {
     fun `SendMessage accumulates session metrics across multiple turns`() = runTest {
         val turnId1 = TurnId.generate()
         val turnId2 = TurnId.generate()
-        val tokens1 = TokenDetails(promptTokens = 100, completionTokens = 50)
-        val costs1 = CostDetails(totalCost = 0.001)
-        val tokens2 = TokenDetails(promptTokens = 200, completionTokens = 100)
-        val costs2 = CostDetails(totalCost = 0.002)
+        val tokens1 = TokenDetails(promptTokens = 100, completionTokens = 50, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
+        val costs1 = CostDetails(totalCost = 0.001, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)
+        val tokens2 = TokenDetails(promptTokens = 200, completionTokens = 100, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
+        val costs2 = CostDetails(totalCost = 0.002, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)
 
         var callCount = 0
         val agent = object : FakeAgent() {
@@ -153,7 +154,7 @@ class ChatStoreTest {
                 else Either.Right(AgentResponse("r2", turnId2, tokens2, costs2))
             }
         }
-        val sessionId = agent.createSession()
+        val sessionId = agent.createSession(title = "")
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -172,32 +173,32 @@ class ChatStoreTest {
     @Test
     fun `LoadSession loads token and cost data from agent`() = runTest {
         val agent = FakeAgent()
-        val sessionId = agent.createSession()
+        val sessionId = agent.createSession(title = "")
 
-        val turn1 = Turn(userMessage = "a", agentResponse = "b")
-        val turn2 = Turn(userMessage = "c", agentResponse = "d")
+        val turn1 = Turn(id = TurnId.generate(), userMessage = "a", agentResponse = "b", timestamp = Clock.System.now())
+        val turn2 = Turn(id = TurnId.generate(), userMessage = "c", agentResponse = "d", timestamp = Clock.System.now())
         val turnId1 = agent.appendTurnDirect(sessionId, turn1)
         val turnId2 = agent.appendTurnDirect(sessionId, turn2)
-        agent.recordTokensDirect(sessionId, turnId1, TokenDetails(promptTokens = 10, completionTokens = 5))
-        agent.recordTokensDirect(sessionId, turnId2, TokenDetails(promptTokens = 20, completionTokens = 10))
-        agent.recordCostsDirect(sessionId, turnId1, CostDetails(totalCost = 0.001))
-        agent.recordCostsDirect(sessionId, turnId2, CostDetails(totalCost = 0.002))
+        agent.recordTokensDirect(sessionId, turnId1, TokenDetails(promptTokens = 10, completionTokens = 5, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))
+        agent.recordTokensDirect(sessionId, turnId2, TokenDetails(promptTokens = 20, completionTokens = 10, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))
+        agent.recordCostsDirect(sessionId, turnId1, CostDetails(totalCost = 0.001, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
+        agent.recordCostsDirect(sessionId, turnId2, CostDetails(totalCost = 0.002, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
 
         val store = createStore(agent)
         store.accept(ChatStore.Intent.LoadSession(sessionId))
         advanceUntilIdle()
 
-        assertEquals(TokenDetails(promptTokens = 10, completionTokens = 5), store.state.turnTokens[turnId1])
-        assertEquals(TokenDetails(promptTokens = 20, completionTokens = 10), store.state.turnTokens[turnId2])
-        assertEquals(TokenDetails(promptTokens = 30, completionTokens = 15), store.state.sessionTokens)
-        assertEquals(CostDetails(totalCost = 0.003), store.state.sessionCosts)
+        assertEquals(TokenDetails(promptTokens = 10, completionTokens = 5, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), store.state.turnTokens[turnId1])
+        assertEquals(TokenDetails(promptTokens = 20, completionTokens = 10, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), store.state.turnTokens[turnId2])
+        assertEquals(TokenDetails(promptTokens = 30, completionTokens = 15, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), store.state.sessionTokens)
+        assertEquals(CostDetails(totalCost = 0.003, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0), store.state.sessionCosts)
         store.dispose()
     }
 
     @Test
     fun `SendMessage auto-titles session on first message`() = runTest {
-        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("response", TurnId.generate(), TokenDetails(), CostDetails())))
-        val sessionId = agent.createSession()
+        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("response", TurnId.generate(), TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))))
+        val sessionId = agent.createSession(title = "")
         val store = createStore(agent)
 
         store.accept(ChatStore.Intent.LoadSession(sessionId))
@@ -212,7 +213,7 @@ class ChatStoreTest {
 }
 
 open class FakeAgent(
-    private val sendResult: Either<AgentError, AgentResponse> = Either.Right(AgentResponse("", TurnId.generate(), TokenDetails(), CostDetails())),
+    private val sendResult: Either<AgentError, AgentResponse> = Either.Right(AgentResponse("", TurnId.generate(), TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))),
 ) : Agent {
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
@@ -222,7 +223,7 @@ open class FakeAgent(
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = sendResult
     override suspend fun createSession(title: String): AgentSessionId {
         val id = AgentSessionId.generate()
-        sessions[id] = AgentSession(id = id, title = title)
+        sessions[id] = AgentSession(id = id, title = title, createdAt = Clock.System.now(), updatedAt = Clock.System.now())
         return id
     }
     override suspend fun deleteSession(id: AgentSessionId): Boolean = sessions.remove(id) != null
@@ -239,12 +240,12 @@ open class FakeAgent(
     override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
         tokenData.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails =
-        getTokensBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
+        getTokensBySession(sessionId).values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
     override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costData[turnId]?.second
     override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
         costData.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails =
-        getCostBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+        getCostBySession(sessionId).values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
     override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
         Either.Right(ContextManagementType.None)
     override suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit> =
@@ -260,7 +261,7 @@ open class FakeAgent(
     override suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?> =
         Either.Right(value = null)
     override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> =
-        Either.Right(value = getTurns(sessionId = sessionId))
+        Either.Right(value = getTurns(sessionId = sessionId, limit = null))
     override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> =
         Either.Right(value = emptyMap())
 

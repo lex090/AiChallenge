@@ -45,7 +45,7 @@ class ExposedTokenRepository(private val database: Database) : TokenDetailsRepos
     }
 
     override suspend fun getSessionTotal(sessionId: AgentSessionId): TokenDetails =
-        getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
+        getBySession(sessionId).values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
 
     private fun ResultRow.toTokenDetails() = TokenDetails(
         promptTokens = this[TokenDetailsTable.promptTokens],

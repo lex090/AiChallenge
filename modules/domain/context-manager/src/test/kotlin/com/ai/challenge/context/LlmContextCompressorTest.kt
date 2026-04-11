@@ -1,6 +1,7 @@
 package com.ai.challenge.context
 
 import com.ai.challenge.core.turn.Turn
+import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.llm.OpenRouterService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -20,6 +21,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 
 class LlmContextCompressorTest {
 
@@ -41,8 +43,8 @@ class LlmContextCompressorTest {
         val compressor = LlmContextCompressor(service = service, model = "test-model")
 
         val turns = listOf(
-            Turn(userMessage = "Hello", agentResponse = "Hi there!"),
-            Turn(userMessage = "How are you?", agentResponse = "I'm fine!"),
+            Turn(id = TurnId.generate(), userMessage = "Hello", agentResponse = "Hi there!", timestamp = Clock.System.now()),
+            Turn(id = TurnId.generate(), userMessage = "How are you?", agentResponse = "I'm fine!", timestamp = Clock.System.now()),
         )
 
         val result = compressor.compress(turns)

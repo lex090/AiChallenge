@@ -20,7 +20,7 @@ class ExposedCostRepositoryTest {
             url = "jdbc:sqlite:/tmp/test_cost_repo_${System.nanoTime()}.db",
             driver = "org.sqlite.JDBC",
         )
-        repository = ExposedCostRepository(db)
+        repository = ExposedCostRepository(database = db)
     }
 
     @Test
@@ -29,14 +29,14 @@ class ExposedCostRepositoryTest {
         val turnId = TurnId.generate()
         val details = CostDetails(totalCost = 0.001, upstreamCost = 0.0008, upstreamPromptCost = 0.0005, upstreamCompletionsCost = 0.0003)
 
-        repository.record(sessionId, turnId, details)
+        repository.record(sessionId = sessionId, turnId = turnId, details = details)
 
-        assertEquals(details, repository.getByTurn(turnId))
+        assertEquals(expected = details, actual = repository.getByTurn(turnId = turnId))
     }
 
     @Test
     fun `getByTurn returns null for unknown turnId`() = runTest {
-        assertNull(repository.getByTurn(TurnId.generate()))
+        assertNull(actual = repository.getByTurn(turnId = TurnId.generate()))
     }
 
     @Test
@@ -44,16 +44,16 @@ class ExposedCostRepositoryTest {
         val sessionId = AgentSessionId.generate()
         val turnId1 = TurnId.generate()
         val turnId2 = TurnId.generate()
-        val c1 = CostDetails(totalCost = 0.001)
-        val c2 = CostDetails(totalCost = 0.002)
+        val c1 = CostDetails(totalCost = 0.001, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)
+        val c2 = CostDetails(totalCost = 0.002, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)
 
-        repository.record(sessionId, turnId1, c1)
-        repository.record(sessionId, turnId2, c2)
+        repository.record(sessionId = sessionId, turnId = turnId1, details = c1)
+        repository.record(sessionId = sessionId, turnId = turnId2, details = c2)
 
-        val result = repository.getBySession(sessionId)
-        assertEquals(2, result.size)
-        assertEquals(c1, result[turnId1])
-        assertEquals(c2, result[turnId2])
+        val result = repository.getBySession(sessionId = sessionId)
+        assertEquals(expected = 2, actual = result.size)
+        assertEquals(expected = c1, actual = result[turnId1])
+        assertEquals(expected = c2, actual = result[turnId2])
     }
 
     @Test
@@ -61,26 +61,26 @@ class ExposedCostRepositoryTest {
         val session1 = AgentSessionId.generate()
         val session2 = AgentSessionId.generate()
 
-        repository.record(session1, TurnId.generate(), CostDetails(totalCost = 0.001))
-        repository.record(session2, TurnId.generate(), CostDetails(totalCost = 0.002))
+        repository.record(sessionId = session1, turnId = TurnId.generate(), details = CostDetails(totalCost = 0.001, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
+        repository.record(sessionId = session2, turnId = TurnId.generate(), details = CostDetails(totalCost = 0.002, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
 
-        val result = repository.getBySession(session1)
-        assertEquals(1, result.size)
+        val result = repository.getBySession(sessionId = session1)
+        assertEquals(expected = 1, actual = result.size)
     }
 
     @Test
     fun `getSessionTotal returns accumulated costs`() = runTest {
         val sessionId = AgentSessionId.generate()
 
-        repository.record(sessionId, TurnId.generate(), CostDetails(totalCost = 0.001))
-        repository.record(sessionId, TurnId.generate(), CostDetails(totalCost = 0.002))
+        repository.record(sessionId = sessionId, turnId = TurnId.generate(), details = CostDetails(totalCost = 0.001, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
+        repository.record(sessionId = sessionId, turnId = TurnId.generate(), details = CostDetails(totalCost = 0.002, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0))
 
-        val total = repository.getSessionTotal(sessionId)
-        assertEquals(0.003, total.totalCost, 1e-9)
+        val total = repository.getSessionTotal(sessionId = sessionId)
+        assertEquals(expected = 0.003, actual = total.totalCost, absoluteTolerance = 1e-9)
     }
 
     @Test
     fun `getSessionTotal returns empty for session with no costs`() = runTest {
-        assertEquals(CostDetails(), repository.getSessionTotal(AgentSessionId.generate()))
+        assertEquals(expected = CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0), actual = repository.getSessionTotal(sessionId = AgentSessionId.generate()))
     }
 }

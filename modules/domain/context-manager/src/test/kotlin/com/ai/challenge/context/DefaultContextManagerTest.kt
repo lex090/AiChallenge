@@ -19,6 +19,7 @@ import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.turn.TurnRepository
 import kotlinx.coroutines.test.runTest
+import kotlin.time.Clock
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,7 +29,7 @@ import kotlin.test.assertTrue
 class DefaultContextManagerTest {
 
     private fun turns(count: Int): List<Turn> =
-        (1..count).map { Turn(userMessage = "msg$it", agentResponse = "resp$it") }
+        (1..count).map { Turn(id = TurnId.generate(), userMessage = "msg$it", agentResponse = "resp$it", timestamp = Clock.System.now()) }
 
     private lateinit var fakeCompressor: FakeContextCompressor
     private lateinit var fakeSummaryRepo: InMemorySummaryRepository
@@ -131,7 +132,7 @@ class DefaultContextManagerTest {
         manager.prepareContext(sessionId = sessionId, newMessage = "msg15")
         assertEquals(1, fakeCompressor.callCount)
 
-        fakeTurnRepo.append(sessionId = sessionId, turn = Turn(userMessage = "msg16", agentResponse = "resp16"))
+        fakeTurnRepo.append(sessionId = sessionId, turn = Turn(id = TurnId.generate(), userMessage = "msg16", agentResponse = "resp16", timestamp = Clock.System.now()))
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "msg16")
         assertEquals(1, fakeCompressor.callCount)
         assertTrue(result.compressed)
@@ -334,7 +335,7 @@ class DefaultContextManagerTest {
     fun `stickyFacts passes last assistant response to extractor`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
-        saveTurns(sessionId = sessionId, turns = listOf(Turn(userMessage = "hi", agentResponse = "hello there")))
+        saveTurns(sessionId = sessionId, turns = listOf(Turn(id = TurnId.generate(), userMessage = "hi", agentResponse = "hello there", timestamp = Clock.System.now())))
         fakeFactExtractor.factsToReturn = emptyList()
         val manager = createManager()
 

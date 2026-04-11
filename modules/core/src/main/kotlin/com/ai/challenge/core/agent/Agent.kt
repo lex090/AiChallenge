@@ -13,12 +13,12 @@ import com.ai.challenge.core.turn.TurnId
 
 interface Agent {
     suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse>
-    suspend fun createSession(title: String = ""): AgentSessionId
+    suspend fun createSession(title: String): AgentSessionId
     suspend fun deleteSession(id: AgentSessionId): Boolean
     suspend fun listSessions(): List<AgentSession>
     suspend fun getSession(id: AgentSessionId): AgentSession?
     suspend fun updateSessionTitle(id: AgentSessionId, title: String)
-    suspend fun getTurns(sessionId: AgentSessionId, limit: Int? = null): List<Turn>
+    suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn>
     suspend fun getTokensByTurn(turnId: TurnId): TokenDetails?
     suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails>
     suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails

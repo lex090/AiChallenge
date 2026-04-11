@@ -44,7 +44,7 @@ class ExposedCostRepository(private val database: Database) : CostDetailsReposit
     }
 
     override suspend fun getSessionTotal(sessionId: AgentSessionId): CostDetails =
-        getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+        getBySession(sessionId).values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
 
     private fun ResultRow.toCostDetails() = CostDetails(
         totalCost = this[CostDetailsTable.totalCost],

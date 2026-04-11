@@ -1,10 +1,10 @@
 package com.ai.challenge.core.cost
 
 data class CostDetails(
-    val totalCost: Double = 0.0,
-    val upstreamCost: Double = 0.0,
-    val upstreamPromptCost: Double = 0.0,
-    val upstreamCompletionsCost: Double = 0.0,
+    val totalCost: Double,
+    val upstreamCost: Double,
+    val upstreamPromptCost: Double,
+    val upstreamCompletionsCost: Double,
 ) {
     operator fun plus(other: CostDetails) = CostDetails(
         totalCost = totalCost + other.totalCost,

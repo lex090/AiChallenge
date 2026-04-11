@@ -51,7 +51,7 @@ class AiAgent(
         val chatResponse = catch({
             service.chat(model = model) {
                 for (msg in context.messages) {
-                    message(msg.role.toApiRole(), msg.content)
+                    message(role = msg.role.toApiRole(), content = msg.content)
                 }
             }
         }) { e: Exception ->
@@ -73,9 +73,9 @@ class AiAgent(
 
         val tokenDetails = chatResponse.toTokenDetails()
         val costDetails = chatResponse.toCostDetails()
-        val turn = Turn(userMessage = message, agentResponse = text)
-        val turnId = turnRepository.append(sessionId, turn)
-        val contextType = contextManagementRepository.getBySession(sessionId)
+        val turn = Turn(id = TurnId.generate(), userMessage = message, agentResponse = text, timestamp = Clock.System.now())
+        val turnId = turnRepository.append(sessionId = sessionId, turn = turn)
+        val contextType = contextManagementRepository.getBySession(sessionId = sessionId)
         if (contextType is ContextManagementType.Branching) {
             val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
             if (activeBranch != null) {
@@ -87,36 +87,36 @@ class AiAgent(
                 )
             }
         }
-        tokenRepository.record(sessionId, turnId, tokenDetails)
-        costRepository.record(sessionId, turnId, costDetails)
+        tokenRepository.record(sessionId = sessionId, turnId = turnId, details = tokenDetails)
+        costRepository.record(sessionId = sessionId, turnId = turnId, details = costDetails)
 
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }
 
     override suspend fun createSession(title: String): AgentSessionId {
-        val sessionId = sessionRepository.create(title)
-        contextManagementRepository.save(sessionId, ContextManagementType.None)
+        val sessionId = sessionRepository.create(title = title)
+        contextManagementRepository.save(sessionId = sessionId, type = ContextManagementType.None)
         return sessionId
     }
 
     override suspend fun deleteSession(id: AgentSessionId): Boolean {
-        contextManagementRepository.delete(id)
-        return sessionRepository.delete(id)
+        contextManagementRepository.delete(sessionId = id)
+        return sessionRepository.delete(id = id)
     }
 
     override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
-    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id)
-    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) = sessionRepository.updateTitle(id, title)
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId, limit)
-    override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId)
-    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId)
-    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId)
-    override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
-    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
-    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails = costRepository.getSessionTotal(sessionId)
+    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id = id)
+    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) = sessionRepository.updateTitle(id = id, title = title)
+    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId = sessionId, limit = limit)
+    override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId = turnId)
+    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId = sessionId)
+    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId = sessionId)
+    override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId = turnId)
+    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId = sessionId)
+    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails = costRepository.getSessionTotal(sessionId = sessionId)
 
     override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
-        Either.Right(contextManagementRepository.getBySession(sessionId))
+        Either.Right(value = contextManagementRepository.getBySession(sessionId = sessionId))
 
     override suspend fun updateContextManagementType(
         sessionId: AgentSessionId,
@@ -136,6 +136,7 @@ class AiAgent(
                 )
                 branchRepository.create(branch = mainBranch)
                 val turns = turnRepository.getBySession(sessionId = sessionId, limit = null)
+
                 for ((index, turn) in turns.withIndex()) {
                     branchTurnRepository.append(
                         branchId = mainBranch.id,
@@ -204,12 +205,12 @@ class AiAgent(
         Either.Right(value = branchRepository.getActiveBranch(sessionId = sessionId))
 
     override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> = either {
-        val type = contextManagementRepository.getBySession(sessionId)
+        val type = contextManagementRepository.getBySession(sessionId = sessionId)
         if (type !is ContextManagementType.Branching) {
-            return@either turnRepository.getBySession(sessionId = sessionId)
+            return@either turnRepository.getBySession(sessionId = sessionId, limit = null)
         }
         val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
-            ?: return@either turnRepository.getBySession(sessionId = sessionId)
+            ?: return@either turnRepository.getBySession(sessionId = sessionId, limit = null)
         val turnIds = branchTurnRepository.getTurnIds(branchId = activeBranch.id)
         turnIds.mapNotNull { turnRepository.get(turnId = it) }
     }

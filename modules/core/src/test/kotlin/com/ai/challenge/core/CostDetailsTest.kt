@@ -18,7 +18,7 @@ class CostDetailsTest {
 
     @Test
     fun `default values are all zero`() {
-        val cost = CostDetails()
+        val cost = CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)
         assertEquals(0.0, cost.totalCost)
         assertEquals(0.0, cost.upstreamCost)
         assertEquals(0.0, cost.upstreamPromptCost)

@@ -20,7 +20,7 @@ class ExposedTokenRepositoryTest {
             url = "jdbc:sqlite:/tmp/test_token_repo_${System.nanoTime()}.db",
             driver = "org.sqlite.JDBC",
         )
-        repository = ExposedTokenRepository(db)
+        repository = ExposedTokenRepository(database = db)
     }
 
     @Test
@@ -29,14 +29,14 @@ class ExposedTokenRepositoryTest {
         val turnId = TurnId.generate()
         val details = TokenDetails(promptTokens = 100, completionTokens = 50, cachedTokens = 20, cacheWriteTokens = 10, reasoningTokens = 5)
 
-        repository.record(sessionId, turnId, details)
+        repository.record(sessionId = sessionId, turnId = turnId, details = details)
 
-        assertEquals(details, repository.getByTurn(turnId))
+        assertEquals(expected = details, actual = repository.getByTurn(turnId = turnId))
     }
 
     @Test
     fun `getByTurn returns null for unknown turnId`() = runTest {
-        assertNull(repository.getByTurn(TurnId.generate()))
+        assertNull(actual = repository.getByTurn(turnId = TurnId.generate()))
     }
 
     @Test
@@ -44,16 +44,16 @@ class ExposedTokenRepositoryTest {
         val sessionId = AgentSessionId.generate()
         val turnId1 = TurnId.generate()
         val turnId2 = TurnId.generate()
-        val t1 = TokenDetails(promptTokens = 10)
-        val t2 = TokenDetails(promptTokens = 20)
+        val t1 = TokenDetails(promptTokens = 10, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
+        val t2 = TokenDetails(promptTokens = 20, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
 
-        repository.record(sessionId, turnId1, t1)
-        repository.record(sessionId, turnId2, t2)
+        repository.record(sessionId = sessionId, turnId = turnId1, details = t1)
+        repository.record(sessionId = sessionId, turnId = turnId2, details = t2)
 
-        val result = repository.getBySession(sessionId)
-        assertEquals(2, result.size)
-        assertEquals(t1, result[turnId1])
-        assertEquals(t2, result[turnId2])
+        val result = repository.getBySession(sessionId = sessionId)
+        assertEquals(expected = 2, actual = result.size)
+        assertEquals(expected = t1, actual = result[turnId1])
+        assertEquals(expected = t2, actual = result[turnId2])
     }
 
     @Test
@@ -61,27 +61,27 @@ class ExposedTokenRepositoryTest {
         val session1 = AgentSessionId.generate()
         val session2 = AgentSessionId.generate()
 
-        repository.record(session1, TurnId.generate(), TokenDetails(promptTokens = 10))
-        repository.record(session2, TurnId.generate(), TokenDetails(promptTokens = 20))
+        repository.record(sessionId = session1, turnId = TurnId.generate(), details = TokenDetails(promptTokens = 10, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))
+        repository.record(sessionId = session2, turnId = TurnId.generate(), details = TokenDetails(promptTokens = 20, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))
 
-        val result = repository.getBySession(session1)
-        assertEquals(1, result.size)
+        val result = repository.getBySession(sessionId = session1)
+        assertEquals(expected = 1, actual = result.size)
     }
 
     @Test
     fun `getSessionTotal returns accumulated tokens`() = runTest {
         val sessionId = AgentSessionId.generate()
 
-        repository.record(sessionId, TurnId.generate(), TokenDetails(promptTokens = 10, completionTokens = 5))
-        repository.record(sessionId, TurnId.generate(), TokenDetails(promptTokens = 20, completionTokens = 10))
+        repository.record(sessionId = sessionId, turnId = TurnId.generate(), details = TokenDetails(promptTokens = 10, completionTokens = 5, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))
+        repository.record(sessionId = sessionId, turnId = TurnId.generate(), details = TokenDetails(promptTokens = 20, completionTokens = 10, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0))
 
-        val total = repository.getSessionTotal(sessionId)
-        assertEquals(30, total.promptTokens)
-        assertEquals(15, total.completionTokens)
+        val total = repository.getSessionTotal(sessionId = sessionId)
+        assertEquals(expected = 30, actual = total.promptTokens)
+        assertEquals(expected = 15, actual = total.completionTokens)
     }
 
     @Test
     fun `getSessionTotal returns empty for session with no tokens`() = runTest {
-        assertEquals(TokenDetails(), repository.getSessionTotal(AgentSessionId.generate()))
+        assertEquals(expected = TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), actual = repository.getSessionTotal(sessionId = AgentSessionId.generate()))
     }
 }

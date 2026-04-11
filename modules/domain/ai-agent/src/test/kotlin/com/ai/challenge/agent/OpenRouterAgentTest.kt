@@ -41,6 +41,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.Test
+import kotlin.time.Clock
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -92,7 +93,7 @@ class OpenRouterAgentTest {
     @Test
     fun `send returns Right with response text on success`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         val result = agent.send(sessionId, "Hi")
 
@@ -117,7 +118,7 @@ class OpenRouterAgentTest {
                 "upstream_inference_completions_cost":0.0004
               }
             }""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         val result = agent.send(sessionId, "Hi")
 
@@ -132,13 +133,13 @@ class OpenRouterAgentTest {
     @Test
     fun `send returns default details when usage is null`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         val result = agent.send(sessionId, "Hi")
 
         assertIs<Either.Right<AgentResponse>>(result)
-        assertEquals(TokenDetails(), result.value.tokenDetails)
-        assertEquals(CostDetails(), result.value.costDetails)
+        assertEquals(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), result.value.tokenDetails)
+        assertEquals(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0), result.value.costDetails)
     }
 
     @Test
@@ -147,7 +148,7 @@ class OpenRouterAgentTest {
               "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
               "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
             }""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         val result = agent.send(sessionId, "Hi")
 
@@ -164,11 +165,11 @@ class OpenRouterAgentTest {
     @Test
     fun `send saves turn on success`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         agent.send(sessionId, "Hi")
 
-        val history = turnRepo.getBySession(sessionId)
+        val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         assertEquals(1, history.size)
         assertEquals("Hi", history[0].userMessage)
         assertEquals("Hello!", history[0].agentResponse)
@@ -177,18 +178,18 @@ class OpenRouterAgentTest {
     @Test
     fun `send does not save turn on failure`() = runTest {
         val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         agent.send(sessionId, "Hi")
 
-        val history = turnRepo.getBySession(sessionId)
+        val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         assertTrue(history.isEmpty())
     }
 
     @Test
     fun `send returns Left ApiError when response has error`() = runTest {
         val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         val result = agent.send(sessionId, "Hi")
 
@@ -216,7 +217,7 @@ class OpenRouterAgentTest {
             branchRepository = branchRepo,
             branchTurnRepository = branchTurnRepo,
         )
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
         val result = agent.send(sessionId, "Hi")
 
@@ -252,9 +253,9 @@ class OpenRouterAgentTest {
             branchRepository = branchRepo,
             branchTurnRepository = branchTurnRepo,
         )
-        val sessionId = sessionRepo.create()
+        val sessionId = sessionRepo.create(title = "")
 
-        turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
+        turnRepo.append(sessionId, Turn(id = TurnId.generate(), userMessage = "Hi", agentResponse = "Hello!", timestamp = Clock.System.now()))
 
         agent.send(sessionId, "Remember me?")
 
@@ -277,7 +278,7 @@ private class FakeSessionRepository : AgentSessionRepository {
 
     override suspend fun create(title: String): AgentSessionId {
         val id = AgentSessionId.generate()
-        sessions[id] = AgentSession(id = id, title = title)
+        sessions[id] = AgentSession(id = id, title = title, createdAt = Clock.System.now(), updatedAt = Clock.System.now())
         return id
     }
     override suspend fun get(id: AgentSessionId): AgentSession? = sessions[id]
@@ -310,7 +311,7 @@ private class FakeTokenRepository : TokenDetailsRepository {
     override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotal(sessionId: AgentSessionId): TokenDetails =
-        getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
+        getBySession(sessionId).values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
 }
 
 private class FakeCostRepository : CostDetailsRepository {
@@ -321,7 +322,7 @@ private class FakeCostRepository : CostDetailsRepository {
     override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotal(sessionId: AgentSessionId): CostDetails =
-        getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+        getBySession(sessionId).values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
 }
 
 private class FakeContextManagementTypeRepository : ContextManagementTypeRepository {

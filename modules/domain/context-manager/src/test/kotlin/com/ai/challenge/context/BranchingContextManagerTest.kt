@@ -37,6 +37,7 @@ class BranchingContextManagerTest {
             id = TurnId.generate(),
             userMessage = userMessage,
             agentResponse = agentResponse,
+            timestamp = Clock.System.now(),
         )
 
     private fun buildManager(

@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 class TokenDetailsTest {
     @Test
     fun `totalTokens is sum of prompt and completion`() {
-        val details = TokenDetails(promptTokens = 100, completionTokens = 50)
+        val details = TokenDetails(promptTokens = 100, completionTokens = 50, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
         assertEquals(150, details.totalTokens)
     }
 
@@ -21,7 +21,7 @@ class TokenDetailsTest {
 
     @Test
     fun `default values are all zero`() {
-        val details = TokenDetails()
+        val details = TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)
         assertEquals(0, details.promptTokens)
         assertEquals(0, details.completionTokens)
         assertEquals(0, details.cachedTokens)

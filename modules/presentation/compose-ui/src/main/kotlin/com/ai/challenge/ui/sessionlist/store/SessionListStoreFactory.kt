@@ -55,7 +55,7 @@ class SessionListStoreFactory(
 
         private fun handleCreateSession() {
             scope.launch {
-                val id = agent.createSession()
+                val id = agent.createSession(title = "")
                 val session = agent.getSession(id)!!
                 val item = SessionListStore.SessionItem(
                     id = session.id,
