@@ -4,9 +4,9 @@ import arrow.core.Either
 import arrow.core.raise.either
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.chat.BranchService
-import com.ai.challenge.core.chat.model.BranchName
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.error.DomainError
 import com.ai.challenge.core.session.AgentSessionId
@@ -21,8 +21,7 @@ class AiBranchService(
 
     override suspend fun create(
         sessionId: AgentSessionId,
-        name: BranchName,
-        parentTurnId: TurnId,
+        sourceTurnId: TurnId,
         fromBranchId: BranchId,
     ): Either<DomainError, Branch> = either {
         val session = repository.get(id = sessionId)
@@ -35,20 +34,13 @@ class AiBranchService(
         val fromBranch = repository.getBranch(branchId = fromBranchId)
             ?: raise(DomainError.BranchNotFound(id = fromBranchId))
 
-        val parentTurnIds = fromBranch.turnIds
-        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
-        val trunkTurnIds = if (cutIndex >= 0) {
-            parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1)
-        } else {
-            parentTurnIds
-        }
+        val trunkSequence = fromBranch.turnSequence.trunkUpTo(turnId = sourceTurnId)
 
         val branch = Branch(
             id = BranchId.generate(),
             sessionId = sessionId,
-            parentId = fromBranchId,
-            name = name,
-            turnIds = trunkTurnIds,
+            sourceTurnId = sourceTurnId,
+            turnSequence = trunkSequence,
             createdAt = CreatedAt(value = Clock.System.now()),
         )
         repository.createBranch(branch = branch)
@@ -58,77 +50,18 @@ class AiBranchService(
         val branch = repository.getBranch(branchId = branchId)
             ?: raise(DomainError.BranchNotFound(id = branchId))
 
-        if (branch.isMain) {
-            raise(DomainError.MainBranchCannotBeDeleted(sessionId = branch.sessionId))
-        }
+        branch.ensureDeletable().bind()
 
-        cascadeDeleteBranch(branchId = branchId, sessionId = branch.sessionId)
-    }
-
-    override suspend fun switch(
-        sessionId: AgentSessionId,
-        branchId: BranchId,
-    ): Either<DomainError, Unit> = either {
-        val session = repository.get(id = sessionId)
-            ?: raise(DomainError.SessionNotFound(id = sessionId))
-
-        val branch = repository.getBranch(branchId = branchId)
-            ?: raise(DomainError.BranchNotFound(id = branchId))
-
-        if (branch.sessionId != sessionId) {
-            raise(DomainError.BranchNotOwnedBySession(branchId = branchId, sessionId = sessionId))
-        }
-
-        repository.update(session = session.withActiveBranch(branchId = branchId))
-        Unit
+        repository.deleteTurnsByBranch(branchId = branchId)
+        repository.deleteBranch(branchId = branchId)
     }
 
     override suspend fun getAll(sessionId: AgentSessionId): Either<DomainError, List<Branch>> =
         Either.Right(value = repository.getBranches(sessionId = sessionId))
 
-    override suspend fun getActive(sessionId: AgentSessionId): Either<DomainError, Branch> = either {
-        val session = repository.get(id = sessionId)
-            ?: raise(DomainError.SessionNotFound(id = sessionId))
-
-        repository.getBranch(branchId = session.activeBranchId)
-            ?: raise(DomainError.BranchNotFound(id = session.activeBranchId))
-    }
-
-    override suspend fun getActiveTurns(sessionId: AgentSessionId): Either<DomainError, List<Turn>> = either {
-        val session = repository.get(id = sessionId)
-            ?: raise(DomainError.SessionNotFound(id = sessionId))
-
-        if (session.contextManagementType !is ContextManagementType.Branching) {
-            return@either repository.getTurns(sessionId = sessionId, limit = null)
-        }
-
-        repository.getTurnsByBranch(branchId = session.activeBranchId)
-    }
-
-    override suspend fun getParentMap(sessionId: AgentSessionId): Either<DomainError, Map<BranchId, BranchId?>> = either {
-        val branches = repository.getBranches(sessionId = sessionId)
-        branches.associate { it.id to it.parentId }
-    }
-
-    private suspend fun cascadeDeleteBranch(branchId: BranchId, sessionId: AgentSessionId) {
-        val allBranches = repository.getBranches(sessionId = sessionId)
-        val childBranches = allBranches.filter { it.parentId == branchId }
-
-        for (child in childBranches) {
-            cascadeDeleteBranch(branchId = child.id, sessionId = sessionId)
-        }
-
-        val session = repository.get(id = sessionId)
-        val wasActive = session?.activeBranchId == branchId
-
-        repository.deleteTurnsByBranch(branchId = branchId)
-        repository.deleteBranch(branchId = branchId)
-
-        if (wasActive) {
-            val mainBranch = repository.getMainBranch(sessionId = sessionId)
-            if (mainBranch != null && session != null) {
-                repository.update(session = session.withActiveBranch(branchId = mainBranch.id))
-            }
-        }
+    override suspend fun getTurns(branchId: BranchId): Either<DomainError, List<Turn>> = either {
+        repository.getBranch(branchId = branchId)
+            ?: raise(DomainError.BranchNotFound(id = branchId))
+        repository.getTurnsByBranch(branchId = branchId)
     }
 }

@@ -3,10 +3,10 @@ package com.ai.challenge.agent
 import arrow.core.Either
 import arrow.core.raise.catch
 import arrow.core.raise.either
+import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.model.MessageContent
-import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.error.DomainError
@@ -31,13 +31,14 @@ class AiChatService(
 
     override suspend fun send(
         sessionId: AgentSessionId,
+        branchId: BranchId,
         message: MessageContent,
     ): Either<DomainError, Turn> = either {
-        val session = repository.get(id = sessionId)
+        repository.get(id = sessionId)
             ?: raise(DomainError.SessionNotFound(id = sessionId))
 
         val context = catch({
-            contextManager.prepareContext(sessionId = sessionId, newMessage = message)
+            contextManager.prepareContext(sessionId = sessionId, branchId = branchId, newMessage = message)
         }) { e: Exception ->
             raise(DomainError.NetworkError(message = e.message ?: "Context preparation failed"))
         }
@@ -74,13 +75,6 @@ class AiChatService(
             usage = usage,
             createdAt = CreatedAt(value = Clock.System.now()),
         )
-
-        val branchId = if (session.contextManagementType is ContextManagementType.Branching) {
-            session.activeBranchId
-        } else {
-            val mainBranch = repository.getMainBranch(sessionId = sessionId)
-            mainBranch?.id ?: session.activeBranchId
-        }
 
         repository.appendTurn(branchId = branchId, turn = turn)
     }

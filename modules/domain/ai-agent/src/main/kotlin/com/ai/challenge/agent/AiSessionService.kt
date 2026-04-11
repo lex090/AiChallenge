@@ -4,12 +4,11 @@ import arrow.core.Either
 import arrow.core.raise.either
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.chat.model.BranchName
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.error.DomainError
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
@@ -19,28 +18,24 @@ import kotlin.time.Clock
 
 class AiSessionService(
     private val repository: AgentSessionRepository,
-    private val contextManager: ContextManager,
 ) : SessionService {
 
     override suspend fun create(title: SessionTitle): Either<DomainError, AgentSession> = either {
-        val mainBranchId = BranchId.generate()
         val now = Clock.System.now()
         val session = AgentSession(
             id = AgentSessionId.generate(),
             title = title,
             contextManagementType = ContextManagementType.None,
-            activeBranchId = mainBranchId,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )
         val savedSession = repository.save(session = session)
 
         val mainBranch = Branch(
-            id = mainBranchId,
+            id = BranchId.generate(),
             sessionId = savedSession.id,
-            parentId = null,
-            name = BranchName(value = "main"),
-            turnIds = emptyList(),
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = emptyList()),
             createdAt = CreatedAt(value = now),
         )
         repository.createBranch(branch = mainBranch)
@@ -87,24 +82,14 @@ class AiSessionService(
                 val mainBranch = Branch(
                     id = BranchId.generate(),
                     sessionId = id,
-                    parentId = null,
-                    name = BranchName(value = "main"),
-                    turnIds = emptyList(),
+                    sourceTurnId = null,
+                    turnSequence = TurnSequence(values = emptyList()),
                     createdAt = CreatedAt(value = now),
                 )
                 repository.createBranch(branch = mainBranch)
-
-                val turns = repository.getTurns(sessionId = id, limit = null)
-                for (turn in turns) {
-                    repository.appendTurn(branchId = mainBranch.id, turn = turn)
-                }
-
-                repository.update(session = updatedSession.withActiveBranch(branchId = mainBranch.id))
-            } else {
-                updatedSession
             }
-        } else {
-            updatedSession
         }
+
+        updatedSession
     }
 }

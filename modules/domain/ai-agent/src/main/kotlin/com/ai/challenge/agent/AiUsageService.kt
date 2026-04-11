@@ -5,6 +5,7 @@ import arrow.core.raise.either
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.error.DomainError
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.usage.UsageService
 import com.ai.challenge.core.usage.model.Cost
@@ -23,13 +24,18 @@ class AiUsageService(
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId): Either<DomainError, Map<TurnId, UsageRecord>> = either {
-        val turns = repository.getTurns(sessionId = sessionId, limit = null)
-        turns.associate { it.id to it.usage }
+        val turns = getAllTurns(sessionId = sessionId)
+        turns.associate { turn -> turn.id to turn.usage }
     }
 
     override suspend fun getSessionTotal(sessionId: AgentSessionId): Either<DomainError, UsageRecord> = either {
-        val turns = repository.getTurns(sessionId = sessionId, limit = null)
-        turns.map { it.usage }.fold(initial = ZERO_USAGE) { acc, record -> acc + record }
+        val turns = getAllTurns(sessionId = sessionId)
+        turns.map { turn -> turn.usage }.fold(initial = ZERO_USAGE) { acc, record -> acc + record }
+    }
+
+    private suspend fun getAllTurns(sessionId: AgentSessionId): List<Turn> {
+        val branches = repository.getBranches(sessionId = sessionId)
+        return branches.flatMap { branch -> repository.getTurnsByBranch(branchId = branch.id) }
     }
 
     companion object {
