@@ -6,7 +6,6 @@ import com.ai.challenge.core.session.AgentSessionRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
-import kotlin.time.Clock
 import kotlin.time.Instant
 
 class ExposedSessionRepository(private val database: Database) : AgentSessionRepository {
@@ -17,18 +16,16 @@ class ExposedSessionRepository(private val database: Database) : AgentSessionRep
         }
     }
 
-    override suspend fun create(title: String): AgentSessionId {
-        val sessionId = AgentSessionId.generate()
-        val now = Clock.System.now()
-        transaction(database) {
+    override suspend fun save(session: AgentSession): AgentSessionId {
+        transaction(db = database) {
             SessionsTable.insert {
-                it[id] = sessionId.value
-                it[SessionsTable.title] = title
-                it[createdAt] = now.toEpochMilliseconds()
-                it[updatedAt] = now.toEpochMilliseconds()
+                it[id] = session.id.value
+                it[title] = session.title
+                it[createdAt] = session.createdAt.toEpochMilliseconds()
+                it[updatedAt] = session.updatedAt.toEpochMilliseconds()
             }
         }
-        return sessionId
+        return session.id
     }
 
     override suspend fun get(id: AgentSessionId): AgentSession? = transaction(database) {
@@ -48,12 +45,11 @@ class ExposedSessionRepository(private val database: Database) : AgentSessionRep
             .map { it.toAgentSession() }
     }
 
-    override suspend fun updateTitle(id: AgentSessionId, title: String) {
-        val now = Clock.System.now()
-        transaction(database) {
-            SessionsTable.update({ SessionsTable.id eq id.value }) {
-                it[SessionsTable.title] = title
-                it[updatedAt] = now.toEpochMilliseconds()
+    override suspend fun update(session: AgentSession) {
+        transaction(db = database) {
+            SessionsTable.update({ SessionsTable.id eq session.id.value }) {
+                it[title] = session.title
+                it[updatedAt] = session.updatedAt.toEpochMilliseconds()
             }
         }
     }

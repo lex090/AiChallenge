@@ -20,11 +20,11 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
         }
     }
 
-    override suspend fun save(sessionId: AgentSessionId, summary: Summary) {
+    override suspend fun save(summary: Summary) {
         transaction(database) {
             SummariesTable.insert {
                 it[id] = summary.id.value
-                it[SummariesTable.sessionId] = sessionId.value
+                it[SummariesTable.sessionId] = summary.sessionId.value
                 it[text] = summary.text
                 it[fromTurnIndex] = summary.fromTurnIndex
                 it[toTurnIndex] = summary.toTurnIndex
@@ -41,6 +41,7 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
 
     private fun ResultRow.toSummary() = Summary(
         id = SummaryId(this[SummariesTable.id]),
+        sessionId = AgentSessionId(value = this[SummariesTable.sessionId]),
         text = this[SummariesTable.text],
         fromTurnIndex = this[SummariesTable.fromTurnIndex],
         toTurnIndex = this[SummariesTable.toTurnIndex],

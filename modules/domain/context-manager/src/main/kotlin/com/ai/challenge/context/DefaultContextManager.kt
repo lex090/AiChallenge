@@ -3,17 +3,19 @@ package com.ai.challenge.context
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextManager.PreparedContext
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
 import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.core.summary.SummaryId
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnRepository
+import kotlin.time.Clock
 
 class DefaultContextManager(
     private val contextManagementRepository: ContextManagementTypeRepository,
@@ -59,7 +61,7 @@ class DefaultContextManager(
         sessionId: AgentSessionId,
         newMessage: String,
     ): PreparedContext {
-        val history = turnRepository.getBySession(sessionId = sessionId)
+        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
         return withoutCompression(history = history, newMessage = newMessage)
     }
 
@@ -71,7 +73,7 @@ class DefaultContextManager(
         val retainLast = 5
         val compressionInterval = 10
 
-        val history = turnRepository.getBySession(sessionId = sessionId)
+        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
 
         if (history.size < maxTurns) {
             return withoutCompression(history = history, newMessage = newMessage)
@@ -96,7 +98,7 @@ class DefaultContextManager(
         sessionId: AgentSessionId,
         newMessage: String,
     ): PreparedContext {
-        val history = turnRepository.getBySession(sessionId = sessionId)
+        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
         val windowed = history.takeLast(n = WINDOW_SIZE)
         return PreparedContext(
             messages = turnsToMessages(turns = windowed) + ContextMessage(role = MessageRole.User, content = newMessage),
@@ -114,15 +116,20 @@ class DefaultContextManager(
         val retainLast = 5
 
         val currentFacts = factRepository.getBySession(sessionId = sessionId)
-        val history = turnRepository.getBySession(sessionId = sessionId)
+        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
         val lastAssistantResponse = history.lastOrNull()?.agentResponse
 
         val updatedFacts = factExtractor.extract(
+            sessionId = sessionId,
             currentFacts = currentFacts,
             newUserMessage = newMessage,
             lastAssistantResponse = lastAssistantResponse,
         )
-        factRepository.save(sessionId = sessionId, facts = updatedFacts)
+        if (updatedFacts.isEmpty()) {
+            factRepository.deleteBySession(sessionId = sessionId)
+        } else {
+            factRepository.save(facts = updatedFacts)
+        }
 
         val retained = if (history.size > retainLast) {
             history.subList(history.size - retainLast, history.size)
@@ -159,8 +166,7 @@ class DefaultContextManager(
         toTurnIndex: Int,
     ) {
         summaryRepository.save(
-            sessionId = sessionId,
-            summary = Summary(text = summaryText, fromTurnIndex = 0, toTurnIndex = toTurnIndex),
+            summary = Summary(id = SummaryId.generate(), sessionId = sessionId, text = summaryText, fromTurnIndex = 0, toTurnIndex = toTurnIndex, createdAt = Clock.System.now()),
         )
     }
 

@@ -3,11 +3,10 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
 import com.ai.challenge.core.fact.FactId
@@ -19,6 +18,7 @@ import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.turn.TurnRepository
 import kotlinx.coroutines.test.runTest
+import kotlin.time.Clock
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,8 +27,8 @@ import kotlin.test.assertTrue
 
 class DefaultContextManagerTest {
 
-    private fun turns(count: Int): List<Turn> =
-        (1..count).map { Turn(userMessage = "msg$it", agentResponse = "resp$it") }
+    private fun turns(sessionId: AgentSessionId, count: Int): List<Turn> =
+        (1..count).map { Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "msg$it", agentResponse = "resp$it", timestamp = Clock.System.now()) }
 
     private lateinit var fakeCompressor: FakeContextCompressor
     private lateinit var fakeSummaryRepo: InMemorySummaryRepository
@@ -58,13 +58,12 @@ class DefaultContextManagerTest {
             branchingContextManager = BranchingContextManager(
                 turnRepository = fakeTurnRepo,
                 branchRepository = InMemoryBranchRepository(),
-                branchTurnRepository = InMemoryBranchTurnRepository(),
             ),
         )
 
     private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
         for (turn in turns) {
-            fakeTurnRepo.append(sessionId = sessionId, turn = turn)
+            fakeTurnRepo.append(turn = turn)
         }
     }
 
@@ -74,7 +73,7 @@ class DefaultContextManagerTest {
     fun `returns all turns when type is None`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.None)
-        saveTurns(sessionId = sessionId, turns = turns(count = 20))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 20))
         val manager = createManager()
 
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
@@ -91,7 +90,7 @@ class DefaultContextManagerTest {
     fun `returns all turns when SummarizeOnThreshold and below threshold`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SummarizeOnThreshold)
-        saveTurns(sessionId = sessionId, turns = turns(count = 3))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 3))
         val manager = createManager()
 
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
@@ -108,7 +107,7 @@ class DefaultContextManagerTest {
     fun `compresses when SummarizeOnThreshold and at threshold`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SummarizeOnThreshold)
-        saveTurns(sessionId = sessionId, turns = turns(count = 15))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 15))
         val manager = createManager()
 
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
@@ -125,13 +124,13 @@ class DefaultContextManagerTest {
     fun `reuses existing summary without recompressing during interval`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SummarizeOnThreshold)
-        saveTurns(sessionId = sessionId, turns = turns(count = 15))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 15))
         val manager = createManager()
 
         manager.prepareContext(sessionId = sessionId, newMessage = "msg15")
         assertEquals(1, fakeCompressor.callCount)
 
-        fakeTurnRepo.append(sessionId = sessionId, turn = Turn(userMessage = "msg16", agentResponse = "resp16"))
+        fakeTurnRepo.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "msg16", agentResponse = "resp16", timestamp = Clock.System.now()))
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "msg16")
         assertEquals(1, fakeCompressor.callCount)
         assertTrue(result.compressed)
@@ -157,7 +156,7 @@ class DefaultContextManagerTest {
     fun `sliding window returns all turns when history is smaller than window`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SlidingWindow)
-        saveTurns(sessionId = sessionId, turns = turns(count = 5))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 5))
         val manager = createManager()
 
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
@@ -174,7 +173,7 @@ class DefaultContextManagerTest {
     fun `sliding window retains only last 10 turns when history exceeds window`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.SlidingWindow)
-        saveTurns(sessionId = sessionId, turns = turns(count = 15))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 15))
         val manager = createManager()
 
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new msg")
@@ -211,9 +210,9 @@ class DefaultContextManagerTest {
     fun `stickyFacts extracts facts and includes system message`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
-        saveTurns(sessionId = sessionId, turns = turns(count = 3))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 3))
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Build a bot"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "Build a bot"),
         )
         val manager = createManager()
 
@@ -232,9 +231,9 @@ class DefaultContextManagerTest {
     fun `stickyFacts retains only last 5 turns`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
-        saveTurns(sessionId = sessionId, turns = turns(count = 8))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 8))
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "A goal"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "A goal"),
         )
         val manager = createManager()
 
@@ -252,7 +251,7 @@ class DefaultContextManagerTest {
     fun `stickyFacts with no facts extracted omits system message`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
-        saveTurns(sessionId = sessionId, turns = turns(count = 2))
+        saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 2))
         fakeFactExtractor.factsToReturn = emptyList()
         val manager = createManager()
 
@@ -271,7 +270,7 @@ class DefaultContextManagerTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         val expectedFacts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Decision, key = "db", value = "SQLite"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Decision, key = "db", value = "SQLite"),
         )
         fakeFactExtractor.factsToReturn = expectedFacts
         val manager = createManager()
@@ -288,7 +287,7 @@ class DefaultContextManagerTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Start fresh"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "Start fresh"),
         )
         val manager = createManager()
 
@@ -307,11 +306,11 @@ class DefaultContextManagerTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Build bot"),
-            Fact(id = FactId.generate(), category = FactCategory.Constraint, key = "lang", value = "Kotlin"),
-            Fact(id = FactId.generate(), category = FactCategory.Preference, key = "style", value = "FP"),
-            Fact(id = FactId.generate(), category = FactCategory.Decision, key = "db", value = "SQLite"),
-            Fact(id = FactId.generate(), category = FactCategory.Agreement, key = "deadline", value = "Friday"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "Build bot"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Constraint, key = "lang", value = "Kotlin"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Preference, key = "style", value = "FP"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Decision, key = "db", value = "SQLite"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Agreement, key = "deadline", value = "Friday"),
         )
         val manager = createManager()
 
@@ -334,7 +333,7 @@ class DefaultContextManagerTest {
     fun `stickyFacts passes last assistant response to extractor`() = runTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
-        saveTurns(sessionId = sessionId, turns = listOf(Turn(userMessage = "hi", agentResponse = "hello there")))
+        saveTurns(sessionId = sessionId, turns = listOf(Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "hi", agentResponse = "hello there", timestamp = Clock.System.now())))
         fakeFactExtractor.factsToReturn = emptyList()
         val manager = createManager()
 
@@ -364,14 +363,14 @@ private class FakeContextCompressor : ContextCompressor {
 }
 
 private class InMemorySummaryRepository : SummaryRepository {
-    private val store = mutableListOf<Pair<AgentSessionId, Summary>>()
+    private val store = mutableListOf<Summary>()
 
-    override suspend fun save(sessionId: AgentSessionId, summary: Summary) {
-        store.add(sessionId to summary)
+    override suspend fun save(summary: Summary) {
+        store.add(summary)
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
-        store.filter { it.first == sessionId }.map { it.second }
+        store.filter { it.sessionId == sessionId }
 }
 
 private class InMemoryContextManagementTypeRepository : ContextManagementTypeRepository {
@@ -401,6 +400,7 @@ private class FakeFactExtractor : FactExtractor {
     var factsToReturn: List<Fact> = emptyList()
 
     override suspend fun extract(
+        sessionId: AgentSessionId,
         currentFacts: List<Fact>,
         newUserMessage: String,
         lastAssistantResponse: String?,
@@ -416,8 +416,10 @@ private class FakeFactExtractor : FactExtractor {
 private class InMemoryFactRepository : FactRepository {
     private val store = mutableMapOf<AgentSessionId, List<Fact>>()
 
-    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
-        store[sessionId] = facts
+    override suspend fun save(facts: List<Fact>) {
+        if (facts.isNotEmpty()) {
+            store[facts.first().sessionId] = facts
+        }
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Fact> =

@@ -1,6 +1,9 @@
 package com.ai.challenge.ui.chat
 
-import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.agent.BranchManager
+import com.ai.challenge.core.agent.ChatAgent
+import com.ai.challenge.core.agent.SessionManager
+import com.ai.challenge.core.agent.UsageTracker
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
@@ -16,12 +19,21 @@ import kotlinx.coroutines.flow.StateFlow
 class ChatComponent(
     componentContext: ComponentContext,
     storeFactory: StoreFactory,
-    agent: Agent,
+    chatAgent: ChatAgent,
+    sessionManager: SessionManager,
+    usageTracker: UsageTracker,
+    branchManager: BranchManager,
     sessionId: AgentSessionId,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {
-        ChatStoreFactory(storeFactory = storeFactory, agent = agent).create()
+        ChatStoreFactory(
+            storeFactory = storeFactory,
+            chatAgent = chatAgent,
+            sessionManager = sessionManager,
+            usageTracker = usageTracker,
+            branchManager = branchManager,
+        ).create()
     }
 
     init {

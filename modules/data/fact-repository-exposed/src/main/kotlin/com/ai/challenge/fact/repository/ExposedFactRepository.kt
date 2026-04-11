@@ -22,12 +22,14 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
         }
     }
 
-    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
+    override suspend fun save(facts: List<Fact>) {
         transaction(database) {
-            FactsTable.deleteWhere { FactsTable.sessionId eq sessionId.value }
+            if (facts.isNotEmpty()) {
+                FactsTable.deleteWhere { FactsTable.sessionId eq facts.first().sessionId.value }
+            }
             FactsTable.batchInsert(facts) { fact ->
                 this[FactsTable.id] = fact.id.value
-                this[FactsTable.sessionId] = sessionId.value
+                this[FactsTable.sessionId] = fact.sessionId.value
                 this[FactsTable.category] = fact.category.toStorageString()
                 this[FactsTable.key] = fact.key
                 this[FactsTable.value] = fact.value
@@ -50,6 +52,7 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
 
     private fun ResultRow.toFact() = Fact(
         id = FactId(value = this[FactsTable.id]),
+        sessionId = AgentSessionId(value = this[FactsTable.sessionId]),
         category = this[FactsTable.category].toFactCategory(),
         key = this[FactsTable.key],
         value = this[FactsTable.value],

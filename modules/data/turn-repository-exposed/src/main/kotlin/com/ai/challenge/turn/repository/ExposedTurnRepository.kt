@@ -16,11 +16,11 @@ class ExposedTurnRepository(private val database: Database) : TurnRepository {
         }
     }
 
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
+    override suspend fun append(turn: Turn): TurnId {
         transaction(database) {
             TurnsTable.insert {
                 it[id] = turn.id.value
-                it[TurnsTable.sessionId] = sessionId.value
+                it[TurnsTable.sessionId] = turn.sessionId.value
                 it[userMessage] = turn.userMessage
                 it[agentResponse] = turn.agentResponse
                 it[timestamp] = turn.timestamp.toEpochMilliseconds()
@@ -53,6 +53,7 @@ class ExposedTurnRepository(private val database: Database) : TurnRepository {
 
     private fun ResultRow.toTurn() = Turn(
         id = TurnId(this[TurnsTable.id]),
+        sessionId = AgentSessionId(value = this[TurnsTable.sessionId]),
         userMessage = this[TurnsTable.userMessage],
         agentResponse = this[TurnsTable.agentResponse],
         timestamp = Instant.fromEpochMilliseconds(this[TurnsTable.timestamp]),

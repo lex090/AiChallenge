@@ -4,10 +4,14 @@ import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.token.TokenDetailsRepository
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.turn.TurnRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
-class ExposedTokenRepository(private val database: Database) : TokenDetailsRepository {
+class ExposedTokenRepository(
+    private val database: Database,
+    private val turnRepository: TurnRepository,
+) : TokenDetailsRepository {
 
     init {
         transaction(database) {
@@ -15,11 +19,13 @@ class ExposedTokenRepository(private val database: Database) : TokenDetailsRepos
         }
     }
 
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) {
+    override suspend fun record(turnId: TurnId, details: TokenDetails) {
+        val turn = turnRepository.get(turnId = turnId)
+            ?: error("Turn not found for turnId=${turnId.value}")
         transaction(database) {
             TokenDetailsTable.insert {
                 it[TokenDetailsTable.turnId] = turnId.value
-                it[TokenDetailsTable.sessionId] = sessionId.value
+                it[TokenDetailsTable.sessionId] = turn.sessionId.value
                 it[promptTokens] = details.promptTokens
                 it[completionTokens] = details.completionTokens
                 it[cachedTokens] = details.cachedTokens
@@ -45,7 +51,7 @@ class ExposedTokenRepository(private val database: Database) : TokenDetailsRepos
     }
 
     override suspend fun getSessionTotal(sessionId: AgentSessionId): TokenDetails =
-        getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
+        getBySession(sessionId).values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
 
     private fun ResultRow.toTokenDetails() = TokenDetails(
         promptTokens = this[TokenDetailsTable.promptTokens],

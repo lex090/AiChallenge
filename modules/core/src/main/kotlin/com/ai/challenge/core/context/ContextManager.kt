@@ -7,23 +7,4 @@ interface ContextManager {
         sessionId: AgentSessionId,
         newMessage: String,
     ): PreparedContext
-
-    data class PreparedContext(
-        val messages: List<ContextMessage>,
-        val compressed: Boolean,
-        val originalTurnCount: Int,
-        val retainedTurnCount: Int,
-        val summaryCount: Int,
-    ) {
-        data class ContextMessage(
-            val role: MessageRole,
-            val content: String,
-        ) {
-            enum class MessageRole {
-                System,
-                User,
-                Assistant,
-            }
-        }
-    }
 }

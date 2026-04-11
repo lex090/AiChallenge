@@ -9,11 +9,10 @@ import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.session.AgentSession
@@ -38,7 +37,6 @@ class AiAgent(
     private val contextManager: ContextManager,
     private val contextManagementRepository: ContextManagementTypeRepository,
     private val branchRepository: BranchRepository,
-    private val branchTurnRepository: BranchTurnRepository,
 ) : Agent {
 
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {
@@ -51,7 +49,7 @@ class AiAgent(
         val chatResponse = catch({
             service.chat(model = model) {
                 for (msg in context.messages) {
-                    message(msg.role.toApiRole(), msg.content)
+                    message(role = msg.role.toApiRole(), content = msg.content)
                 }
             }
         }) { e: Exception ->
@@ -73,50 +71,75 @@ class AiAgent(
 
         val tokenDetails = chatResponse.toTokenDetails()
         val costDetails = chatResponse.toCostDetails()
-        val turn = Turn(userMessage = message, agentResponse = text)
-        val turnId = turnRepository.append(sessionId, turn)
-        val contextType = contextManagementRepository.getBySession(sessionId)
+        val turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = message, agentResponse = text, timestamp = Clock.System.now())
+        val turnId = turnRepository.append(turn = turn)
+        val contextType = contextManagementRepository.getBySession(sessionId = sessionId)
         if (contextType is ContextManagementType.Branching) {
             val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
             if (activeBranch != null) {
-                val maxIndex = branchTurnRepository.getMaxOrderIndex(branchId = activeBranch.id)
-                branchTurnRepository.append(
-                    branchId = activeBranch.id,
-                    turnId = turnId,
-                    orderIndex = (maxIndex ?: -1) + 1,
-                )
+                branchRepository.appendTurn(branchId = activeBranch.id, turnId = turnId)
             }
         }
-        tokenRepository.record(sessionId, turnId, tokenDetails)
-        costRepository.record(sessionId, turnId, costDetails)
+        tokenRepository.record(turnId = turnId, details = tokenDetails)
+        costRepository.record(turnId = turnId, details = costDetails)
 
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }
 
-    override suspend fun createSession(title: String): AgentSessionId {
-        val sessionId = sessionRepository.create(title)
-        contextManagementRepository.save(sessionId, ContextManagementType.None)
-        return sessionId
+    override suspend fun createSession(title: String): Either<AgentError, AgentSessionId> = either {
+        val session = AgentSession.create(title = title)
+        val sessionId = sessionRepository.save(session = session)
+        contextManagementRepository.save(sessionId = sessionId, type = ContextManagementType.None)
+        sessionId
     }
 
-    override suspend fun deleteSession(id: AgentSessionId): Boolean {
-        contextManagementRepository.delete(id)
-        return sessionRepository.delete(id)
+    override suspend fun deleteSession(id: AgentSessionId): Either<AgentError, Unit> {
+        contextManagementRepository.delete(sessionId = id)
+        sessionRepository.delete(id = id)
+        return Either.Right(value = Unit)
     }
 
-    override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
-    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id)
-    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) = sessionRepository.updateTitle(id, title)
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId, limit)
-    override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId)
-    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId)
-    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId)
-    override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId)
-    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId)
-    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails = costRepository.getSessionTotal(sessionId)
+    override suspend fun listSessions(): Either<AgentError, List<AgentSession>> =
+        Either.Right(value = sessionRepository.list())
+
+    override suspend fun getSession(id: AgentSessionId): Either<AgentError, AgentSession> = either {
+        sessionRepository.get(id = id)
+            ?: raise(AgentError.NotFound(message = "Session not found: ${id.value}"))
+    }
+
+    override suspend fun updateSessionTitle(id: AgentSessionId, title: String): Either<AgentError, Unit> = either {
+        val session = sessionRepository.get(id = id)
+            ?: raise(AgentError.NotFound(message = "Session not found: ${id.value}"))
+        sessionRepository.update(session = session.withUpdatedTitle(newTitle = title))
+    }
+
+    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): Either<AgentError, List<Turn>> =
+        Either.Right(value = turnRepository.getBySession(sessionId = sessionId, limit = limit))
+
+    override suspend fun getTokensByTurn(turnId: TurnId): Either<AgentError, TokenDetails> = either {
+        tokenRepository.getByTurn(turnId = turnId)
+            ?: raise(AgentError.NotFound(message = "Token details not found for turn: ${turnId.value}"))
+    }
+
+    override suspend fun getTokensBySession(sessionId: AgentSessionId): Either<AgentError, Map<TurnId, TokenDetails>> =
+        Either.Right(value = tokenRepository.getBySession(sessionId = sessionId))
+
+    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): Either<AgentError, TokenDetails> =
+        Either.Right(value = tokenRepository.getSessionTotal(sessionId = sessionId))
+
+    override suspend fun getCostByTurn(turnId: TurnId): Either<AgentError, CostDetails> = either {
+        costRepository.getByTurn(turnId = turnId)
+            ?: raise(AgentError.NotFound(message = "Cost details not found for turn: ${turnId.value}"))
+    }
+
+    override suspend fun getCostBySession(sessionId: AgentSessionId): Either<AgentError, Map<TurnId, CostDetails>> =
+        Either.Right(value = costRepository.getBySession(sessionId = sessionId))
+
+    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): Either<AgentError, CostDetails> =
+        Either.Right(value = costRepository.getSessionTotal(sessionId = sessionId))
 
     override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
-        Either.Right(contextManagementRepository.getBySession(sessionId))
+        Either.Right(value = contextManagementRepository.getBySession(sessionId = sessionId))
 
     override suspend fun updateContextManagementType(
         sessionId: AgentSessionId,
@@ -132,16 +155,14 @@ class AiAgent(
                     name = "main",
                     parentBranchId = null,
                     isActive = true,
+                    turnIds = emptyList(),
                     createdAt = Clock.System.now(),
                 )
                 branchRepository.create(branch = mainBranch)
                 val turns = turnRepository.getBySession(sessionId = sessionId, limit = null)
-                for ((index, turn) in turns.withIndex()) {
-                    branchTurnRepository.append(
-                        branchId = mainBranch.id,
-                        turnId = turn.id,
-                        orderIndex = index,
-                    )
+
+                for (turn in turns) {
+                    branchRepository.appendTurn(branchId = mainBranch.id, turnId = turn.id)
                 }
             }
         }
@@ -158,21 +179,21 @@ class AiAgent(
         if (type !is ContextManagementType.Branching) {
             raise(AgentError.ApiError(message = "Branching is not enabled for this session"))
         }
+        val fromBranch = branchRepository.get(branchId = fromBranchId)
+            ?: raise(AgentError.ApiError(message = "Source branch not found"))
+        val parentTurnIds = fromBranch.turnIds
+        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
+        val trunkTurnIds = if (cutIndex >= 0) parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentTurnIds
         val branch = Branch(
             id = BranchId.generate(),
             sessionId = sessionId,
             name = name,
             parentBranchId = fromBranchId,
             isActive = false,
+            turnIds = trunkTurnIds,
             createdAt = Clock.System.now(),
         )
         branchRepository.create(branch = branch)
-        val parentTurnIds = branchTurnRepository.getTurnIds(branchId = fromBranchId)
-        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
-        val trunkTurnIds = if (cutIndex >= 0) parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentTurnIds
-        for ((index, turnId) in trunkTurnIds.withIndex()) {
-            branchTurnRepository.append(branchId = branch.id, turnId = turnId, orderIndex = index)
-        }
         branch.id
     }
 
@@ -204,14 +225,13 @@ class AiAgent(
         Either.Right(value = branchRepository.getActiveBranch(sessionId = sessionId))
 
     override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> = either {
-        val type = contextManagementRepository.getBySession(sessionId)
+        val type = contextManagementRepository.getBySession(sessionId = sessionId)
         if (type !is ContextManagementType.Branching) {
-            return@either turnRepository.getBySession(sessionId = sessionId)
+            return@either turnRepository.getBySession(sessionId = sessionId, limit = null)
         }
         val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
-            ?: return@either turnRepository.getBySession(sessionId = sessionId)
-        val turnIds = branchTurnRepository.getTurnIds(branchId = activeBranch.id)
-        turnIds.mapNotNull { turnRepository.get(turnId = it) }
+            ?: return@either turnRepository.getBySession(sessionId = sessionId, limit = null)
+        activeBranch.turnIds.mapNotNull { turnRepository.get(turnId = it) }
     }
 
     override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> = either {
@@ -228,7 +248,7 @@ class AiAgent(
         }
 
         val wasActive = branchRepository.get(branchId = branchId)?.isActive ?: false
-        branchTurnRepository.deleteByBranch(branchId = branchId)
+        branchRepository.deleteTurnsByBranch(branchId = branchId)
         branchRepository.delete(branchId = branchId)
 
         if (wasActive) {
