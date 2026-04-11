@@ -13,6 +13,9 @@ import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.error.DomainError
+import com.ai.challenge.core.llm.LlmPort
+import com.ai.challenge.core.llm.LlmResponse
+import com.ai.challenge.core.llm.ResponseFormat
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.shared.CreatedAt
@@ -22,22 +25,7 @@ import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.usage.model.Cost
 import com.ai.challenge.core.usage.model.TokenCount
 import com.ai.challenge.core.usage.model.UsageRecord
-import com.ai.challenge.llm.OpenRouterService
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.engine.mock.toByteArray
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigDecimal
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.Test
@@ -72,35 +60,22 @@ class AiChatServiceTest {
         return session.id to mainBranchId
     }
 
-    private fun createMockClient(responseJson: String): HttpClient {
-        val mockEngine = MockEngine { _ ->
-            respond(
-                content = responseJson,
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-            )
-        }
-        return HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; encodeDefaults = false })
-            }
-        }
-    }
-
-    private fun createService(responseJson: String): OpenRouterService =
-        OpenRouterService(apiKey = "test-key", client = createMockClient(responseJson = responseJson))
-
-    private fun createChatService(responseJson: String): AiChatService =
+    private fun createChatService(fakeLlmPort: FakeLlmPort): AiChatService =
         AiChatService(
-            service = createService(responseJson = responseJson),
-            model = "test-model",
+            llmPort = fakeLlmPort,
             repository = sessionRepo,
             contextManager = contextManager,
         )
 
     @Test
     fun `send returns Right with Turn on success`() = runTest {
-        val chatService = createChatService(responseJson = """{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "Hello!"),
+                usage = UsageRecord.ZERO,
+            )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
@@ -111,15 +86,24 @@ class AiChatServiceTest {
 
     @Test
     fun `send returns Turn with usage record`() = runTest {
-        val chatService = createChatService(responseJson = """{
-              "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
-              "usage":{
-                "prompt_tokens":100,"completion_tokens":50,"total_tokens":150,
-                "prompt_tokens_details":{"cached_tokens":20,"cache_write_tokens":80},
-                "completion_tokens_details":{"reasoning_tokens":10},
-                "cost":0.0015
-              }
-            }""")
+        val usage = UsageRecord(
+            promptTokens = TokenCount(value = 100),
+            completionTokens = TokenCount(value = 50),
+            cachedTokens = TokenCount(value = 20),
+            cacheWriteTokens = TokenCount(value = 80),
+            reasoningTokens = TokenCount(value = 10),
+            totalCost = Cost(value = BigDecimal.valueOf(0.0015)),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "Hello!"),
+                usage = usage,
+            )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
@@ -134,7 +118,13 @@ class AiChatServiceTest {
 
     @Test
     fun `send saves turn on success`() = runTest {
-        val chatService = createChatService(responseJson = """{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "Hello!"),
+                usage = UsageRecord.ZERO,
+            )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
@@ -147,7 +137,10 @@ class AiChatServiceTest {
 
     @Test
     fun `send does not save turn on failure`() = runTest {
-        val chatService = createChatService(responseJson = """{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
+        val fakeLlm = FakeLlmPort(response = Either.Left(
+            value = DomainError.ApiError(message = "Rate limit exceeded"),
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
@@ -157,8 +150,11 @@ class AiChatServiceTest {
     }
 
     @Test
-    fun `send returns Left ApiError when response has error`() = runTest {
-        val chatService = createChatService(responseJson = """{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
+    fun `send returns Left ApiError when LLM returns error`() = runTest {
+        val fakeLlm = FakeLlmPort(response = Either.Left(
+            value = DomainError.ApiError(message = "Rate limit exceeded"),
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
@@ -169,18 +165,11 @@ class AiChatServiceTest {
     }
 
     @Test
-    fun `send returns Left NetworkError when service throws`() = runTest {
-        val mockEngine = MockEngine { _ -> throw RuntimeException("Connection refused") }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
-        }
-        val service = OpenRouterService(apiKey = "test-key", client = client)
-        val chatService = AiChatService(
-            service = service,
-            model = "test-model",
-            repository = sessionRepo,
-            contextManager = contextManager,
-        )
+    fun `send returns Left NetworkError when LLM returns network error`() = runTest {
+        val fakeLlm = FakeLlmPort(response = Either.Left(
+            value = DomainError.NetworkError(message = "Connection refused"),
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
@@ -192,25 +181,13 @@ class AiChatServiceTest {
 
     @Test
     fun `send includes history in LLM request`() = runTest {
-        var capturedBody: String? = null
-        val mockEngine = MockEngine { request ->
-            capturedBody = request.body.toByteArray().decodeToString()
-            respond(
-                content = """{"choices":[{"index":0,"message":{"role":"assistant","content":"I remember!"}}]}""",
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "I remember!"),
+                usage = UsageRecord.ZERO,
             )
-        }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
-        }
-        val service = OpenRouterService(apiKey = "test-key", client = client)
-        val chatService = AiChatService(
-            service = service,
-            model = "test-model",
-            repository = sessionRepo,
-            contextManager = contextManager,
-        )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
         val (sessionId, branchId) = createTestSession()
 
         val turn = Turn(
@@ -218,38 +195,41 @@ class AiChatServiceTest {
             sessionId = sessionId,
             userMessage = MessageContent(value = "Hi"),
             assistantMessage = MessageContent(value = "Hello!"),
-            usage = ZERO_USAGE,
+            usage = UsageRecord.ZERO,
             createdAt = CreatedAt(value = Clock.System.now()),
         )
         sessionRepo.appendTurn(branchId = branchId, turn = turn)
 
         chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Remember me?"))
 
-        val json = Json.parseToJsonElement(capturedBody!!).jsonObject
-        val messages = json["messages"]!!.jsonArray
+        val messages = fakeLlm.lastMessages!!
         assertEquals(3, messages.size)
-        assertEquals("user", messages[0].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Hi", messages[0].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("assistant", messages[1].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Hello!", messages[1].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("user", messages[2].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Remember me?", messages[2].jsonObject["content"]!!.jsonPrimitive.content)
+        assertEquals(MessageRole.User, messages[0].role)
+        assertEquals(MessageContent(value = "Hi"), messages[0].content)
+        assertEquals(MessageRole.Assistant, messages[1].role)
+        assertEquals(MessageContent(value = "Hello!"), messages[1].content)
+        assertEquals(MessageRole.User, messages[2].role)
+        assertEquals(MessageContent(value = "Remember me?"), messages[2].content)
     }
 }
 
 // --- Test fakes ---
 
-private val ZERO_USAGE = UsageRecord(
-    promptTokens = TokenCount(value = 0),
-    completionTokens = TokenCount(value = 0),
-    cachedTokens = TokenCount(value = 0),
-    cacheWriteTokens = TokenCount(value = 0),
-    reasoningTokens = TokenCount(value = 0),
-    totalCost = Cost(value = BigDecimal.ZERO),
-    upstreamCost = Cost(value = BigDecimal.ZERO),
-    upstreamPromptCost = Cost(value = BigDecimal.ZERO),
-    upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
-)
+private class FakeLlmPort(
+    private val response: Either<DomainError, LlmResponse>,
+) : LlmPort {
+    var lastMessages: List<ContextMessage>? = null
+    var lastResponseFormat: ResponseFormat? = null
+
+    override suspend fun complete(
+        messages: List<ContextMessage>,
+        responseFormat: ResponseFormat,
+    ): Either<DomainError, LlmResponse> {
+        lastMessages = messages
+        lastResponseFormat = responseFormat
+        return response
+    }
+}
 
 private class FakeAgentSessionRepository : AgentSessionRepository {
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()

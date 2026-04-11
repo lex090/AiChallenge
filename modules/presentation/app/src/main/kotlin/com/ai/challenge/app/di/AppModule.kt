@@ -16,10 +16,12 @@ import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.chat.AgentSessionRepository
+import com.ai.challenge.core.llm.LlmPort
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.usage.UsageService
 import com.ai.challenge.fact.repository.ExposedFactRepository
 import com.ai.challenge.fact.repository.createFactDatabase
+import com.ai.challenge.llm.OpenRouterAdapter
 import com.ai.challenge.llm.OpenRouterService
 import com.ai.challenge.session.repository.ExposedAgentSessionRepository
 import com.ai.challenge.session.repository.createSessionDatabase
@@ -35,14 +37,21 @@ val appModule = module {
         )
     }
 
+    single<LlmPort> {
+        OpenRouterAdapter(
+            openRouterService = get(),
+            model = "google/gemini-2.0-flash-001",
+        )
+    }
+
     // Repositories (3 instead of 9)
     single<AgentSessionRepository> { ExposedAgentSessionRepository(database = createSessionDatabase()) }
     single<FactRepository> { ExposedFactRepository(database = createFactDatabase()) }
     single<SummaryRepository> { ExposedSummaryRepository(database = createSummaryDatabase()) }
 
     // Context management
-    single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }
-    single<FactExtractor> { LlmFactExtractor(service = get(), model = "google/gemini-2.0-flash-001") }
+    single<ContextCompressor> { LlmContextCompressor(llmPort = get()) }
+    single<FactExtractor> { LlmFactExtractor(llmPort = get()) }
     single { BranchingContextManager(repository = get()) }
     single<ContextManager> {
         DefaultContextManager(
@@ -56,7 +65,7 @@ val appModule = module {
     }
 
     // Domain services (4 instead of 1 god object)
-    single<ChatService> { AiChatService(service = get(), model = "google/gemini-2.0-flash-001", repository = get(), contextManager = get()) }
+    single<ChatService> { AiChatService(llmPort = get(), repository = get(), contextManager = get()) }
     single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageService> { AiUsageService(repository = get()) }
