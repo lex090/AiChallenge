@@ -18,12 +18,8 @@ fun createSessionDatabase(): Database {
         },
     )
     transaction(database) {
-        SchemaUtils.createMissingTablesAndColumns(
-            SessionsTable,
-            TurnsTable,
-            BranchesTable,
-            BranchTurnsTable,
-        )
+        SchemaUtils.drop(BranchTurnsTable, BranchesTable, TurnsTable, SessionsTable)
+        SchemaUtils.create(SessionsTable, TurnsTable, BranchesTable, BranchTurnsTable)
     }
     return database
 }
