@@ -19,7 +19,25 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
 
     init {
         transaction(database) {
+            migrateFactsTableIfNeeded()
             SchemaUtils.createMissingTablesAndColumns(FactsTable)
+        }
+    }
+
+    private fun migrateFactsTableIfNeeded() {
+        transaction(database) {
+            val columns = exec("PRAGMA table_info(facts)") { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(rs.getString("name") to rs.getString("type"))
+                    }
+                }
+            } ?: emptyList()
+
+            val idColumn = columns.firstOrNull { it.first == "id" }
+            if (idColumn != null && idColumn.second.uppercase() != "INT" && idColumn.second.uppercase() != "INTEGER") {
+                exec("DROP TABLE facts")
+            }
         }
     }
 
