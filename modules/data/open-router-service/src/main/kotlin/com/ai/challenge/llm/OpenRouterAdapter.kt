@@ -1,6 +1,10 @@
 package com.ai.challenge.llm
 
 import arrow.core.Either
+import arrow.core.raise.catch
+import arrow.core.raise.either
+import arrow.core.raise.ensure
+import arrow.core.raise.ensureNotNull
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
@@ -29,9 +33,9 @@ class OpenRouterAdapter(
     override suspend fun complete(
         messages: List<ContextMessage>,
         responseFormat: ResponseFormat,
-    ): Either<DomainError, LlmResponse> =
-        try {
-            val response = openRouterService.chat(model = model) {
+    ): Either<DomainError, LlmResponse> = either {
+        val response = catch({
+            openRouterService.chat(model = model) {
                 if (responseFormat is ResponseFormat.Json) {
                     jsonMode = true
                 }
@@ -43,22 +47,24 @@ class OpenRouterAdapter(
                     }
                 }
             }
-
-            if (response.error != null) {
-                Either.Left(value = DomainError.ApiError(message = response.error!!.message ?: "Unknown API error"))
-            } else {
-                val text = response.choices.firstOrNull()?.message?.content
-                    ?: return Either.Left(value = DomainError.ApiError(message = "Empty response from LLM"))
-                Either.Right(
-                    value = LlmResponse(
-                        content = MessageContent(value = text),
-                        usage = mapUsage(response = response),
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Either.Left(value = DomainError.NetworkError(message = e.message ?: "Unknown network error"))
+        }) { e: Exception ->
+            raise(DomainError.NetworkError(message = e.message ?: "Unknown network error"))
         }
+
+        ensure(response.error == null) {
+            DomainError.ApiError(message = response.error?.message ?: "Unknown API error")
+        }
+
+        val text = response.choices.firstOrNull()?.message?.content
+        ensureNotNull(text) {
+            DomainError.ApiError(message = "Empty response from LLM")
+        }
+
+        LlmResponse(
+            content = MessageContent(value = text),
+            usage = mapUsage(response = response),
+        )
+    }
 
     private fun mapUsage(response: ChatResponse): UsageRecord = UsageRecord(
         promptTokens = TokenCount(value = response.usage?.promptTokens ?: 0),
