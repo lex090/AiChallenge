@@ -12,15 +12,12 @@ import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.usage.UsageService
-import com.ai.challenge.core.usage.model.Cost
-import com.ai.challenge.core.usage.model.TokenCount
 import com.ai.challenge.core.usage.model.UsageRecord
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
 
 class ChatStoreFactory(
     private val storeFactory: StoreFactory,
@@ -124,7 +121,7 @@ class ChatStoreFactory(
                     is Either.Right -> r.value
                     is Either.Left -> emptyMap()
                 }
-                val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
+                val sessionUsage = turnUsage.values.fold(UsageRecord.ZERO) { acc, u -> acc + u }
                 dispatch(Msg.SessionLoaded(
                     sessionId = sessionId,
                     messages = messages,
@@ -219,7 +216,7 @@ class ChatStoreFactory(
                     is Either.Right -> r.value
                     is Either.Left -> emptyMap()
                 }
-                val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
+                val sessionUsage = turnUsage.values.fold(UsageRecord.ZERO) { acc, u -> acc + u }
                 val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
                     is Either.Right -> r.value
                     is Either.Left -> emptyList()
@@ -259,17 +256,6 @@ class ChatStoreFactory(
             }
         }
 
-        private fun emptyUsageRecord(): UsageRecord = UsageRecord(
-            promptTokens = TokenCount(value = 0),
-            completionTokens = TokenCount(value = 0),
-            cachedTokens = TokenCount(value = 0),
-            cacheWriteTokens = TokenCount(value = 0),
-            reasoningTokens = TokenCount(value = 0),
-            totalCost = Cost(value = BigDecimal.ZERO),
-            upstreamCost = Cost(value = BigDecimal.ZERO),
-            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
-            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
-        )
     }
 
     private object ReducerImpl : com.arkivanov.mvikotlin.core.store.Reducer<ChatStore.State, Msg> {

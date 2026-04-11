@@ -50,7 +50,10 @@ class AiBranchService(
         val branch = repository.getBranch(branchId = branchId)
             ?: raise(DomainError.BranchNotFound(id = branchId))
 
-        branch.ensureDeletable().bind()
+        val session = repository.get(id = branch.sessionId)
+            ?: raise(DomainError.SessionNotFound(id = branch.sessionId))
+
+        session.ensureBranchDeletable(branch = branch).bind()
 
         repository.deleteTurnsByBranch(branchId = branchId)
         repository.deleteBranch(branchId = branchId)

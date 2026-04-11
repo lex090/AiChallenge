@@ -1,5 +1,7 @@
 package com.ai.challenge.core.usage.model
 
+import java.math.BigDecimal
+
 /**
  * Value Object — usage metrics for a single [Turn].
  *
@@ -42,4 +44,18 @@ data class UsageRecord(
             upstreamPromptCost = upstreamPromptCost + other.upstreamPromptCost,
             upstreamCompletionsCost = upstreamCompletionsCost + other.upstreamCompletionsCost,
         )
+
+    companion object {
+        val ZERO: UsageRecord = UsageRecord(
+            promptTokens = TokenCount(value = 0),
+            completionTokens = TokenCount(value = 0),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal.ZERO),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
+    }
 }
