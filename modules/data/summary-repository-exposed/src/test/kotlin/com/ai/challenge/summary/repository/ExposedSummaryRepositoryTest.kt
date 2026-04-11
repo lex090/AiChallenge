@@ -27,9 +27,9 @@ class ExposedSummaryRepositoryTest {
     @Test
     fun `save and retrieve summary by session`() = runTest {
         val sessionId = AgentSessionId(value = "s1")
-        val summary = Summary(id = SummaryId.generate(), text = "test summary", fromTurnIndex = 0, toTurnIndex = 5, createdAt = Clock.System.now())
+        val summary = Summary(id = SummaryId.generate(), sessionId = sessionId, text = "test summary", fromTurnIndex = 0, toTurnIndex = 5, createdAt = Clock.System.now())
 
-        repo.save(sessionId = sessionId, summary = summary)
+        repo.save(summary = summary)
         val result = repo.getBySession(sessionId = sessionId)
 
         assertEquals(expected = 1, actual = result.size)
@@ -48,8 +48,8 @@ class ExposedSummaryRepositoryTest {
     fun `multiple summaries for same session`() = runTest {
         val sessionId = AgentSessionId(value = "s1")
 
-        repo.save(sessionId = sessionId, summary = Summary(id = SummaryId.generate(), text = "summary1", fromTurnIndex = 0, toTurnIndex = 3, createdAt = Clock.System.now()))
-        repo.save(sessionId = sessionId, summary = Summary(id = SummaryId.generate(), text = "summary2", fromTurnIndex = 0, toTurnIndex = 5, createdAt = Clock.System.now()))
+        repo.save(summary = Summary(id = SummaryId.generate(), sessionId = sessionId, text = "summary1", fromTurnIndex = 0, toTurnIndex = 3, createdAt = Clock.System.now()))
+        repo.save(summary = Summary(id = SummaryId.generate(), sessionId = sessionId, text = "summary2", fromTurnIndex = 0, toTurnIndex = 5, createdAt = Clock.System.now()))
 
         val result = repo.getBySession(sessionId = sessionId)
         assertEquals(expected = 2, actual = result.size)
@@ -57,8 +57,8 @@ class ExposedSummaryRepositoryTest {
 
     @Test
     fun `summaries from different sessions are isolated`() = runTest {
-        repo.save(sessionId = AgentSessionId(value = "s1"), summary = Summary(id = SummaryId.generate(), text = "s1 summary", fromTurnIndex = 0, toTurnIndex = 3, createdAt = Clock.System.now()))
-        repo.save(sessionId = AgentSessionId(value = "s2"), summary = Summary(id = SummaryId.generate(), text = "s2 summary", fromTurnIndex = 0, toTurnIndex = 3, createdAt = Clock.System.now()))
+        repo.save(summary = Summary(id = SummaryId.generate(), sessionId = AgentSessionId(value = "s1"), text = "s1 summary", fromTurnIndex = 0, toTurnIndex = 3, createdAt = Clock.System.now()))
+        repo.save(summary = Summary(id = SummaryId.generate(), sessionId = AgentSessionId(value = "s2"), text = "s2 summary", fromTurnIndex = 0, toTurnIndex = 3, createdAt = Clock.System.now()))
 
         val s1Result = repo.getBySession(sessionId = AgentSessionId(value = "s1"))
         assertEquals(expected = 1, actual = s1Result.size)

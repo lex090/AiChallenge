@@ -214,7 +214,7 @@ class DefaultContextManagerTest {
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 3))
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Build a bot"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "Build a bot"),
         )
         val manager = createManager()
 
@@ -235,7 +235,7 @@ class DefaultContextManagerTest {
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 8))
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "A goal"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "A goal"),
         )
         val manager = createManager()
 
@@ -272,7 +272,7 @@ class DefaultContextManagerTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         val expectedFacts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Decision, key = "db", value = "SQLite"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Decision, key = "db", value = "SQLite"),
         )
         fakeFactExtractor.factsToReturn = expectedFacts
         val manager = createManager()
@@ -289,7 +289,7 @@ class DefaultContextManagerTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Start fresh"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "Start fresh"),
         )
         val manager = createManager()
 
@@ -308,11 +308,11 @@ class DefaultContextManagerTest {
         val sessionId = AgentSessionId("s1")
         fakeContextManagementRepo.save(sessionId = sessionId, type = ContextManagementType.StickyFacts)
         fakeFactExtractor.factsToReturn = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Build bot"),
-            Fact(id = FactId.generate(), category = FactCategory.Constraint, key = "lang", value = "Kotlin"),
-            Fact(id = FactId.generate(), category = FactCategory.Preference, key = "style", value = "FP"),
-            Fact(id = FactId.generate(), category = FactCategory.Decision, key = "db", value = "SQLite"),
-            Fact(id = FactId.generate(), category = FactCategory.Agreement, key = "deadline", value = "Friday"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Goal, key = "goal", value = "Build bot"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Constraint, key = "lang", value = "Kotlin"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Preference, key = "style", value = "FP"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Decision, key = "db", value = "SQLite"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId("s1"), category = FactCategory.Agreement, key = "deadline", value = "Friday"),
         )
         val manager = createManager()
 
@@ -365,14 +365,14 @@ private class FakeContextCompressor : ContextCompressor {
 }
 
 private class InMemorySummaryRepository : SummaryRepository {
-    private val store = mutableListOf<Pair<AgentSessionId, Summary>>()
+    private val store = mutableListOf<Summary>()
 
-    override suspend fun save(sessionId: AgentSessionId, summary: Summary) {
-        store.add(sessionId to summary)
+    override suspend fun save(summary: Summary) {
+        store.add(summary)
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
-        store.filter { it.first == sessionId }.map { it.second }
+        store.filter { it.sessionId == sessionId }
 }
 
 private class InMemoryContextManagementTypeRepository : ContextManagementTypeRepository {
@@ -402,6 +402,7 @@ private class FakeFactExtractor : FactExtractor {
     var factsToReturn: List<Fact> = emptyList()
 
     override suspend fun extract(
+        sessionId: AgentSessionId,
         currentFacts: List<Fact>,
         newUserMessage: String,
         lastAssistantResponse: String?,
@@ -417,8 +418,10 @@ private class FakeFactExtractor : FactExtractor {
 private class InMemoryFactRepository : FactRepository {
     private val store = mutableMapOf<AgentSessionId, List<Fact>>()
 
-    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
-        store[sessionId] = facts
+    override suspend fun save(facts: List<Fact>) {
+        if (facts.isNotEmpty()) {
+            store[facts.first().sessionId] = facts
+        }
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId): List<Fact> =

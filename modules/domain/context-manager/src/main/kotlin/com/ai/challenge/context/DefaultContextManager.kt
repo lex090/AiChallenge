@@ -120,11 +120,16 @@ class DefaultContextManager(
         val lastAssistantResponse = history.lastOrNull()?.agentResponse
 
         val updatedFacts = factExtractor.extract(
+            sessionId = sessionId,
             currentFacts = currentFacts,
             newUserMessage = newMessage,
             lastAssistantResponse = lastAssistantResponse,
         )
-        factRepository.save(sessionId = sessionId, facts = updatedFacts)
+        if (updatedFacts.isEmpty()) {
+            factRepository.deleteBySession(sessionId = sessionId)
+        } else {
+            factRepository.save(facts = updatedFacts)
+        }
 
         val retained = if (history.size > retainLast) {
             history.subList(history.size - retainLast, history.size)
@@ -161,8 +166,7 @@ class DefaultContextManager(
         toTurnIndex: Int,
     ) {
         summaryRepository.save(
-            sessionId = sessionId,
-            summary = Summary(id = SummaryId.generate(), text = summaryText, fromTurnIndex = 0, toTurnIndex = toTurnIndex, createdAt = Clock.System.now()),
+            summary = Summary(id = SummaryId.generate(), sessionId = sessionId, text = summaryText, fromTurnIndex = 0, toTurnIndex = toTurnIndex, createdAt = Clock.System.now()),
         )
     }
 

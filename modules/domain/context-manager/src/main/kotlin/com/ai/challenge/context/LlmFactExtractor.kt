@@ -3,6 +3,7 @@ package com.ai.challenge.context
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
 import com.ai.challenge.core.fact.FactId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.llm.OpenRouterService
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -17,6 +18,7 @@ class LlmFactExtractor(
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun extract(
+        sessionId: AgentSessionId,
         currentFacts: List<Fact>,
         newUserMessage: String,
         lastAssistantResponse: String?,
@@ -33,7 +35,7 @@ class LlmFactExtractor(
             user(newUserMessage)
             user("Extract and return the updated facts as a JSON array.")
         }
-        return parseFacts(responseText = responseText, fallback = currentFacts)
+        return parseFacts(sessionId = sessionId, responseText = responseText, fallback = currentFacts)
     }
 
     private fun formatFactsAsJson(facts: List<Fact>): String {
@@ -43,12 +45,13 @@ class LlmFactExtractor(
         return "[\n  $entries\n]"
     }
 
-    private fun parseFacts(responseText: String, fallback: List<Fact>): List<Fact> =
+    private fun parseFacts(sessionId: AgentSessionId, responseText: String, fallback: List<Fact>): List<Fact> =
         try {
             json.parseToJsonElement(responseText).jsonArray.map { element ->
                 val obj = element.jsonObject
                 Fact(
                     id = FactId.generate(),
+                    sessionId = sessionId,
                     category = parseCategory(category = obj["category"]!!.jsonPrimitive.content),
                     key = obj["key"]!!.jsonPrimitive.content,
                     value = obj["value"]!!.jsonPrimitive.content,

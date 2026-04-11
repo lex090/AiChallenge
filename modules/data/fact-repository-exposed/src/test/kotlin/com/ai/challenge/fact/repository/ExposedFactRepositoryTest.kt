@@ -28,11 +28,11 @@ class ExposedFactRepositoryTest {
     fun `save and retrieve facts by session`() = runTest {
         val sessionId = AgentSessionId("s1")
         val facts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "main_goal", value = "Build a chat bot"),
-            Fact(id = FactId.generate(), category = FactCategory.Constraint, key = "language", value = "Kotlin only"),
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Goal, key = "main_goal", value = "Build a chat bot"),
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Constraint, key = "language", value = "Kotlin only"),
         )
 
-        repo.save(sessionId = sessionId, facts = facts)
+        repo.save(facts = facts)
         val result = repo.getBySession(sessionId = sessionId)
 
         assertEquals(2, result.size)
@@ -46,15 +46,15 @@ class ExposedFactRepositoryTest {
     fun `save overwrites all previous facts`() = runTest {
         val sessionId = AgentSessionId("s1")
         val firstFacts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Old goal"),
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Goal, key = "goal", value = "Old goal"),
         )
-        repo.save(sessionId = sessionId, facts = firstFacts)
+        repo.save(facts = firstFacts)
 
         val secondFacts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "New goal"),
-            Fact(id = FactId.generate(), category = FactCategory.Decision, key = "framework", value = "Ktor"),
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Goal, key = "goal", value = "New goal"),
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Decision, key = "framework", value = "Ktor"),
         )
-        repo.save(sessionId = sessionId, facts = secondFacts)
+        repo.save(facts = secondFacts)
 
         val result = repo.getBySession(sessionId = sessionId)
         assertEquals(2, result.size)
@@ -65,9 +65,9 @@ class ExposedFactRepositoryTest {
     fun `deleteBySession removes all facts`() = runTest {
         val sessionId = AgentSessionId("s1")
         val facts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "A goal"),
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Goal, key = "goal", value = "A goal"),
         )
-        repo.save(sessionId = sessionId, facts = facts)
+        repo.save(facts = facts)
 
         repo.deleteBySession(sessionId = sessionId)
         val result = repo.getBySession(sessionId = sessionId)
@@ -86,11 +86,11 @@ class ExposedFactRepositoryTest {
         val s1 = AgentSessionId("s1")
         val s2 = AgentSessionId("s2")
 
-        repo.save(sessionId = s1, facts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "S1 goal"),
+        repo.save(facts = listOf(
+            Fact(id = FactId.generate(), sessionId = s1, category = FactCategory.Goal, key = "goal", value = "S1 goal"),
         ))
-        repo.save(sessionId = s2, facts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "S2 goal"),
+        repo.save(facts = listOf(
+            Fact(id = FactId.generate(), sessionId = s2, category = FactCategory.Goal, key = "goal", value = "S2 goal"),
         ))
 
         val s1Result = repo.getBySession(sessionId = s1)
@@ -103,15 +103,16 @@ class ExposedFactRepositoryTest {
     }
 
     @Test
-    fun `save with empty list clears all facts`() = runTest {
+    fun `save with empty list is a no-op`() = runTest {
         val sessionId = AgentSessionId("s1")
-        repo.save(sessionId = sessionId, facts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "A goal"),
+        repo.save(facts = listOf(
+            Fact(id = FactId.generate(), sessionId = sessionId, category = FactCategory.Goal, key = "goal", value = "A goal"),
         ))
 
-        repo.save(sessionId = sessionId, facts = emptyList())
+        repo.save(facts = emptyList())
         val result = repo.getBySession(sessionId = sessionId)
 
-        assertTrue(result.isEmpty())
+        assertEquals(1, result.size)
+        assertEquals("A goal", result[0].value)
     }
 }

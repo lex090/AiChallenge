@@ -3,6 +3,7 @@ package com.ai.challenge.context
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
 import com.ai.challenge.core.fact.FactId
+import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.llm.OpenRouterService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -49,6 +50,7 @@ class LlmFactExtractorTest {
         val (extractor, _) = createExtractor(responseJson = responseJson)
 
         val result = extractor.extract(
+            sessionId = AgentSessionId(value = "s1"),
             currentFacts = emptyList(),
             newUserMessage = "I want to build a Kotlin chat bot",
             lastAssistantResponse = null,
@@ -69,6 +71,7 @@ class LlmFactExtractorTest {
         val (extractor, getCapturedBody) = createExtractor(responseJson = responseJson)
 
         extractor.extract(
+            sessionId = AgentSessionId(value = "s1"),
             currentFacts = emptyList(),
             newUserMessage = "Hello",
             lastAssistantResponse = null,
@@ -94,10 +97,11 @@ class LlmFactExtractorTest {
         val (extractor, getCapturedBody) = createExtractor(responseJson = responseJson)
 
         val currentFacts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Old goal"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = "goal", value = "Old goal"),
         )
 
         extractor.extract(
+            sessionId = AgentSessionId(value = "s1"),
             currentFacts = currentFacts,
             newUserMessage = "Actually, change the goal",
             lastAssistantResponse = "Sure, what would you like?",
@@ -123,6 +127,7 @@ class LlmFactExtractorTest {
         val (extractor, _) = createExtractor(responseJson = "[]")
 
         val result = extractor.extract(
+            sessionId = AgentSessionId(value = "s1"),
             currentFacts = emptyList(),
             newUserMessage = "Hi",
             lastAssistantResponse = null,
@@ -136,10 +141,11 @@ class LlmFactExtractorTest {
         val (extractor, _) = createExtractor(responseJson = "this is not valid json")
 
         val currentFacts = listOf(
-            Fact(id = FactId.generate(), category = FactCategory.Goal, key = "goal", value = "Keep this"),
+            Fact(id = FactId.generate(), sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = "goal", value = "Keep this"),
         )
 
         val result = extractor.extract(
+            sessionId = AgentSessionId(value = "s1"),
             currentFacts = currentFacts,
             newUserMessage = "Something",
             lastAssistantResponse = null,
