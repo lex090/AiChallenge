@@ -53,9 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.cost.CostDetails
-import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.usage.model.UsageRecord
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable
@@ -82,12 +81,10 @@ fun ChatContent(component: ChatComponent) {
                 verticalArrangement = Arrangement.spacedBy(space = 8.dp),
             ) {
                 items(items = state.messages) { message ->
-                    val tokens = message.turnId?.let { state.turnTokens[it] }
-                    val costs = message.turnId?.let { state.turnCosts[it] }
+                    val usage = message.turnId?.let { state.turnUsage[it] }
                     MessageBubble(
                         message = message,
-                        tokens = tokens,
-                        costs = costs,
+                        usage = usage,
                         isBranchingEnabled = state.isBranchingEnabled,
                         onCreateBranch = { name, turnId ->
                             component.onCreateBranch(name = name, parentTurnId = turnId)
@@ -143,8 +140,8 @@ fun ChatContent(component: ChatComponent) {
                     Text(text = "Send")
                 }
             }
-            if (state.sessionTokens.totalTokens > 0) {
-                SessionMetricsBar(tokens = state.sessionTokens, costs = state.sessionCosts)
+            if (state.sessionUsage.totalTokens.value > 0) {
+                SessionMetricsBar(usage = state.sessionUsage)
             }
         }
 
@@ -285,7 +282,7 @@ private fun BranchTreeNode(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = branch.name,
+                    text = branch.name.value,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
                             else MaterialTheme.colorScheme.onSurface,
@@ -314,8 +311,7 @@ private fun BranchTreeNode(
 @Composable
 private fun MessageBubble(
     message: UiMessage,
-    tokens: TokenDetails?,
-    costs: CostDetails?,
+    usage: UsageRecord?,
     isBranchingEnabled: Boolean,
     onCreateBranch: (String, TurnId) -> Unit,
 ) {
@@ -347,9 +343,9 @@ private fun MessageBubble(
                     .padding(all = 12.dp),
                 color = textColor,
             )
-            if (!message.isUser && tokens != null && costs != null && tokens.totalTokens > 0) {
+            if (!message.isUser && usage != null && usage.totalTokens.value > 0) {
                 Text(
-                    text = formatTurnMetrics(tokens = tokens, costs = costs),
+                    text = formatTurnMetrics(usage = usage),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -368,7 +364,7 @@ private fun MessageBubble(
                         horizontalArrangement = Arrangement.spacedBy(space = 4.dp),
                     ) {
                         Text(
-                            text = "⑂",
+                            text = "\u2442",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -429,7 +425,7 @@ private fun CreateBranchDialog(
 }
 
 @Composable
-private fun SessionMetricsBar(tokens: TokenDetails, costs: CostDetails) {
+private fun SessionMetricsBar(usage: UsageRecord) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -438,38 +434,38 @@ private fun SessionMetricsBar(tokens: TokenDetails, costs: CostDetails) {
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = formatSessionMetrics(tokens = tokens, costs = costs),
+            text = formatSessionMetrics(usage = usage),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
-private fun formatCost(value: Double): String =
-    String.format("%.10f", value).trimEnd('0').trimEnd('.')
+private fun formatCost(value: java.math.BigDecimal): String =
+    value.stripTrailingZeros().toPlainString()
 
-private fun formatTurnMetrics(tokens: TokenDetails, costs: CostDetails): String {
+private fun formatTurnMetrics(usage: UsageRecord): String {
     val parts = mutableListOf<String>()
-    parts.add("\u2191${tokens.promptTokens}")
-    parts.add("\u2193${tokens.completionTokens}")
-    parts.add("cached:${tokens.cachedTokens}")
-    if (tokens.reasoningTokens > 0) parts.add("reasoning:${tokens.reasoningTokens}")
-    parts.addAll(formatCostParts(cost = costs))
+    parts.add("\u2191${usage.promptTokens.value}")
+    parts.add("\u2193${usage.completionTokens.value}")
+    parts.add("cached:${usage.cachedTokens.value}")
+    if (usage.reasoningTokens.value > 0) parts.add("reasoning:${usage.reasoningTokens.value}")
+    parts.addAll(formatCostParts(usage = usage))
     return parts.joinToString(separator = "  ")
 }
 
-private fun formatSessionMetrics(tokens: TokenDetails, costs: CostDetails): String {
+private fun formatSessionMetrics(usage: UsageRecord): String {
     val parts = mutableListOf<String>()
-    parts.add("Session: \u2191${tokens.promptTokens}  \u2193${tokens.completionTokens}  cached:${tokens.cachedTokens}")
-    parts.addAll(formatCostParts(cost = costs))
+    parts.add("Session: \u2191${usage.promptTokens.value}  \u2193${usage.completionTokens.value}  cached:${usage.cachedTokens.value}")
+    parts.addAll(formatCostParts(usage = usage))
     return parts.joinToString(separator = "  |  ")
 }
 
-private fun formatCostParts(cost: CostDetails): List<String> = buildList {
-    add("cost:$${formatCost(value = cost.totalCost)}")
-    if (cost.upstreamCost > 0 && cost.upstreamCost != cost.totalCost) add("upstream:$${formatCost(value = cost.upstreamCost)}")
-    add("prompt:$${formatCost(value = cost.upstreamPromptCost)}")
-    add("completion:$${formatCost(value = cost.upstreamCompletionsCost)}")
+private fun formatCostParts(usage: UsageRecord): List<String> = buildList {
+    add("cost:$${formatCost(value = usage.totalCost.value)}")
+    if (usage.upstreamCost.value > java.math.BigDecimal.ZERO && usage.upstreamCost.value != usage.totalCost.value) add("upstream:$${formatCost(value = usage.upstreamCost.value)}")
+    add("prompt:$${formatCost(value = usage.upstreamPromptCost.value)}")
+    add("completion:$${formatCost(value = usage.upstreamCompletionsCost.value)}")
 }
 
 private fun computeBranchDepth(

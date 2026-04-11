@@ -18,14 +18,8 @@ include(":modules:core")
 // Layer 1: Data
 include(":modules:data:open-router-service")
 include(":modules:data:session-repository-exposed")
-include(":modules:data:turn-repository-exposed")
-include(":modules:data:token-repository-exposed")
-include(":modules:data:cost-repository-exposed")
 include(":modules:data:summary-repository-exposed")
-include(":modules:data:context-management-repository-exposed")
 include(":modules:data:fact-repository-exposed")
-include(":modules:data:branch-repository-exposed")
-
 
 // Layer 2: Domain
 include(":modules:domain:ai-agent")

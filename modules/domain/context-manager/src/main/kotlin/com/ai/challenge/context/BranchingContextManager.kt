@@ -1,27 +1,25 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.branch.BranchRepository
+import com.ai.challenge.core.chat.AgentSessionRepository
+import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
-import com.ai.challenge.core.turn.TurnRepository
 
 class BranchingContextManager(
-    private val turnRepository: TurnRepository,
-    private val branchRepository: BranchRepository,
+    private val repository: AgentSessionRepository,
 ) : ContextManager {
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
-        val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
-            ?: error("No active branch for session ${sessionId.value}")
-        val turnIds = activeBranch.turnIds
-        val turns = turnIds.mapNotNull { turnRepository.get(turnId = it) }
+        val session = repository.get(id = sessionId)
+            ?: error("Session not found: ${sessionId.value}")
+        val turns = repository.getTurnsByBranch(branchId = session.activeBranchId)
         val messages = turnsToMessages(turns = turns) +
             ContextMessage(role = MessageRole.User, content = newMessage)
         return PreparedContext(
@@ -37,7 +35,7 @@ class BranchingContextManager(
         turns.flatMap {
             listOf(
                 ContextMessage(role = MessageRole.User, content = it.userMessage),
-                ContextMessage(role = MessageRole.Assistant, content = it.agentResponse),
+                ContextMessage(role = MessageRole.Assistant, content = it.assistantMessage),
             )
         }
 }

@@ -1,7 +1,8 @@
 package com.ai.challenge.ui.sessionlist.store
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.SessionManager
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.session.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
@@ -10,14 +11,14 @@ import kotlinx.coroutines.launch
 
 class SessionListStoreFactory(
     private val storeFactory: StoreFactory,
-    private val sessionManager: SessionManager,
+    private val sessionService: SessionService,
 ) {
     fun create(): SessionListStore =
         object : SessionListStore,
             Store<SessionListStore.Intent, SessionListStore.State, Nothing> by storeFactory.create(
                 name = "SessionListStore",
                 initialState = SessionListStore.State(),
-                executorFactory = { ExecutorImpl(sessionManager) },
+                executorFactory = { ExecutorImpl(sessionService = sessionService) },
                 reducer = ReducerImpl,
             ) {}
 
@@ -29,7 +30,7 @@ class SessionListStoreFactory(
     }
 
     private class ExecutorImpl(
-        private val sessionManager: SessionManager,
+        private val sessionService: SessionService,
     ) : CoroutineExecutor<SessionListStore.Intent, Nothing, SessionListStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: SessionListStore.Intent) {
@@ -43,13 +44,13 @@ class SessionListStoreFactory(
 
         private fun handleLoadSessions() {
             scope.launch {
-                when (val result = sessionManager.listSessions()) {
+                when (val result = sessionService.list()) {
                     is Either.Right -> {
                         val sessions = result.value.map { session ->
                             SessionListStore.SessionItem(
                                 id = session.id,
-                                title = session.title,
-                                updatedAt = session.updatedAt,
+                                title = session.title.value,
+                                updatedAt = session.updatedAt.value,
                             )
                         }
                         dispatch(Msg.SessionsLoaded(sessions, activeSessionId = state().activeSessionId))
@@ -61,20 +62,15 @@ class SessionListStoreFactory(
 
         private fun handleCreateSession() {
             scope.launch {
-                when (val idResult = sessionManager.createSession(title = "")) {
+                when (val result = sessionService.create(title = SessionTitle(value = ""))) {
                     is Either.Right -> {
-                        when (val sessionResult = sessionManager.getSession(id = idResult.value)) {
-                            is Either.Right -> {
-                                val session = sessionResult.value
-                                val item = SessionListStore.SessionItem(
-                                    id = session.id,
-                                    title = session.title,
-                                    updatedAt = session.updatedAt,
-                                )
-                                dispatch(Msg.SessionCreated(item))
-                            }
-                            is Either.Left -> {}
-                        }
+                        val session = result.value
+                        val item = SessionListStore.SessionItem(
+                            id = session.id,
+                            title = session.title.value,
+                            updatedAt = session.updatedAt.value,
+                        )
+                        dispatch(Msg.SessionCreated(item))
                     }
                     is Either.Left -> {}
                 }
@@ -83,9 +79,9 @@ class SessionListStoreFactory(
 
         private fun handleDeleteSession(id: AgentSessionId) {
             scope.launch {
-                when (sessionManager.deleteSession(id = id)) {
+                when (sessionService.delete(id = id)) {
                     is Either.Right -> {
-                        when (val remaining = sessionManager.listSessions()) {
+                        when (val remaining = sessionService.list()) {
                             is Either.Right -> {
                                 val currentActive = state().activeSessionId
                                 val newActiveId = if (currentActive == id) {

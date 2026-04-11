@@ -1,8 +1,10 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.context.model.FactKey
+import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactId
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.llm.OpenRouterService
 import io.ktor.client.HttpClient
@@ -52,17 +54,17 @@ class LlmFactExtractorTest {
         val result = extractor.extract(
             sessionId = AgentSessionId(value = "s1"),
             currentFacts = emptyList(),
-            newUserMessage = "I want to build a Kotlin chat bot",
+            newUserMessage = MessageContent(value = "I want to build a Kotlin chat bot"),
             lastAssistantResponse = null,
         )
 
         assertEquals(2, result.size)
         assertEquals(FactCategory.Goal, result[0].category)
-        assertEquals("main_goal", result[0].key)
-        assertEquals("Build a chat bot", result[0].value)
+        assertEquals(FactKey(value = "main_goal"), result[0].key)
+        assertEquals(FactValue(value = "Build a chat bot"), result[0].value)
         assertEquals(FactCategory.Constraint, result[1].category)
-        assertEquals("lang", result[1].key)
-        assertEquals("Kotlin only", result[1].value)
+        assertEquals(FactKey(value = "lang"), result[1].key)
+        assertEquals(FactValue(value = "Kotlin only"), result[1].value)
     }
 
     @Test
@@ -73,7 +75,7 @@ class LlmFactExtractorTest {
         extractor.extract(
             sessionId = AgentSessionId(value = "s1"),
             currentFacts = emptyList(),
-            newUserMessage = "Hello",
+            newUserMessage = MessageContent(value = "Hello"),
             lastAssistantResponse = null,
         )
 
@@ -97,14 +99,14 @@ class LlmFactExtractorTest {
         val (extractor, getCapturedBody) = createExtractor(responseJson = responseJson)
 
         val currentFacts = listOf(
-            Fact(id = FactId.generate(), sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = "goal", value = "Old goal"),
+            Fact(sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = FactKey(value = "goal"), value = FactValue(value = "Old goal")),
         )
 
         extractor.extract(
             sessionId = AgentSessionId(value = "s1"),
             currentFacts = currentFacts,
-            newUserMessage = "Actually, change the goal",
-            lastAssistantResponse = "Sure, what would you like?",
+            newUserMessage = MessageContent(value = "Actually, change the goal"),
+            lastAssistantResponse = MessageContent(value = "Sure, what would you like?"),
         )
 
         val json = Json.parseToJsonElement(getCapturedBody()!!).jsonObject
@@ -129,7 +131,7 @@ class LlmFactExtractorTest {
         val result = extractor.extract(
             sessionId = AgentSessionId(value = "s1"),
             currentFacts = emptyList(),
-            newUserMessage = "Hi",
+            newUserMessage = MessageContent(value = "Hi"),
             lastAssistantResponse = null,
         )
 
@@ -141,17 +143,17 @@ class LlmFactExtractorTest {
         val (extractor, _) = createExtractor(responseJson = "this is not valid json")
 
         val currentFacts = listOf(
-            Fact(id = FactId.generate(), sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = "goal", value = "Keep this"),
+            Fact(sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = FactKey(value = "goal"), value = FactValue(value = "Keep this")),
         )
 
         val result = extractor.extract(
             sessionId = AgentSessionId(value = "s1"),
             currentFacts = currentFacts,
-            newUserMessage = "Something",
+            newUserMessage = MessageContent(value = "Something"),
             lastAssistantResponse = null,
         )
 
         assertEquals(1, result.size)
-        assertEquals("Keep this", result[0].value)
+        assertEquals(FactValue(value = "Keep this"), result[0].value)
     }
 }

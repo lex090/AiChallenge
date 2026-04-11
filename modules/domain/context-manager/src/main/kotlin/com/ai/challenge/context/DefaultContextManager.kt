@@ -1,27 +1,28 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.chat.AgentSessionRepository
+import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.PreparedContext
+import com.ai.challenge.core.context.model.SummaryContent
+import com.ai.challenge.core.context.model.TurnIndex
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
 import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.shared.CreatedAt
 import com.ai.challenge.core.summary.Summary
-import com.ai.challenge.core.summary.SummaryId
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
-import com.ai.challenge.core.turn.TurnRepository
 import kotlin.time.Clock
 
 class DefaultContextManager(
-    private val contextManagementRepository: ContextManagementTypeRepository,
+    private val repository: AgentSessionRepository,
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
-    private val turnRepository: TurnRepository,
     private val factExtractor: FactExtractor,
     private val factRepository: FactRepository,
     private val branchingContextManager: BranchingContextManager,
@@ -33,9 +34,11 @@ class DefaultContextManager(
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
-        val type = contextManagementRepository.getBySession(sessionId = sessionId)
+        val session = repository.get(id = sessionId)
+            ?: error("Session not found: ${sessionId.value}")
+        val type = session.contextManagementType
 
         return when (type) {
             is ContextManagementType.None -> passThrough(sessionId = sessionId, newMessage = newMessage)
@@ -59,46 +62,46 @@ class DefaultContextManager(
 
     private suspend fun passThrough(
         sessionId: AgentSessionId,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
-        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
+        val history = repository.getTurns(sessionId = sessionId, limit = null)
         return withoutCompression(history = history, newMessage = newMessage)
     }
 
     private suspend fun summarizeOnThreshold(
         sessionId: AgentSessionId,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
         val maxTurns = 15
         val retainLast = 5
         val compressionInterval = 10
 
-        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
+        val history = repository.getTurns(sessionId = sessionId, limit = null)
 
         if (history.size < maxTurns) {
             return withoutCompression(history = history, newMessage = newMessage)
         }
 
-        val lastSummary = summaryRepository.getBySession(sessionId = sessionId).maxByOrNull { it.toTurnIndex }
+        val lastSummary = summaryRepository.getBySession(sessionId = sessionId).maxByOrNull { it.toTurnIndex.value }
 
         if (lastSummary != null) {
-            val turnsSinceLastSummary = history.size - lastSummary.toTurnIndex
+            val turnsSinceLastSummary = history.size - lastSummary.toTurnIndex.value
             if (turnsSinceLastSummary < retainLast + compressionInterval) {
                 return withExistingSummary(summary = lastSummary, history = history, newMessage = newMessage)
             }
         }
 
         val splitAt = (history.size - retainLast).coerceAtLeast(minimumValue = 0)
-        val summaryText = compressTurns(history = history, splitAt = splitAt, lastSummary = lastSummary)
-        saveSummary(sessionId = sessionId, summaryText = summaryText, toTurnIndex = splitAt)
-        return withNewSummary(summaryText = summaryText, history = history, splitAt = splitAt, newMessage = newMessage)
+        val summaryContent = compressTurns(history = history, splitAt = splitAt, lastSummary = lastSummary)
+        saveSummary(sessionId = sessionId, summaryContent = summaryContent, toTurnIndex = splitAt)
+        return withNewSummary(summaryContent = summaryContent, history = history, splitAt = splitAt, newMessage = newMessage)
     }
 
     private suspend fun slidingWindow(
         sessionId: AgentSessionId,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
-        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
+        val history = repository.getTurns(sessionId = sessionId, limit = null)
         val windowed = history.takeLast(n = WINDOW_SIZE)
         return PreparedContext(
             messages = turnsToMessages(turns = windowed) + ContextMessage(role = MessageRole.User, content = newMessage),
@@ -111,13 +114,13 @@ class DefaultContextManager(
 
     private suspend fun stickyFacts(
         sessionId: AgentSessionId,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
         val retainLast = 5
 
         val currentFacts = factRepository.getBySession(sessionId = sessionId)
-        val history = turnRepository.getBySession(sessionId = sessionId, limit = null)
-        val lastAssistantResponse = history.lastOrNull()?.agentResponse
+        val history = repository.getTurns(sessionId = sessionId, limit = null)
+        val lastAssistantResponse = history.lastOrNull()?.assistantMessage
 
         val updatedFacts = factExtractor.extract(
             sessionId = sessionId,
@@ -128,7 +131,7 @@ class DefaultContextManager(
         if (updatedFacts.isEmpty()) {
             factRepository.deleteBySession(sessionId = sessionId)
         } else {
-            factRepository.save(facts = updatedFacts)
+            factRepository.save(sessionId = sessionId, facts = updatedFacts)
         }
 
         val retained = if (history.size > retainLast) {
@@ -152,21 +155,30 @@ class DefaultContextManager(
         history: List<Turn>,
         splitAt: Int,
         lastSummary: Summary?,
-    ): String = when (lastSummary) {
-        null -> compressor.compress(turns = history.subList(0, splitAt))
+    ): SummaryContent = when (lastSummary) {
+        null -> compressor.compress(
+            turns = history.subList(0, splitAt),
+            previousSummary = null,
+        )
         else -> compressor.compress(
-            turns = history.subList(lastSummary.toTurnIndex, splitAt),
+            turns = history.subList(lastSummary.toTurnIndex.value, splitAt),
             previousSummary = lastSummary,
         )
     }
 
     private suspend fun saveSummary(
         sessionId: AgentSessionId,
-        summaryText: String,
+        summaryContent: SummaryContent,
         toTurnIndex: Int,
     ) {
         summaryRepository.save(
-            summary = Summary(id = SummaryId.generate(), sessionId = sessionId, text = summaryText, fromTurnIndex = 0, toTurnIndex = toTurnIndex, createdAt = Clock.System.now()),
+            summary = Summary(
+                sessionId = sessionId,
+                content = summaryContent,
+                fromTurnIndex = TurnIndex(value = 0),
+                toTurnIndex = TurnIndex(value = toTurnIndex),
+                createdAt = CreatedAt(value = Clock.System.now()),
+            ),
         )
     }
 
@@ -176,11 +188,11 @@ class DefaultContextManager(
         turns.flatMap {
             listOf(
                 ContextMessage(role = MessageRole.User, content = it.userMessage),
-                ContextMessage(role = MessageRole.Assistant, content = it.agentResponse),
+                ContextMessage(role = MessageRole.Assistant, content = it.assistantMessage),
             )
         }
 
-    private fun withoutCompression(history: List<Turn>, newMessage: String): PreparedContext =
+    private fun withoutCompression(history: List<Turn>, newMessage: MessageContent): PreparedContext =
         PreparedContext(
             messages = turnsToMessages(turns = history) + ContextMessage(role = MessageRole.User, content = newMessage),
             compressed = false,
@@ -192,14 +204,14 @@ class DefaultContextManager(
     private fun withExistingSummary(
         summary: Summary,
         history: List<Turn>,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
-        val retained = history.subList(summary.toTurnIndex, history.size)
+        val retained = history.subList(summary.toTurnIndex.value, history.size)
         return PreparedContext(
             messages = summarizedMessages(
-                summaryText = summary.text,
+                summaryText = summary.content.value,
                 retainedTurns = retained,
-                newMessage = newMessage
+                newMessage = newMessage,
             ),
             compressed = true,
             originalTurnCount = history.size,
@@ -209,14 +221,14 @@ class DefaultContextManager(
     }
 
     private fun withNewSummary(
-        summaryText: String,
+        summaryContent: SummaryContent,
         history: List<Turn>,
         splitAt: Int,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext {
         val retained = history.subList(splitAt, history.size)
         return PreparedContext(
-            messages = summarizedMessages(summaryText = summaryText, retainedTurns = retained, newMessage = newMessage),
+            messages = summarizedMessages(summaryText = summaryContent.value, retainedTurns = retained, newMessage = newMessage),
             compressed = true,
             originalTurnCount = history.size,
             retainedTurnCount = retained.size,
@@ -228,7 +240,7 @@ class DefaultContextManager(
         facts: List<Fact>,
         retainedTurns: List<Turn>,
         history: List<Turn>,
-        newMessage: String,
+        newMessage: MessageContent,
     ): PreparedContext =
         PreparedContext(
             messages = factsMessages(facts = facts, retainedTurns = retainedTurns, newMessage = newMessage),
@@ -241,10 +253,10 @@ class DefaultContextManager(
     private fun factsMessages(
         facts: List<Fact>,
         retainedTurns: List<Turn>,
-        newMessage: String,
+        newMessage: MessageContent,
     ): List<ContextMessage> =
         buildList {
-            add(ContextMessage(role = MessageRole.System, content = formatFacts(facts = facts)))
+            add(ContextMessage(role = MessageRole.System, content = MessageContent(value = formatFacts(facts = facts))))
             addAll(turnsToMessages(turns = retainedTurns))
             add(ContextMessage(role = MessageRole.User, content = newMessage))
         }
@@ -270,7 +282,7 @@ class DefaultContextManager(
         val categoryFacts = grouped[category] ?: return
         appendLine(header)
         for (fact in categoryFacts) {
-            appendLine("- ${fact.key}: ${fact.value}")
+            appendLine("- ${fact.key.value}: ${fact.value.value}")
         }
         appendLine()
     }
@@ -278,10 +290,10 @@ class DefaultContextManager(
     private fun summarizedMessages(
         summaryText: String,
         retainedTurns: List<Turn>,
-        newMessage: String,
+        newMessage: MessageContent,
     ): List<ContextMessage> =
         buildList {
-            add(ContextMessage(role = MessageRole.System, content = "Previous conversation summary:\n$summaryText"))
+            add(ContextMessage(role = MessageRole.System, content = MessageContent(value = "Previous conversation summary:\n$summaryText")))
             addAll(turnsToMessages(turns = retainedTurns))
             add(ContextMessage(role = MessageRole.User, content = newMessage))
         }

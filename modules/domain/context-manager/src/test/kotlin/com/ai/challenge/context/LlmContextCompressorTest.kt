@@ -1,8 +1,6 @@
 package com.ai.challenge.context
 
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.Turn
-import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.llm.OpenRouterService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -22,7 +20,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.time.Clock
 
 class LlmContextCompressorTest {
 
@@ -43,14 +40,15 @@ class LlmContextCompressorTest {
         val service = OpenRouterService(apiKey = "test-key", client = client)
         val compressor = LlmContextCompressor(service = service, model = "test-model")
 
+        val sessionId = AgentSessionId(value = "test-session")
         val turns = listOf(
-            Turn(id = TurnId.generate(), sessionId = AgentSessionId(value = "test-session"), userMessage = "Hello", agentResponse = "Hi there!", timestamp = Clock.System.now()),
-            Turn(id = TurnId.generate(), sessionId = AgentSessionId(value = "test-session"), userMessage = "How are you?", agentResponse = "I'm fine!", timestamp = Clock.System.now()),
+            createTestTurn(sessionId = sessionId, userMessage = "Hello", assistantMessage = "Hi there!"),
+            createTestTurn(sessionId = sessionId, userMessage = "How are you?", assistantMessage = "I'm fine!"),
         )
 
-        val result = compressor.compress(turns)
+        val result = compressor.compress(turns = turns, previousSummary = null)
 
-        assertEquals("This is a summary.", result)
+        assertEquals("This is a summary.", result.value)
 
         val json = Json.parseToJsonElement(capturedBody!!).jsonObject
         val messages = json["messages"]!!.jsonArray

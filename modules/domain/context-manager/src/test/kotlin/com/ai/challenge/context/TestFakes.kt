@@ -2,71 +2,133 @@ package com.ai.challenge.context
 
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.branch.BranchRepository
+import com.ai.challenge.core.chat.AgentSessionRepository
+import com.ai.challenge.core.chat.model.BranchName
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.chat.model.SessionTitle
+import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.shared.CreatedAt
+import com.ai.challenge.core.shared.UpdatedAt
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.turn.TurnRepository
+import com.ai.challenge.core.usage.model.Cost
+import com.ai.challenge.core.usage.model.TokenCount
+import com.ai.challenge.core.usage.model.UsageRecord
+import java.math.BigDecimal
+import kotlin.time.Clock
 
-internal class InMemoryBranchRepository : BranchRepository {
-    private val store = mutableListOf<Branch>()
+internal val ZERO_USAGE = UsageRecord(
+    promptTokens = TokenCount(value = 0),
+    completionTokens = TokenCount(value = 0),
+    cachedTokens = TokenCount(value = 0),
+    cacheWriteTokens = TokenCount(value = 0),
+    reasoningTokens = TokenCount(value = 0),
+    totalCost = Cost(value = BigDecimal.ZERO),
+    upstreamCost = Cost(value = BigDecimal.ZERO),
+    upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+    upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+)
 
-    override suspend fun create(branch: Branch): BranchId {
-        store.add(branch)
-        return branch.id
+internal class InMemoryAgentSessionRepository : AgentSessionRepository {
+    private val sessions = mutableMapOf<AgentSessionId, AgentSession>()
+    private val branches = mutableMapOf<BranchId, Branch>()
+    private val turnsByBranch = mutableMapOf<BranchId, MutableList<Turn>>()
+    private val turnsById = mutableMapOf<TurnId, Turn>()
+
+    fun addSession(session: AgentSession) {
+        sessions[session.id] = session
     }
 
-    override suspend fun get(branchId: BranchId): Branch? =
-        store.firstOrNull { it.id == branchId }
+    override suspend fun save(session: AgentSession): AgentSession {
+        sessions[session.id] = session
+        return session
+    }
+    override suspend fun get(id: AgentSessionId): AgentSession? = sessions[id]
+    override suspend fun delete(id: AgentSessionId) { sessions.remove(id) }
+    override suspend fun list(): List<AgentSession> = sessions.values.toList()
+    override suspend fun update(session: AgentSession): AgentSession {
+        sessions[session.id] = session
+        return session
+    }
 
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Branch> =
-        store.filter { it.sessionId == sessionId }
-
+    override suspend fun createBranch(branch: Branch): Branch {
+        branches[branch.id] = branch
+        turnsByBranch.putIfAbsent(branch.id, mutableListOf())
+        return branch
+    }
+    override suspend fun getBranches(sessionId: AgentSessionId): List<Branch> =
+        branches.values.filter { it.sessionId == sessionId }
+    override suspend fun getBranch(branchId: BranchId): Branch? = branches[branchId]
     override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? =
-        store.firstOrNull { it.sessionId == sessionId && it.isMain }
+        branches.values.firstOrNull { it.sessionId == sessionId && it.isMain }
+    override suspend fun deleteBranch(branchId: BranchId) { branches.remove(branchId) }
+    override suspend fun deleteTurnsByBranch(branchId: BranchId) { turnsByBranch[branchId]?.clear() }
 
-    override suspend fun getActiveBranch(sessionId: AgentSessionId): Branch? =
-        store.firstOrNull { it.sessionId == sessionId && it.isActive }
-
-    override suspend fun setActive(sessionId: AgentSessionId, branchId: BranchId) {
-        store.replaceAll { branch ->
-            if (branch.sessionId == sessionId) branch.copy(isActive = branch.id == branchId)
-            else branch
+    override suspend fun appendTurn(branchId: BranchId, turn: Turn): Turn {
+        turnsById[turn.id] = turn
+        turnsByBranch.getOrPut(branchId) { mutableListOf() }.add(turn)
+        val branch = branches[branchId]
+        if (branch != null) {
+            branches[branchId] = branch.copy(turnIds = branch.turnIds + turn.id)
         }
+        return turn
     }
-
-    override suspend fun delete(branchId: BranchId) {
-        store.removeAll { it.id == branchId }
+    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> {
+        val allTurns = turnsById.values.filter { it.sessionId == sessionId }.sortedBy { it.createdAt.value }
+        return if (limit != null && allTurns.size > limit) allTurns.takeLast(n = limit) else allTurns
     }
-
-    override suspend fun appendTurn(branchId: BranchId, turnId: TurnId) {
-        val index = store.indexOfFirst { it.id == branchId }
-        if (index >= 0) {
-            val branch = store[index]
-            store[index] = branch.copy(turnIds = branch.turnIds + turnId)
-        }
+    override suspend fun getTurnsByBranch(branchId: BranchId): List<Turn> {
+        val branch = branches[branchId] ?: return emptyList()
+        return branch.turnIds.mapNotNull { turnsById[it] }
     }
-
-    override suspend fun deleteTurnsByBranch(branchId: BranchId) {
-        val index = store.indexOfFirst { it.id == branchId }
-        if (index >= 0) {
-            val branch = store[index]
-            store[index] = branch.copy(turnIds = emptyList())
-        }
-    }
+    override suspend fun getTurn(turnId: TurnId): Turn? = turnsById[turnId]
 }
 
-internal class InMemoryTurnRepository : TurnRepository {
-    private val store = mutableListOf<Turn>()
+internal fun createTestSession(
+    sessionId: AgentSessionId,
+    contextManagementType: ContextManagementType,
+    activeBranchId: BranchId,
+): AgentSession {
+    val now = Clock.System.now()
+    return AgentSession(
+        id = sessionId,
+        title = SessionTitle(value = "test"),
+        contextManagementType = contextManagementType,
+        activeBranchId = activeBranchId,
+        createdAt = CreatedAt(value = now),
+        updatedAt = UpdatedAt(value = now),
+    )
+}
 
-    override suspend fun append(turn: Turn): TurnId {
-        store.add(turn)
-        return turn.id
-    }
+internal fun createTestBranch(
+    id: BranchId,
+    sessionId: AgentSessionId,
+    parentId: BranchId?,
+    turnIds: List<TurnId>,
+): Branch {
+    return Branch(
+        id = id,
+        sessionId = sessionId,
+        parentId = parentId,
+        name = BranchName(value = "branch-${id.value}"),
+        turnIds = turnIds,
+        createdAt = CreatedAt(value = Clock.System.now()),
+    )
+}
 
-    override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> =
-        store.filter { it.sessionId == sessionId }
-
-    override suspend fun get(turnId: TurnId): Turn? =
-        store.firstOrNull { it.id == turnId }
+internal fun createTestTurn(
+    sessionId: AgentSessionId,
+    userMessage: String,
+    assistantMessage: String,
+): Turn {
+    return Turn(
+        id = TurnId.generate(),
+        sessionId = sessionId,
+        userMessage = MessageContent(value = userMessage),
+        assistantMessage = MessageContent(value = assistantMessage),
+        usage = ZERO_USAGE,
+        createdAt = CreatedAt(value = Clock.System.now()),
+    )
 }

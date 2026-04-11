@@ -4,10 +4,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.ai.challenge.app.di.appModule
-import com.ai.challenge.core.agent.BranchManager
-import com.ai.challenge.core.agent.ChatAgent
-import com.ai.challenge.core.agent.SessionManager
-import com.ai.challenge.core.agent.UsageTracker
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.usage.UsageService
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
 import com.arkivanov.decompose.DefaultComponentContext
@@ -27,10 +27,10 @@ fun main() {
         RootComponent(
             componentContext = DefaultComponentContext(lifecycle = lifecycle),
             storeFactory = DefaultStoreFactory(),
-            sessionManager = koin.get<SessionManager>(),
-            chatAgent = koin.get<ChatAgent>(),
-            usageTracker = koin.get<UsageTracker>(),
-            branchManager = koin.get<BranchManager>(),
+            sessionService = koin.get<SessionService>(),
+            chatService = koin.get<ChatService>(),
+            usageService = koin.get<UsageService>(),
+            branchService = koin.get<BranchService>(),
         )
     }
 

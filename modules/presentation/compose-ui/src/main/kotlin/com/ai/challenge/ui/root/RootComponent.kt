@@ -1,11 +1,12 @@
 package com.ai.challenge.ui.root
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.BranchManager
-import com.ai.challenge.core.agent.ChatAgent
-import com.ai.challenge.core.agent.SessionManager
-import com.ai.challenge.core.agent.UsageTracker
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.usage.UsageService
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
@@ -29,14 +30,14 @@ import kotlinx.serialization.Serializable
 class RootComponent(
     componentContext: ComponentContext,
     private val storeFactory: StoreFactory,
-    private val sessionManager: SessionManager,
-    private val chatAgent: ChatAgent,
-    private val usageTracker: UsageTracker,
-    private val branchManager: BranchManager,
+    private val sessionService: SessionService,
+    private val chatService: ChatService,
+    private val usageService: UsageService,
+    private val branchService: BranchService,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
-        SessionListStoreFactory(storeFactory = storeFactory, sessionManager = sessionManager).create()
+        SessionListStoreFactory(storeFactory = storeFactory, sessionService = sessionService).create()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,14 +59,14 @@ class RootComponent(
 
     init {
         runBlocking {
-            when (val result = sessionManager.listSessions()) {
+            when (val result = sessionService.list()) {
                 is Either.Right -> {
                     val sessions = result.value
                     if (sessions.isEmpty()) {
-                        when (val createResult = sessionManager.createSession(title = "")) {
+                        when (val createResult = sessionService.create(title = SessionTitle(value = ""))) {
                             is Either.Right -> {
                                 sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                                selectSession(sessionId = createResult.value)
+                                selectSession(sessionId = createResult.value.id)
                             }
                             is Either.Left -> {}
                         }
@@ -86,10 +87,10 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            when (val result = sessionManager.createSession(title = "")) {
+            when (val result = sessionService.create(title = SessionTitle(value = ""))) {
                 is Either.Right -> {
                     sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                    selectSession(sessionId = result.value)
+                    selectSession(sessionId = result.value.id)
                 }
                 is Either.Left -> {}
             }
@@ -103,7 +104,7 @@ class RootComponent(
             _settingsComponent.value = SessionSettingsComponent(
                 componentContext = this,
                 storeFactory = storeFactory,
-                sessionManager = sessionManager,
+                sessionService = sessionService,
                 sessionId = sessionId,
             )
         }
@@ -119,11 +120,11 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
-            when (sessionManager.deleteSession(id = sessionId)) {
+            when (sessionService.delete(id = sessionId)) {
                 is Either.Right -> {
                     sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
-                    when (val remaining = sessionManager.listSessions()) {
+                    when (val remaining = sessionService.list()) {
                         is Either.Right -> {
                             if (remaining.value.isEmpty()) {
                                 createNewSession()
@@ -148,10 +149,10 @@ class RootComponent(
                 ChatComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
-                    chatAgent = chatAgent,
-                    sessionManager = sessionManager,
-                    usageTracker = usageTracker,
-                    branchManager = branchManager,
+                    chatService = chatService,
+                    sessionService = sessionService,
+                    usageService = usageService,
+                    branchService = branchService,
                     sessionId = AgentSessionId(config.sessionId),
                 )
             )
