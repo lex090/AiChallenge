@@ -28,6 +28,10 @@ import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.event.DomainEvent
 import com.ai.challenge.core.event.DomainEventPublisher
 import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usecase.ApplicationInitService
+import com.ai.challenge.core.usecase.CreateSessionUseCase
+import com.ai.challenge.core.usecase.DeleteSessionUseCase
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.app.event.InProcessDomainEventPublisher
 import com.ai.challenge.context.SessionDeletedCleanupHandler
 import com.ai.challenge.fact.repository.ExposedFactRepository
@@ -130,6 +134,33 @@ val appModule = module {
             handlers = mapOf(
                 DomainEvent.SessionDeleted::class to listOf(get<SessionDeletedCleanupHandler>()),
             ),
+        )
+    }
+
+    // Application Services (use cases)
+    single {
+        SendMessageUseCase(
+            chatService = get(),
+            sessionService = get(),
+            eventPublisher = get(),
+        )
+    }
+    single {
+        CreateSessionUseCase(
+            sessionService = get(),
+            eventPublisher = get(),
+        )
+    }
+    single {
+        DeleteSessionUseCase(
+            sessionService = get(),
+            eventPublisher = get(),
+        )
+    }
+    single {
+        ApplicationInitService(
+            createSessionUseCase = get(),
+            sessionService = get(),
         )
     }
 }

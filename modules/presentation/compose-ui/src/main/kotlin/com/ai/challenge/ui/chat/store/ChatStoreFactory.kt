@@ -7,12 +7,12 @@ import com.ai.challenge.core.chat.BranchService
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.chat.model.MessageContent
-import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.usage.UsageService
 import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 
 class ChatStoreFactory(
     private val storeFactory: StoreFactory,
+    private val sendMessageUseCase: SendMessageUseCase,
     private val chatService: ChatService,
     private val sessionService: SessionService,
     private val usageService: UsageService,
@@ -32,7 +33,7 @@ class ChatStoreFactory(
                 name = "ChatStore",
                 initialState = ChatStore.State(),
                 executorFactory = { ExecutorImpl(
-                    chatService = chatService,
+                    sendMessageUseCase = sendMessageUseCase,
                     sessionService = sessionService,
                     usageService = usageService,
                     branchService = branchService,
@@ -74,7 +75,7 @@ class ChatStoreFactory(
     }
 
     private class ExecutorImpl(
-        private val chatService: ChatService,
+        private val sendMessageUseCase: SendMessageUseCase,
         private val sessionService: SessionService,
         private val usageService: UsageService,
         private val branchService: BranchService,
@@ -141,7 +142,7 @@ class ChatStoreFactory(
             dispatch(Msg.Loading)
 
             scope.launch {
-                when (val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = text))) {
+                when (val result = sendMessageUseCase.execute(sessionId = sessionId, branchId = branchId, message = MessageContent(value = text))) {
                     is Either.Right -> {
                         val turn = result.value
                         dispatch(
@@ -155,15 +156,6 @@ class ChatStoreFactory(
                     is Either.Left -> dispatch(Msg.Error(text = result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)
-
-                when (val sessionResult = sessionService.get(id = sessionId)) {
-                    is Either.Right -> {
-                        if (sessionResult.value.title.value.isEmpty()) {
-                            sessionService.updateTitle(id = sessionId, title = SessionTitle(value = text.take(n = 50)))
-                        }
-                    }
-                    is Either.Left -> {}
-                }
             }
         }
 
