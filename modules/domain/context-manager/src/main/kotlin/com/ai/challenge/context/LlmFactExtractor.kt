@@ -1,6 +1,6 @@
 package com.ai.challenge.context
 
-import arrow.core.Either
+import arrow.core.getOrElse
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
@@ -40,11 +40,9 @@ class LlmFactExtractor(
             add(ContextMessage(role = MessageRole.User, content = MessageContent(value = "Extract and return the updated facts as a JSON array.")))
         }
 
-        val result = llmPort.complete(messages = messages, responseFormat = ResponseFormat.Json)
-        return when (result) {
-            is Either.Right -> parseFacts(sessionId = sessionId, responseText = result.value.content.value, fallback = currentFacts)
-            is Either.Left -> currentFacts
-        }
+        val response = llmPort.complete(messages = messages, responseFormat = ResponseFormat.Json)
+            .getOrElse { return currentFacts }
+        return parseFacts(sessionId = sessionId, responseText = response.content.value, fallback = currentFacts)
     }
 
     private fun formatFactsAsJson(facts: List<Fact>): String {
