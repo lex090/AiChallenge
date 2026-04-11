@@ -16,6 +16,10 @@ import com.ai.challenge.core.turn.TurnId
 import com.ai.challenge.core.usage.model.Cost
 import com.ai.challenge.core.usage.model.TokenCount
 import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.core.fact.Fact
+import com.ai.challenge.core.fact.FactRepository
+import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.core.summary.SummaryRepository
 import java.math.BigDecimal
 import kotlin.time.Clock
 
@@ -124,4 +128,34 @@ internal fun createTestTurn(
         usage = ZERO_USAGE,
         createdAt = CreatedAt(value = Clock.System.now()),
     )
+}
+
+internal class InMemoryFactRepository : FactRepository {
+    private val store = mutableMapOf<AgentSessionId, List<Fact>>()
+
+    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
+        store[sessionId] = facts
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId): List<Fact> =
+        store[sessionId] ?: emptyList()
+
+    override suspend fun deleteBySession(sessionId: AgentSessionId) {
+        store.remove(key = sessionId)
+    }
+}
+
+internal class InMemorySummaryRepository : SummaryRepository {
+    private val store = mutableListOf<Summary>()
+
+    override suspend fun save(summary: Summary) {
+        store.add(element = summary)
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
+        store.filter { it.sessionId == sessionId }
+
+    override suspend fun deleteBySession(sessionId: AgentSessionId) {
+        store.removeAll { it.sessionId == sessionId }
+    }
 }

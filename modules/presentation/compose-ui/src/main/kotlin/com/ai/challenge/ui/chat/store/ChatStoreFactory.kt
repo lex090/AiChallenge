@@ -7,26 +7,24 @@ import com.ai.challenge.core.chat.BranchService
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.chat.model.MessageContent
-import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
-import com.ai.challenge.core.usage.model.Cost
-import com.ai.challenge.core.usage.model.TokenCount
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
 
 class ChatStoreFactory(
     private val storeFactory: StoreFactory,
+    private val sendMessageUseCase: SendMessageUseCase,
     private val chatService: ChatService,
     private val sessionService: SessionService,
-    private val usageService: UsageService,
+    private val usageService: UsageQueryService,
     private val branchService: BranchService,
 ) {
     fun create(): ChatStore =
@@ -35,7 +33,7 @@ class ChatStoreFactory(
                 name = "ChatStore",
                 initialState = ChatStore.State(),
                 executorFactory = { ExecutorImpl(
-                    chatService = chatService,
+                    sendMessageUseCase = sendMessageUseCase,
                     sessionService = sessionService,
                     usageService = usageService,
                     branchService = branchService,
@@ -77,9 +75,9 @@ class ChatStoreFactory(
     }
 
     private class ExecutorImpl(
-        private val chatService: ChatService,
+        private val sendMessageUseCase: SendMessageUseCase,
         private val sessionService: SessionService,
-        private val usageService: UsageService,
+        private val usageService: UsageQueryService,
         private val branchService: BranchService,
     ) : CoroutineExecutor<ChatStore.Intent, Nothing, ChatStore.State, Msg, Nothing>() {
 
@@ -124,7 +122,7 @@ class ChatStoreFactory(
                     is Either.Right -> r.value
                     is Either.Left -> emptyMap()
                 }
-                val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
+                val sessionUsage = turnUsage.values.fold(UsageRecord.ZERO) { acc, u -> acc + u }
                 dispatch(Msg.SessionLoaded(
                     sessionId = sessionId,
                     messages = messages,
@@ -144,7 +142,7 @@ class ChatStoreFactory(
             dispatch(Msg.Loading)
 
             scope.launch {
-                when (val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = text))) {
+                when (val result = sendMessageUseCase.execute(sessionId = sessionId, branchId = branchId, message = MessageContent(value = text))) {
                     is Either.Right -> {
                         val turn = result.value
                         dispatch(
@@ -158,15 +156,6 @@ class ChatStoreFactory(
                     is Either.Left -> dispatch(Msg.Error(text = result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)
-
-                when (val sessionResult = sessionService.get(id = sessionId)) {
-                    is Either.Right -> {
-                        if (sessionResult.value.title.value.isEmpty()) {
-                            sessionService.updateTitle(id = sessionId, title = SessionTitle(value = text.take(n = 50)))
-                        }
-                    }
-                    is Either.Left -> {}
-                }
             }
         }
 
@@ -219,7 +208,7 @@ class ChatStoreFactory(
                     is Either.Right -> r.value
                     is Either.Left -> emptyMap()
                 }
-                val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
+                val sessionUsage = turnUsage.values.fold(UsageRecord.ZERO) { acc, u -> acc + u }
                 val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
                     is Either.Right -> r.value
                     is Either.Left -> emptyList()
@@ -259,17 +248,6 @@ class ChatStoreFactory(
             }
         }
 
-        private fun emptyUsageRecord(): UsageRecord = UsageRecord(
-            promptTokens = TokenCount(value = 0),
-            completionTokens = TokenCount(value = 0),
-            cachedTokens = TokenCount(value = 0),
-            cacheWriteTokens = TokenCount(value = 0),
-            reasoningTokens = TokenCount(value = 0),
-            totalCost = Cost(value = BigDecimal.ZERO),
-            upstreamCost = Cost(value = BigDecimal.ZERO),
-            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
-            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
-        )
     }
 
     private object ReducerImpl : com.arkivanov.mvikotlin.core.store.Reducer<ChatStore.State, Msg> {

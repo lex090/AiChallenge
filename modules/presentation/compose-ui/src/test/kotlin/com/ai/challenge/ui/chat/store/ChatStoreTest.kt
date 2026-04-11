@@ -11,16 +11,19 @@ import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.error.DomainError
+import com.ai.challenge.core.event.DomainEvent
+import com.ai.challenge.core.event.DomainEventPublisher
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.shared.CreatedAt
 import com.ai.challenge.core.shared.UpdatedAt
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usage.model.Cost
 import com.ai.challenge.core.usage.model.TokenCount
 import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.model.UiMessage
 import kotlin.time.Clock
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
@@ -50,26 +53,35 @@ class ChatStoreTest {
     fun tearDown() { Dispatchers.resetMain() }
 
     private fun createStore(
+        sendMessageUseCase: SendMessageUseCase,
         chatService: ChatService,
         sessionService: SessionService,
-        usageService: UsageService,
+        usageService: UsageQueryService,
         branchService: BranchService,
     ): ChatStore =
         ChatStoreFactory(
             storeFactory = DefaultStoreFactory(),
+            sendMessageUseCase = sendMessageUseCase,
             chatService = chatService,
             sessionService = sessionService,
             usageService = usageService,
             branchService = branchService,
         ).create()
 
-    private fun createStoreWithFake(fake: FakeServices): ChatStore =
-        createStore(
+    private fun createStoreWithFake(fake: FakeServices): ChatStore {
+        val sendMessageUseCase = SendMessageUseCase(
+            chatService = fake,
+            sessionService = fake,
+            eventPublisher = NoOpDomainEventPublisher(),
+        )
+        return createStore(
+            sendMessageUseCase = sendMessageUseCase,
             chatService = fake,
             sessionService = fake,
             usageService = fake,
             branchService = fake,
         )
+    }
 
     @Test
     fun `initial state is empty with no session`() {
@@ -348,12 +360,16 @@ private fun emptyUsage(): UsageRecord = UsageRecord(
     upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
 )
 
+private class NoOpDomainEventPublisher : DomainEventPublisher {
+    override suspend fun publish(event: DomainEvent) {}
+}
+
 open class FakeServices(
     private val sendTurnId: TurnId = TurnId.generate(),
     private val sendAssistantMessage: String = "",
     private val sendUsage: UsageRecord = emptyUsage(),
     private val sendError: DomainError? = null,
-) : ChatService, SessionService, UsageService, BranchService {
+) : ChatService, SessionService, UsageQueryService, BranchService {
 
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
@@ -425,7 +441,7 @@ open class FakeServices(
         return Either.Right(value = updated)
     }
 
-    // -- UsageService --
+    // -- UsageQueryService --
 
     override suspend fun getByTurn(turnId: TurnId): Either<DomainError, UsageRecord> {
         val record = usageData[turnId]?.second

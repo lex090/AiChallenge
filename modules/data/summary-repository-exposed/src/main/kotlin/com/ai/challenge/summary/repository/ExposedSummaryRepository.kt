@@ -20,7 +20,25 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
 
     init {
         transaction(database) {
+            migrateSummariesTableIfNeeded()
             SchemaUtils.createMissingTablesAndColumns(SummariesTable)
+        }
+    }
+
+    private fun migrateSummariesTableIfNeeded() {
+        transaction(database) {
+            val columns = exec("PRAGMA table_info(summaries)") { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(rs.getString("name") to rs.getString("type"))
+                    }
+                }
+            } ?: emptyList()
+
+            val idColumn = columns.firstOrNull { it.first == "id" }
+            if (idColumn != null && idColumn.second.uppercase() != "INT" && idColumn.second.uppercase() != "INTEGER") {
+                exec("DROP TABLE summaries")
+            }
         }
     }
 

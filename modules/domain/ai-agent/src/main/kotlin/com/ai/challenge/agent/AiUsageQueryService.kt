@@ -7,15 +7,12 @@ import com.ai.challenge.core.error.DomainError
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
-import com.ai.challenge.core.usage.model.Cost
-import com.ai.challenge.core.usage.model.TokenCount
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usage.model.UsageRecord
-import java.math.BigDecimal
 
-class AiUsageService(
+class AiUsageQueryService(
     private val repository: AgentSessionRepository,
-) : UsageService {
+) : UsageQueryService {
 
     override suspend fun getByTurn(turnId: TurnId): Either<DomainError, UsageRecord> = either {
         val turn = repository.getTurn(turnId = turnId)
@@ -30,7 +27,7 @@ class AiUsageService(
 
     override suspend fun getSessionTotal(sessionId: AgentSessionId): Either<DomainError, UsageRecord> = either {
         val turns = getAllTurns(sessionId = sessionId)
-        turns.map { turn -> turn.usage }.fold(initial = ZERO_USAGE) { acc, record -> acc + record }
+        turns.map { turn -> turn.usage }.fold(initial = UsageRecord.ZERO) { acc, record -> acc + record }
     }
 
     private suspend fun getAllTurns(sessionId: AgentSessionId): List<Turn> {
@@ -39,17 +36,4 @@ class AiUsageService(
             .distinctBy { turn -> turn.id }
     }
 
-    companion object {
-        private val ZERO_USAGE = UsageRecord(
-            promptTokens = TokenCount(value = 0),
-            completionTokens = TokenCount(value = 0),
-            cachedTokens = TokenCount(value = 0),
-            cacheWriteTokens = TokenCount(value = 0),
-            reasoningTokens = TokenCount(value = 0),
-            totalCost = Cost(value = BigDecimal.ZERO),
-            upstreamCost = Cost(value = BigDecimal.ZERO),
-            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
-            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
-        )
-    }
 }

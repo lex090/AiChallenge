@@ -6,7 +6,11 @@ import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
+import com.ai.challenge.core.usecase.ApplicationInitService
+import com.ai.challenge.core.usecase.CreateSessionUseCase
+import com.ai.challenge.core.usecase.DeleteSessionUseCase
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
@@ -32,8 +36,12 @@ class RootComponent(
     private val storeFactory: StoreFactory,
     private val sessionService: SessionService,
     private val chatService: ChatService,
-    private val usageService: UsageService,
+    private val usageService: UsageQueryService,
     private val branchService: BranchService,
+    private val sendMessageUseCase: SendMessageUseCase,
+    private val createSessionUseCase: CreateSessionUseCase,
+    private val deleteSessionUseCase: DeleteSessionUseCase,
+    private val applicationInitService: ApplicationInitService,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
@@ -59,20 +67,18 @@ class RootComponent(
 
     init {
         runBlocking {
-            when (val result = sessionService.list()) {
+            val newSession = applicationInitService.ensureAtLeastOneSession()
+            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+            when (newSession) {
                 is Either.Right -> {
-                    val sessions = result.value
-                    if (sessions.isEmpty()) {
-                        when (val createResult = sessionService.create(title = SessionTitle(value = ""))) {
-                            is Either.Right -> {
-                                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                                selectSession(sessionId = createResult.value.id)
-                            }
+                    val session = newSession.value
+                    if (session != null) {
+                        selectSession(sessionId = session.id)
+                    } else {
+                        when (val result = sessionService.list()) {
+                            is Either.Right -> selectSession(sessionId = result.value.first().id)
                             is Either.Left -> {}
                         }
-                    } else {
-                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                        selectSession(sessionId = sessions.first().id)
                     }
                 }
                 is Either.Left -> {}
@@ -87,7 +93,7 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            when (val result = sessionService.create(title = SessionTitle(value = ""))) {
+            when (val result = createSessionUseCase.execute(title = SessionTitle(value = ""))) {
                 is Either.Right -> {
                     sessionListStore.accept(SessionListStore.Intent.LoadSessions)
                     selectSession(sessionId = result.value.id)
@@ -120,7 +126,7 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
-            when (sessionService.delete(id = sessionId)) {
+            when (deleteSessionUseCase.execute(sessionId = sessionId)) {
                 is Either.Right -> {
                     sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
@@ -149,6 +155,7 @@ class RootComponent(
                 ChatComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
+                    sendMessageUseCase = sendMessageUseCase,
                     chatService = chatService,
                     sessionService = sessionService,
                     usageService = usageService,

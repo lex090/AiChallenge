@@ -1,20 +1,23 @@
 package com.ai.challenge.context
 
+import arrow.core.Either
 import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.model.FactKey
 import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
+import com.ai.challenge.core.llm.LlmPort
+import com.ai.challenge.core.llm.ResponseFormat
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.llm.OpenRouterService
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class LlmFactExtractor(
-    private val service: OpenRouterService,
-    private val model: String,
+    private val llmPort: LlmPort,
 ) : FactExtractor {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -25,19 +28,23 @@ class LlmFactExtractor(
         newUserMessage: MessageContent,
         lastAssistantResponse: MessageContent?,
     ): List<Fact> {
-        val responseText = service.chatText(model = model) {
-            jsonMode = true
-            system(SYSTEM_PROMPT)
+        val messages = buildList {
+            add(ContextMessage(role = MessageRole.System, content = MessageContent(value = SYSTEM_PROMPT)))
             if (currentFacts.isNotEmpty()) {
-                user("Current facts:\n${formatFactsAsJson(facts = currentFacts)}")
+                add(ContextMessage(role = MessageRole.User, content = MessageContent(value = "Current facts:\n${formatFactsAsJson(facts = currentFacts)}")))
             }
             if (lastAssistantResponse != null) {
-                assistant(lastAssistantResponse.value)
+                add(ContextMessage(role = MessageRole.Assistant, content = lastAssistantResponse))
             }
-            user(newUserMessage.value)
-            user("Extract and return the updated facts as a JSON array.")
+            add(ContextMessage(role = MessageRole.User, content = newUserMessage))
+            add(ContextMessage(role = MessageRole.User, content = MessageContent(value = "Extract and return the updated facts as a JSON array.")))
         }
-        return parseFacts(sessionId = sessionId, responseText = responseText, fallback = currentFacts)
+
+        val result = llmPort.complete(messages = messages, responseFormat = ResponseFormat.Json)
+        return when (result) {
+            is Either.Right -> parseFacts(sessionId = sessionId, responseText = result.value.content.value, fallback = currentFacts)
+            is Either.Left -> currentFacts
+        }
     }
 
     private fun formatFactsAsJson(facts: List<Fact>): String {

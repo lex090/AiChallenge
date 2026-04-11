@@ -8,6 +8,15 @@ import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
 
+/**
+ * Domain Service — [Branch] management within an [AgentSession].
+ *
+ * Creates branches from existing turns, deletes non-main branches,
+ * retrieves branch lists and turns. Validates aggregate invariants:
+ * branching must be enabled, main branch cannot be deleted.
+ *
+ * Contains no own state — all logic is stateless.
+ */
 interface BranchService {
     suspend fun create(
         sessionId: AgentSessionId,

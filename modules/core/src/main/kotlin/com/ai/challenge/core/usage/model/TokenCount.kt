@@ -1,9 +1,11 @@
 package com.ai.challenge.core.usage.model
 
 /**
- * Token count.
- * Value object — cannot be negative.
- * Supports arithmetic for session-level aggregation.
+ * Value Object — count of tokens consumed by an LLM operation.
+ *
+ * Has no identity — defined only by the integer it wraps.
+ * Immutable. Supports arithmetic via [plus] for session-level aggregation.
+ * Cannot be negative (domain invariant).
  */
 @JvmInline
 value class TokenCount(val value: Int) {

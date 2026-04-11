@@ -12,14 +12,11 @@ repositories {
 
 dependencies {
     implementation(project(":modules:core"))
-    implementation(project(":modules:data:open-router-service"))
-    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.arrow.core)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.ktor.client.mock)
-    testImplementation(libs.ktor.client.content.negotiation)
-    testImplementation(libs.ktor.serialization.kotlinx.json)
 }
 
 tasks.test {

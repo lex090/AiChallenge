@@ -4,16 +4,15 @@ import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.ContextStrategyConfig
 import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.model.FactKey
 import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.context.model.SummaryContent
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
-import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
@@ -22,7 +21,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class DefaultContextManagerTest {
+class ContextPreparationServiceTest {
 
     private val sessionId = AgentSessionId(value = "s1")
     private val mainBranchId = BranchId.generate()
@@ -48,19 +47,41 @@ class DefaultContextManagerTest {
     private fun setupSession(type: ContextManagementType) {
         val session = createTestSession(sessionId = sessionId, contextManagementType = type)
         fakeRepo.addSession(session)
-        // create main branch synchronously not possible, we'll do it in coroutine
     }
 
-    private fun createManager(): DefaultContextManager =
-        DefaultContextManager(
-            repository = fakeRepo,
-            compressor = fakeCompressor,
-            summaryRepository = fakeSummaryRepo,
-            factExtractor = fakeFactExtractor,
-            factRepository = fakeFactRepo,
-            branchingContextManager = BranchingContextManager(
-                repository = fakeRepo,
+    private fun createManager(): ContextPreparationService =
+        ContextPreparationService(
+            strategies = mapOf(
+                ContextManagementType.None to PassthroughStrategy(repository = fakeRepo) as ContextStrategy,
+                ContextManagementType.SummarizeOnThreshold to SummarizeOnThresholdStrategy(
+                    repository = fakeRepo,
+                    compressor = fakeCompressor,
+                    summaryRepository = fakeSummaryRepo,
+                ) as ContextStrategy,
+                ContextManagementType.SlidingWindow to SlidingWindowStrategy(repository = fakeRepo) as ContextStrategy,
+                ContextManagementType.StickyFacts to StickyFactsStrategy(
+                    repository = fakeRepo,
+                    factRepository = fakeFactRepo,
+                    factExtractor = fakeFactExtractor,
+                ) as ContextStrategy,
+                ContextManagementType.Branching to BranchingContextManager(repository = fakeRepo) as ContextStrategy,
             ),
+            configs = mapOf(
+                ContextManagementType.None to ContextStrategyConfig.None as ContextStrategyConfig,
+                ContextManagementType.SummarizeOnThreshold to ContextStrategyConfig.SummarizeOnThreshold(
+                    maxTurnsBeforeCompression = 15,
+                    retainLastTurns = 5,
+                    compressionInterval = 10,
+                ) as ContextStrategyConfig,
+                ContextManagementType.SlidingWindow to ContextStrategyConfig.SlidingWindow(
+                    windowSize = 10,
+                ) as ContextStrategyConfig,
+                ContextManagementType.StickyFacts to ContextStrategyConfig.StickyFacts(
+                    retainLastTurns = 5,
+                ) as ContextStrategyConfig,
+                ContextManagementType.Branching to ContextStrategyConfig.Branching as ContextStrategyConfig,
+            ),
+            repository = fakeRepo,
         )
 
     private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
@@ -361,21 +382,6 @@ private class FakeContextCompressor : ContextCompressor {
     }
 }
 
-private class InMemorySummaryRepository : SummaryRepository {
-    private val store = mutableListOf<Summary>()
-
-    override suspend fun save(summary: Summary) {
-        store.add(summary)
-    }
-
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
-        store.filter { it.sessionId == sessionId }
-
-    override suspend fun deleteBySession(sessionId: AgentSessionId) {
-        store.removeAll { it.sessionId == sessionId }
-    }
-}
-
 private class FakeFactExtractor : FactExtractor {
     var callCount = 0
         private set
@@ -398,20 +404,5 @@ private class FakeFactExtractor : FactExtractor {
         lastNewUserMessage = newUserMessage
         this.lastAssistantResponse = lastAssistantResponse
         return factsToReturn
-    }
-}
-
-private class InMemoryFactRepository : FactRepository {
-    private val store = mutableMapOf<AgentSessionId, List<Fact>>()
-
-    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
-        store[sessionId] = facts
-    }
-
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Fact> =
-        store[sessionId] ?: emptyList()
-
-    override suspend fun deleteBySession(sessionId: AgentSessionId) {
-        store.remove(sessionId)
     }
 }
