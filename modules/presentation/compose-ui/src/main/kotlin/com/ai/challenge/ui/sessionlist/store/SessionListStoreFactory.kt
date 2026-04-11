@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.sessionlist.store
 
-import arrow.core.Either
+import arrow.core.getOrElse
 import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.session.AgentSessionId
@@ -27,6 +27,7 @@ class SessionListStoreFactory(
         data class SessionCreated(val item: SessionListStore.SessionItem) : Msg
         data class SessionDeleted(val id: AgentSessionId, val newActiveId: AgentSessionId?) : Msg
         data class SessionSelected(val id: AgentSessionId) : Msg
+        data class Error(val text: String) : Msg
     }
 
     private class ExecutorImpl(
@@ -37,65 +38,63 @@ class SessionListStoreFactory(
             when (intent) {
                 is SessionListStore.Intent.LoadSessions -> handleLoadSessions()
                 is SessionListStore.Intent.CreateSession -> handleCreateSession()
-                is SessionListStore.Intent.DeleteSession -> handleDeleteSession(intent.id)
-                is SessionListStore.Intent.SelectSession -> dispatch(Msg.SessionSelected(intent.id))
+                is SessionListStore.Intent.DeleteSession -> handleDeleteSession(id = intent.id)
+                is SessionListStore.Intent.SelectSession -> dispatch(Msg.SessionSelected(id = intent.id))
             }
         }
 
         private fun handleLoadSessions() {
             scope.launch {
-                when (val result = sessionService.list()) {
-                    is Either.Right -> {
-                        val sessions = result.value.map { session ->
-                            SessionListStore.SessionItem(
-                                id = session.id,
-                                title = session.title.value,
-                                updatedAt = session.updatedAt.value,
-                            )
-                        }
-                        dispatch(Msg.SessionsLoaded(sessions, activeSessionId = state().activeSessionId))
-                    }
-                    is Either.Left -> {}
-                }
+                sessionService.list()
+                    .fold(
+                        ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
+                        ifRight = { sessionList ->
+                            val sessions = sessionList.map { session ->
+                                SessionListStore.SessionItem(
+                                    id = session.id,
+                                    title = session.title.value,
+                                    updatedAt = session.updatedAt.value,
+                                )
+                            }
+                            dispatch(Msg.SessionsLoaded(sessions = sessions, activeSessionId = state().activeSessionId))
+                        },
+                    )
             }
         }
 
         private fun handleCreateSession() {
             scope.launch {
-                when (val result = sessionService.create(title = SessionTitle(value = ""))) {
-                    is Either.Right -> {
-                        val session = result.value
-                        val item = SessionListStore.SessionItem(
-                            id = session.id,
-                            title = session.title.value,
-                            updatedAt = session.updatedAt.value,
-                        )
-                        dispatch(Msg.SessionCreated(item))
-                    }
-                    is Either.Left -> {}
-                }
+                sessionService.create(title = SessionTitle(value = ""))
+                    .fold(
+                        ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
+                        ifRight = { session ->
+                            val item = SessionListStore.SessionItem(
+                                id = session.id,
+                                title = session.title.value,
+                                updatedAt = session.updatedAt.value,
+                            )
+                            dispatch(Msg.SessionCreated(item = item))
+                        },
+                    )
             }
         }
 
         private fun handleDeleteSession(id: AgentSessionId) {
             scope.launch {
-                when (sessionService.delete(id = id)) {
-                    is Either.Right -> {
-                        when (val remaining = sessionService.list()) {
-                            is Either.Right -> {
-                                val currentActive = state().activeSessionId
-                                val newActiveId = if (currentActive == id) {
-                                    remaining.value.firstOrNull()?.id
-                                } else {
-                                    currentActive
-                                }
-                                dispatch(Msg.SessionDeleted(id = id, newActiveId = newActiveId))
+                sessionService.delete(id = id)
+                    .fold(
+                        ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
+                        ifRight = {
+                            val remaining = sessionService.list().getOrElse { emptyList() }
+                            val currentActive = state().activeSessionId
+                            val newActiveId = if (currentActive == id) {
+                                remaining.firstOrNull()?.id
+                            } else {
+                                currentActive
                             }
-                            is Either.Left -> dispatch(Msg.SessionDeleted(id = id, newActiveId = null))
-                        }
-                    }
-                    is Either.Left -> {}
-                }
+                            dispatch(Msg.SessionDeleted(id = id, newActiveId = newActiveId))
+                        },
+                    )
             }
         }
     }
@@ -106,18 +105,22 @@ class SessionListStoreFactory(
                 is Msg.SessionsLoaded -> copy(
                     sessions = msg.sessions,
                     activeSessionId = msg.activeSessionId,
+                    errorText = null,
                 )
                 is Msg.SessionCreated -> copy(
                     sessions = listOf(msg.item) + sessions,
                     activeSessionId = msg.item.id,
+                    errorText = null,
                 )
                 is Msg.SessionDeleted -> copy(
                     sessions = sessions.filter { it.id != msg.id },
                     activeSessionId = msg.newActiveId,
+                    errorText = null,
                 )
                 is Msg.SessionSelected -> copy(
                     activeSessionId = msg.id,
                 )
+                is Msg.Error -> copy(errorText = msg.text)
             }
     }
 }

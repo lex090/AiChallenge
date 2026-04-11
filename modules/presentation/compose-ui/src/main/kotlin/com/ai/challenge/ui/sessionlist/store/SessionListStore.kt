@@ -16,6 +16,7 @@ interface SessionListStore : Store<SessionListStore.Intent, SessionListStore.Sta
     data class State(
         val sessions: List<SessionItem> = emptyList(),
         val activeSessionId: AgentSessionId? = null,
+        val errorText: String? = null,
     )
 
     data class SessionItem(
