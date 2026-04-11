@@ -1,11 +1,12 @@
 package com.ai.challenge.core.turn
 
-import kotlin.time.Clock
+import com.ai.challenge.core.session.AgentSessionId
 import kotlin.time.Instant
 
 data class Turn(
-    val id: TurnId = TurnId.generate(),
+    val id: TurnId,
+    val sessionId: AgentSessionId,
     val userMessage: String,
     val agentResponse: String,
-    val timestamp: Instant = Clock.System.now(),
+    val timestamp: Instant,
 )

@@ -3,8 +3,7 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
@@ -23,49 +22,48 @@ class BranchingContextManagerTest {
         id: BranchId,
         parentBranchId: BranchId?,
         isActive: Boolean,
+        turnIds: List<TurnId>,
     ): Branch = Branch(
         id = id,
         sessionId = sessionId,
         name = "branch-${id.value}",
         parentBranchId = parentBranchId,
         isActive = isActive,
+        turnIds = turnIds,
         createdAt = Clock.System.now(),
     )
 
     private fun createTurn(userMessage: String, agentResponse: String): Turn =
         Turn(
             id = TurnId.generate(),
+            sessionId = sessionId,
             userMessage = userMessage,
             agentResponse = agentResponse,
+            timestamp = Clock.System.now(),
         )
 
     private fun buildManager(
         branchRepo: InMemoryBranchRepository,
-        branchTurnRepo: InMemoryBranchTurnRepository,
         turnRepo: InMemoryTurnRepository,
     ): BranchingContextManager = BranchingContextManager(
         turnRepository = turnRepo,
         branchRepository = branchRepo,
-        branchTurnRepository = branchTurnRepo,
     )
 
     @Test
     fun `prepareContext for main branch with turns`() = runTest {
         val branchRepo = InMemoryBranchRepository()
-        val branchTurnRepo = InMemoryBranchTurnRepository()
         val turnRepo = InMemoryTurnRepository()
 
         val mainBranchId = BranchId.generate()
         val turn1 = createTurn(userMessage = "user1", agentResponse = "assistant1")
         val turn2 = createTurn(userMessage = "user2", agentResponse = "assistant2")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = true))
-        turnRepo.append(sessionId = sessionId, turn = turn1)
-        turnRepo.append(sessionId = sessionId, turn = turn2)
-        branchTurnRepo.append(branchId = mainBranchId, turnId = turn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = mainBranchId, turnId = turn2.id, orderIndex = 1)
+        turnRepo.append(turn = turn1)
+        turnRepo.append(turn = turn2)
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = true, turnIds = listOf(turn1.id, turn2.id)))
 
-        val manager = buildManager(branchRepo = branchRepo, branchTurnRepo = branchTurnRepo, turnRepo = turnRepo)
+        val manager = buildManager(branchRepo = branchRepo, turnRepo = turnRepo)
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "newMessage")
 
         assertFalse(result.compressed)
@@ -88,7 +86,6 @@ class BranchingContextManagerTest {
     @Test
     fun `prepareContext for child branch includes trunk`() = runTest {
         val branchRepo = InMemoryBranchRepository()
-        val branchTurnRepo = InMemoryBranchTurnRepository()
         val turnRepo = InMemoryTurnRepository()
 
         val mainBranchId = BranchId.generate()
@@ -99,23 +96,15 @@ class BranchingContextManagerTest {
         val turn3 = createTurn(userMessage = "main-user3", agentResponse = "main-assistant3")
         val childTurn1 = createTurn(userMessage = "child-user1", agentResponse = "child-assistant1")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false))
-        branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = true))
+        turnRepo.append(turn = turn1)
+        turnRepo.append(turn = turn2)
+        turnRepo.append(turn = turn3)
+        turnRepo.append(turn = childTurn1)
 
-        turnRepo.append(sessionId = sessionId, turn = turn1)
-        turnRepo.append(sessionId = sessionId, turn = turn2)
-        turnRepo.append(sessionId = sessionId, turn = turn3)
-        turnRepo.append(sessionId = sessionId, turn = childTurn1)
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false, turnIds = listOf(turn1.id, turn2.id, turn3.id)))
+        branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = true, turnIds = listOf(turn1.id, turn2.id, childTurn1.id)))
 
-        branchTurnRepo.append(branchId = mainBranchId, turnId = turn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = mainBranchId, turnId = turn2.id, orderIndex = 1)
-        branchTurnRepo.append(branchId = mainBranchId, turnId = turn3.id, orderIndex = 2)
-        // child branch has trunk turns (turn1, turn2) copied in, plus its own turn
-        branchTurnRepo.append(branchId = childBranchId, turnId = turn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = childBranchId, turnId = turn2.id, orderIndex = 1)
-        branchTurnRepo.append(branchId = childBranchId, turnId = childTurn1.id, orderIndex = 2)
-
-        val manager = buildManager(branchRepo = branchRepo, branchTurnRepo = branchTurnRepo, turnRepo = turnRepo)
+        val manager = buildManager(branchRepo = branchRepo, turnRepo = turnRepo)
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new")
 
         // trunk = turn1 + turn2 (up to parentTurnId), child = childTurn1
@@ -135,7 +124,6 @@ class BranchingContextManagerTest {
     @Test
     fun `prepareContext for branch of branch includes full path`() = runTest {
         val branchRepo = InMemoryBranchRepository()
-        val branchTurnRepo = InMemoryBranchTurnRepository()
         val turnRepo = InMemoryTurnRepository()
 
         val mainBranchId = BranchId.generate()
@@ -148,28 +136,17 @@ class BranchingContextManagerTest {
         val childTurn2 = createTurn(userMessage = "child2", agentResponse = "child-resp2")
         val grandchildTurn1 = createTurn(userMessage = "grandchild1", agentResponse = "grandchild-resp1")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false))
-        branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = false))
-        branchRepo.create(branch = createBranch(id = grandchildBranchId, parentBranchId = childBranchId, isActive = true))
+        turnRepo.append(turn = mainTurn1)
+        turnRepo.append(turn = mainTurn2)
+        turnRepo.append(turn = childTurn1)
+        turnRepo.append(turn = childTurn2)
+        turnRepo.append(turn = grandchildTurn1)
 
-        turnRepo.append(sessionId = sessionId, turn = mainTurn1)
-        turnRepo.append(sessionId = sessionId, turn = mainTurn2)
-        turnRepo.append(sessionId = sessionId, turn = childTurn1)
-        turnRepo.append(sessionId = sessionId, turn = childTurn2)
-        turnRepo.append(sessionId = sessionId, turn = grandchildTurn1)
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false, turnIds = listOf(mainTurn1.id, mainTurn2.id)))
+        branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = false, turnIds = listOf(mainTurn1.id, childTurn1.id, childTurn2.id)))
+        branchRepo.create(branch = createBranch(id = grandchildBranchId, parentBranchId = childBranchId, isActive = true, turnIds = listOf(mainTurn1.id, childTurn1.id, grandchildTurn1.id)))
 
-        branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn2.id, orderIndex = 1)
-        // child branch has trunk turn (mainTurn1) copied in, plus its own turns
-        branchTurnRepo.append(branchId = childBranchId, turnId = mainTurn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = childBranchId, turnId = childTurn1.id, orderIndex = 1)
-        branchTurnRepo.append(branchId = childBranchId, turnId = childTurn2.id, orderIndex = 2)
-        // grandchild branch has mainTurn1 + childTurn1 copied in, plus its own turns
-        branchTurnRepo.append(branchId = grandchildBranchId, turnId = mainTurn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = grandchildBranchId, turnId = childTurn1.id, orderIndex = 1)
-        branchTurnRepo.append(branchId = grandchildBranchId, turnId = grandchildTurn1.id, orderIndex = 2)
-
-        val manager = buildManager(branchRepo = branchRepo, branchTurnRepo = branchTurnRepo, turnRepo = turnRepo)
+        val manager = buildManager(branchRepo = branchRepo, turnRepo = turnRepo)
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new")
 
         // grandchild branches from childTurn1, child branches from mainTurn1
@@ -190,7 +167,6 @@ class BranchingContextManagerTest {
     @Test
     fun `prepareContext for empty branch with trunk`() = runTest {
         val branchRepo = InMemoryBranchRepository()
-        val branchTurnRepo = InMemoryBranchTurnRepository()
         val turnRepo = InMemoryTurnRepository()
 
         val mainBranchId = BranchId.generate()
@@ -199,18 +175,14 @@ class BranchingContextManagerTest {
         val mainTurn1 = createTurn(userMessage = "main1", agentResponse = "main-resp1")
         val mainTurn2 = createTurn(userMessage = "main2", agentResponse = "main-resp2")
 
-        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false))
-        branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = true))
+        turnRepo.append(turn = mainTurn1)
+        turnRepo.append(turn = mainTurn2)
 
-        turnRepo.append(sessionId = sessionId, turn = mainTurn1)
-        turnRepo.append(sessionId = sessionId, turn = mainTurn2)
-
-        branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn1.id, orderIndex = 0)
-        branchTurnRepo.append(branchId = mainBranchId, turnId = mainTurn2.id, orderIndex = 1)
+        branchRepo.create(branch = createBranch(id = mainBranchId, parentBranchId = null, isActive = false, turnIds = listOf(mainTurn1.id, mainTurn2.id)))
         // child branch has mainTurn1 copied in from trunk, no own turns yet
-        branchTurnRepo.append(branchId = childBranchId, turnId = mainTurn1.id, orderIndex = 0)
+        branchRepo.create(branch = createBranch(id = childBranchId, parentBranchId = mainBranchId, isActive = true, turnIds = listOf(mainTurn1.id)))
 
-        val manager = buildManager(branchRepo = branchRepo, branchTurnRepo = branchTurnRepo, turnRepo = turnRepo)
+        val manager = buildManager(branchRepo = branchRepo, turnRepo = turnRepo)
         val result = manager.prepareContext(sessionId = sessionId, newMessage = "new")
 
         // trunk = mainTurn1 only (child branches from mainTurn1), child branch has no turns
@@ -224,4 +196,3 @@ class BranchingContextManagerTest {
         assertFalse(result.compressed)
     }
 }
-

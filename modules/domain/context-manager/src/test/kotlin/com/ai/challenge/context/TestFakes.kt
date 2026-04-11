@@ -3,7 +3,6 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
@@ -39,40 +38,35 @@ internal class InMemoryBranchRepository : BranchRepository {
     override suspend fun delete(branchId: BranchId) {
         store.removeAll { it.id == branchId }
     }
-}
 
-internal class InMemoryBranchTurnRepository : BranchTurnRepository {
-    private val store = mutableListOf<Triple<BranchId, TurnId, Int>>()
-
-    override suspend fun append(branchId: BranchId, turnId: TurnId, orderIndex: Int) {
-        store.add(Triple(first = branchId, second = turnId, third = orderIndex))
+    override suspend fun appendTurn(branchId: BranchId, turnId: TurnId) {
+        val index = store.indexOfFirst { it.id == branchId }
+        if (index >= 0) {
+            val branch = store[index]
+            store[index] = branch.copy(turnIds = branch.turnIds + turnId)
+        }
     }
 
-    override suspend fun getTurnIds(branchId: BranchId): List<TurnId> =
-        store.filter { it.first == branchId }.sortedBy { it.third }.map { it.second }
-
-    override suspend fun findBranchByTurnId(turnId: TurnId): BranchId? =
-        store.firstOrNull { it.second == turnId }?.first
-
-    override suspend fun getMaxOrderIndex(branchId: BranchId): Int? =
-        store.filter { it.first == branchId }.maxByOrNull { it.third }?.third
-
-    override suspend fun deleteByBranch(branchId: BranchId) {
-        store.removeAll { it.first == branchId }
+    override suspend fun deleteTurnsByBranch(branchId: BranchId) {
+        val index = store.indexOfFirst { it.id == branchId }
+        if (index >= 0) {
+            val branch = store[index]
+            store[index] = branch.copy(turnIds = emptyList())
+        }
     }
 }
 
 internal class InMemoryTurnRepository : TurnRepository {
-    private val store = mutableListOf<Pair<AgentSessionId, Turn>>()
+    private val store = mutableListOf<Turn>()
 
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
-        store.add(sessionId to turn)
+    override suspend fun append(turn: Turn): TurnId {
+        store.add(turn)
         return turn.id
     }
 
     override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> =
-        store.filter { it.first == sessionId }.map { it.second }
+        store.filter { it.sessionId == sessionId }
 
     override suspend fun get(turnId: TurnId): Turn? =
-        store.map { it.second }.firstOrNull { it.id == turnId }
+        store.firstOrNull { it.id == turnId }
 }

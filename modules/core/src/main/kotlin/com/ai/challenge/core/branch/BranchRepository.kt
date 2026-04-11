@@ -1,6 +1,7 @@
 package com.ai.challenge.core.branch
 
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.turn.TurnId
 
 interface BranchRepository {
     suspend fun create(branch: Branch): BranchId
@@ -10,4 +11,6 @@ interface BranchRepository {
     suspend fun getActiveBranch(sessionId: AgentSessionId): Branch?
     suspend fun setActive(sessionId: AgentSessionId, branchId: BranchId)
     suspend fun delete(branchId: BranchId)
+    suspend fun appendTurn(branchId: BranchId, turnId: TurnId)
+    suspend fun deleteTurnsByBranch(branchId: BranchId)
 }

@@ -6,16 +6,15 @@ import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
-import com.ai.challenge.core.context.ContextManager.PreparedContext
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.token.TokenDetails
@@ -41,6 +40,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.Test
+import kotlin.time.Clock
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -50,12 +50,21 @@ class OpenRouterAgentTest {
 
     private val sessionRepo = FakeSessionRepository()
     private val turnRepo = FakeTurnRepository()
-    private val tokenRepo = FakeTokenRepository()
-    private val costRepo = FakeCostRepository()
+    private val tokenRepo = FakeTokenRepository(turnRepository = turnRepo)
+    private val costRepo = FakeCostRepository(turnRepository = turnRepo)
     private val contextManager = PassThroughContextManager(turnRepo)
     private val contextManagementRepo = FakeContextManagementTypeRepository()
     private val branchRepo = FakeBranchRepository()
-    private val branchTurnRepo = FakeBranchTurnRepository()
+
+    private suspend fun createTestSession(): AgentSessionId {
+        val session = AgentSession(
+            id = AgentSessionId.generate(),
+            title = "",
+            createdAt = Clock.System.now(),
+            updatedAt = Clock.System.now(),
+        )
+        return sessionRepo.save(session = session)
+    }
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -86,13 +95,12 @@ class OpenRouterAgentTest {
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
 
     @Test
     fun `send returns Right with response text on success`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -117,7 +125,7 @@ class OpenRouterAgentTest {
                 "upstream_inference_completions_cost":0.0004
               }
             }""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -132,13 +140,13 @@ class OpenRouterAgentTest {
     @Test
     fun `send returns default details when usage is null`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
         assertIs<Either.Right<AgentResponse>>(result)
-        assertEquals(TokenDetails(), result.value.tokenDetails)
-        assertEquals(CostDetails(), result.value.costDetails)
+        assertEquals(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0), result.value.tokenDetails)
+        assertEquals(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0), result.value.costDetails)
     }
 
     @Test
@@ -147,7 +155,7 @@ class OpenRouterAgentTest {
               "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
               "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
             }""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -164,11 +172,11 @@ class OpenRouterAgentTest {
     @Test
     fun `send saves turn on success`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         agent.send(sessionId, "Hi")
 
-        val history = turnRepo.getBySession(sessionId)
+        val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         assertEquals(1, history.size)
         assertEquals("Hi", history[0].userMessage)
         assertEquals("Hello!", history[0].agentResponse)
@@ -177,18 +185,18 @@ class OpenRouterAgentTest {
     @Test
     fun `send does not save turn on failure`() = runTest {
         val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         agent.send(sessionId, "Hi")
 
-        val history = turnRepo.getBySession(sessionId)
+        val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         assertTrue(history.isEmpty())
     }
 
     @Test
     fun `send returns Left ApiError when response has error`() = runTest {
         val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -214,9 +222,8 @@ class OpenRouterAgentTest {
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -250,11 +257,10 @@ class OpenRouterAgentTest {
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
-        val sessionId = sessionRepo.create()
+        val sessionId = createTestSession()
 
-        turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
+        turnRepo.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "Hi", agentResponse = "Hello!", timestamp = Clock.System.now()))
 
         agent.send(sessionId, "Remember me?")
 
@@ -275,53 +281,64 @@ class OpenRouterAgentTest {
 private class FakeSessionRepository : AgentSessionRepository {
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
 
-    override suspend fun create(title: String): AgentSessionId {
-        val id = AgentSessionId.generate()
-        sessions[id] = AgentSession(id = id, title = title)
-        return id
+    override suspend fun save(session: AgentSession): AgentSessionId {
+        sessions[session.id] = session
+        return session.id
     }
     override suspend fun get(id: AgentSessionId): AgentSession? = sessions[id]
     override suspend fun delete(id: AgentSessionId): Boolean = sessions.remove(id) != null
     override suspend fun list(): List<AgentSession> = sessions.values.toList()
-    override suspend fun updateTitle(id: AgentSessionId, title: String) {
-        sessions.computeIfPresent(id) { _, s -> s.copy(title = title) }
+    override suspend fun update(session: AgentSession) {
+        sessions[session.id] = session
     }
 }
 
 private class FakeTurnRepository : TurnRepository {
-    private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
+    private val turns = ConcurrentHashMap<TurnId, Turn>()
 
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
-        turns[turn.id] = sessionId to turn
+    override suspend fun append(turn: Turn): TurnId {
+        turns[turn.id] = turn
         return turn.id
     }
     override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> {
-        val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
+        val all = turns.values.filter { it.sessionId == sessionId }.sortedBy { it.timestamp }
         return if (limit != null && all.size > limit) all.takeLast(limit) else all
     }
-    override suspend fun get(turnId: TurnId): Turn? = turns[turnId]?.second
+    override suspend fun get(turnId: TurnId): Turn? = turns[turnId]
 }
 
-private class FakeTokenRepository : TokenDetailsRepository {
+private class FakeTokenRepository(
+    private val turnRepository: TurnRepository,
+) : TokenDetailsRepository {
     private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, TokenDetails>>()
 
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) { data[turnId] = sessionId to details }
+    override suspend fun record(turnId: TurnId, details: TokenDetails) {
+        val turn = turnRepository.get(turnId = turnId)
+            ?: error("Turn not found for turnId=${turnId.value}")
+        data[turnId] = turn.sessionId to details
+    }
     override suspend fun getByTurn(turnId: TurnId): TokenDetails? = data[turnId]?.second
     override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotal(sessionId: AgentSessionId): TokenDetails =
-        getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
+        getBySession(sessionId).values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
 }
 
-private class FakeCostRepository : CostDetailsRepository {
+private class FakeCostRepository(
+    private val turnRepository: TurnRepository,
+) : CostDetailsRepository {
     private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, CostDetails>>()
 
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) { data[turnId] = sessionId to details }
+    override suspend fun record(turnId: TurnId, details: CostDetails) {
+        val turn = turnRepository.get(turnId = turnId)
+            ?: error("Turn not found for turnId=${turnId.value}")
+        data[turnId] = turn.sessionId to details
+    }
     override suspend fun getByTurn(turnId: TurnId): CostDetails? = data[turnId]?.second
     override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
     override suspend fun getSessionTotal(sessionId: AgentSessionId): CostDetails =
-        getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
+        getBySession(sessionId).values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
 }
 
 private class FakeContextManagementTypeRepository : ContextManagementTypeRepository {
@@ -349,10 +366,10 @@ private class PassThroughContextManager(
         val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         val messages = buildList {
             for (turn in history) {
-                add(ContextMessage(MessageRole.User, turn.userMessage))
-                add(ContextMessage(MessageRole.Assistant, turn.agentResponse))
+                add(ContextMessage(role = MessageRole.User, content = turn.userMessage))
+                add(ContextMessage(role = MessageRole.Assistant, content = turn.agentResponse))
             }
-            add(ContextMessage(MessageRole.User, newMessage))
+            add(ContextMessage(role = MessageRole.User, content = newMessage))
         }
         return PreparedContext(
             messages = messages,
@@ -399,25 +416,14 @@ private class FakeBranchRepository : BranchRepository {
             activeBranches.entries.removeIf { it.value == branchId }
         }
     }
-}
 
-private class FakeBranchTurnRepository : BranchTurnRepository {
-    private val entries = mutableListOf<Triple<BranchId, TurnId, Int>>()
-
-    override suspend fun append(branchId: BranchId, turnId: TurnId, orderIndex: Int) {
-        entries.add(Triple(branchId, turnId, orderIndex))
+    override suspend fun appendTurn(branchId: BranchId, turnId: TurnId) {
+        val branch = branches[branchId] ?: return
+        branches[branchId] = branch.copy(turnIds = branch.turnIds + turnId)
     }
 
-    override suspend fun getTurnIds(branchId: BranchId): List<TurnId> =
-        entries.filter { it.first == branchId }.sortedBy { it.third }.map { it.second }
-
-    override suspend fun findBranchByTurnId(turnId: TurnId): BranchId? =
-        entries.firstOrNull { it.second == turnId }?.first
-
-    override suspend fun getMaxOrderIndex(branchId: BranchId): Int? =
-        entries.filter { it.first == branchId }.maxOfOrNull { it.third }
-
-    override suspend fun deleteByBranch(branchId: BranchId) {
-        entries.removeIf { it.first == branchId }
+    override suspend fun deleteTurnsByBranch(branchId: BranchId) {
+        val branch = branches[branchId] ?: return
+        branches[branchId] = branch.copy(turnIds = emptyList())
     }
 }

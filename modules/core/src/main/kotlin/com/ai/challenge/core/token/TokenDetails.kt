@@ -1,11 +1,11 @@
 package com.ai.challenge.core.token
 
 data class TokenDetails(
-    val promptTokens: Int = 0,
-    val completionTokens: Int = 0,
-    val cachedTokens: Int = 0,
-    val cacheWriteTokens: Int = 0,
-    val reasoningTokens: Int = 0,
+    val promptTokens: Int,
+    val completionTokens: Int,
+    val cachedTokens: Int,
+    val cacheWriteTokens: Int,
+    val reasoningTokens: Int,
 ) {
     val totalTokens: Int get() = promptTokens + completionTokens
 
