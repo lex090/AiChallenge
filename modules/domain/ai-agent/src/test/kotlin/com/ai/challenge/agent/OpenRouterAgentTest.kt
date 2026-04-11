@@ -6,7 +6,6 @@ import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
@@ -56,7 +55,6 @@ class OpenRouterAgentTest {
     private val contextManager = PassThroughContextManager(turnRepo)
     private val contextManagementRepo = FakeContextManagementTypeRepository()
     private val branchRepo = FakeBranchRepository()
-    private val branchTurnRepo = FakeBranchTurnRepository()
 
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
@@ -87,7 +85,6 @@ class OpenRouterAgentTest {
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
 
     @Test
@@ -215,7 +212,6 @@ class OpenRouterAgentTest {
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
         val sessionId = sessionRepo.create(title = "")
 
@@ -251,7 +247,6 @@ class OpenRouterAgentTest {
             contextManager = contextManager,
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
         val sessionId = sessionRepo.create(title = "")
 
@@ -400,25 +395,14 @@ private class FakeBranchRepository : BranchRepository {
             activeBranches.entries.removeIf { it.value == branchId }
         }
     }
-}
 
-private class FakeBranchTurnRepository : BranchTurnRepository {
-    private val entries = mutableListOf<Triple<BranchId, TurnId, Int>>()
-
-    override suspend fun append(branchId: BranchId, turnId: TurnId, orderIndex: Int) {
-        entries.add(Triple(branchId, turnId, orderIndex))
+    override suspend fun appendTurn(branchId: BranchId, turnId: TurnId) {
+        val branch = branches[branchId] ?: return
+        branches[branchId] = branch.copy(turnIds = branch.turnIds + turnId)
     }
 
-    override suspend fun getTurnIds(branchId: BranchId): List<TurnId> =
-        entries.filter { it.first == branchId }.sortedBy { it.third }.map { it.second }
-
-    override suspend fun findBranchByTurnId(turnId: TurnId): BranchId? =
-        entries.firstOrNull { it.second == turnId }?.first
-
-    override suspend fun getMaxOrderIndex(branchId: BranchId): Int? =
-        entries.filter { it.first == branchId }.maxOfOrNull { it.third }
-
-    override suspend fun deleteByBranch(branchId: BranchId) {
-        entries.removeIf { it.first == branchId }
+    override suspend fun deleteTurnsByBranch(branchId: BranchId) {
+        val branch = branches[branchId] ?: return
+        branches[branchId] = branch.copy(turnIds = emptyList())
     }
 }

@@ -28,7 +28,7 @@ dependencies {
     implementation(project(":modules:data:context-management-repository-exposed"))
     implementation(project(":modules:data:fact-repository-exposed"))
     implementation(project(":modules:data:branch-repository-exposed"))
-    implementation(project(":modules:data:branch-turn-repository-exposed"))
+
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)

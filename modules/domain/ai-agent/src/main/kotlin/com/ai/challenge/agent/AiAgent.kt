@@ -9,7 +9,6 @@ import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
@@ -38,7 +37,6 @@ class AiAgent(
     private val contextManager: ContextManager,
     private val contextManagementRepository: ContextManagementTypeRepository,
     private val branchRepository: BranchRepository,
-    private val branchTurnRepository: BranchTurnRepository,
 ) : Agent {
 
     override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = either {
@@ -79,12 +77,7 @@ class AiAgent(
         if (contextType is ContextManagementType.Branching) {
             val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
             if (activeBranch != null) {
-                val maxIndex = branchTurnRepository.getMaxOrderIndex(branchId = activeBranch.id)
-                branchTurnRepository.append(
-                    branchId = activeBranch.id,
-                    turnId = turnId,
-                    orderIndex = (maxIndex ?: -1) + 1,
-                )
+                branchRepository.appendTurn(branchId = activeBranch.id, turnId = turnId)
             }
         }
         tokenRepository.record(sessionId = sessionId, turnId = turnId, details = tokenDetails)
@@ -132,17 +125,14 @@ class AiAgent(
                     name = "main",
                     parentBranchId = null,
                     isActive = true,
+                    turnIds = emptyList(),
                     createdAt = Clock.System.now(),
                 )
                 branchRepository.create(branch = mainBranch)
                 val turns = turnRepository.getBySession(sessionId = sessionId, limit = null)
 
-                for ((index, turn) in turns.withIndex()) {
-                    branchTurnRepository.append(
-                        branchId = mainBranch.id,
-                        turnId = turn.id,
-                        orderIndex = index,
-                    )
+                for (turn in turns) {
+                    branchRepository.appendTurn(branchId = mainBranch.id, turnId = turn.id)
                 }
             }
         }
@@ -159,21 +149,21 @@ class AiAgent(
         if (type !is ContextManagementType.Branching) {
             raise(AgentError.ApiError(message = "Branching is not enabled for this session"))
         }
+        val fromBranch = branchRepository.get(branchId = fromBranchId)
+            ?: raise(AgentError.ApiError(message = "Source branch not found"))
+        val parentTurnIds = fromBranch.turnIds
+        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
+        val trunkTurnIds = if (cutIndex >= 0) parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentTurnIds
         val branch = Branch(
             id = BranchId.generate(),
             sessionId = sessionId,
             name = name,
             parentBranchId = fromBranchId,
             isActive = false,
+            turnIds = trunkTurnIds,
             createdAt = Clock.System.now(),
         )
         branchRepository.create(branch = branch)
-        val parentTurnIds = branchTurnRepository.getTurnIds(branchId = fromBranchId)
-        val cutIndex = parentTurnIds.indexOf(element = parentTurnId)
-        val trunkTurnIds = if (cutIndex >= 0) parentTurnIds.subList(fromIndex = 0, toIndex = cutIndex + 1) else parentTurnIds
-        for ((index, turnId) in trunkTurnIds.withIndex()) {
-            branchTurnRepository.append(branchId = branch.id, turnId = turnId, orderIndex = index)
-        }
         branch.id
     }
 
@@ -211,8 +201,7 @@ class AiAgent(
         }
         val activeBranch = branchRepository.getActiveBranch(sessionId = sessionId)
             ?: return@either turnRepository.getBySession(sessionId = sessionId, limit = null)
-        val turnIds = branchTurnRepository.getTurnIds(branchId = activeBranch.id)
-        turnIds.mapNotNull { turnRepository.get(turnId = it) }
+        activeBranch.turnIds.mapNotNull { turnRepository.get(turnId = it) }
     }
 
     override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> = either {
@@ -229,7 +218,7 @@ class AiAgent(
         }
 
         val wasActive = branchRepository.get(branchId = branchId)?.isActive ?: false
-        branchTurnRepository.deleteByBranch(branchId = branchId)
+        branchRepository.deleteTurnsByBranch(branchId = branchId)
         branchRepository.delete(branchId = branchId)
 
         if (wasActive) {

@@ -3,7 +3,6 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextMessage
@@ -59,7 +58,6 @@ class DefaultContextManagerTest {
             branchingContextManager = BranchingContextManager(
                 turnRepository = fakeTurnRepo,
                 branchRepository = InMemoryBranchRepository(),
-                branchTurnRepository = InMemoryBranchTurnRepository(),
             ),
         )
 

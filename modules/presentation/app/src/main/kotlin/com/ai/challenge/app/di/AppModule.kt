@@ -3,8 +3,6 @@ package com.ai.challenge.app.di
 import com.ai.challenge.agent.AiAgent
 import com.ai.challenge.branch.repository.ExposedBranchRepository
 import com.ai.challenge.branch.repository.createBranchDatabase
-import com.ai.challenge.branch.turn.repository.ExposedBranchTurnRepository
-import com.ai.challenge.branch.turn.repository.createBranchTurnDatabase
 import com.ai.challenge.context.BranchingContextManager
 import com.ai.challenge.context.DefaultContextManager
 import com.ai.challenge.context.FactExtractor
@@ -18,7 +16,6 @@ import com.ai.challenge.context.repository.createContextManagementDatabase
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.context.ContextCompressor
 import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.cost.CostDetailsRepository
@@ -56,12 +53,10 @@ val appModule = module {
     single<FactRepository> { ExposedFactRepository(database = createFactDatabase()) }
     single<FactExtractor> { LlmFactExtractor(service = get(), model = "google/gemini-2.0-flash-001") }
     single<BranchRepository> { ExposedBranchRepository(createBranchDatabase()) }
-    single<BranchTurnRepository> { ExposedBranchTurnRepository(createBranchTurnDatabase()) }
     single {
         BranchingContextManager(
             turnRepository = get(),
             branchRepository = get(),
-            branchTurnRepository = get(),
         )
     }
     single<ContextManager> {
@@ -86,7 +81,6 @@ val appModule = module {
             contextManager = get(),
             contextManagementRepository = get(),
             branchRepository = get(),
-            branchTurnRepository = get(),
         )
     }
 }
