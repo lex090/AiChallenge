@@ -1,358 +1,298 @@
 package com.ai.challenge.agent
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.AgentError
-import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.branch.BranchRepository
-import com.ai.challenge.core.branch.BranchTurnRepository
-import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.context.ContextManagementTypeRepository
+import com.ai.challenge.core.chat.AgentSessionRepository
+import com.ai.challenge.core.branch.TurnSequence
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.cost.CostDetails
-import com.ai.challenge.core.cost.CostDetailsRepository
-import com.ai.challenge.core.context.ContextManager.PreparedContext
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.PreparedContext
+import com.ai.challenge.core.error.DomainError
+import com.ai.challenge.core.llm.LlmPort
+import com.ai.challenge.core.llm.LlmResponse
+import com.ai.challenge.core.llm.ResponseFormat
+import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.session.AgentSessionRepository
-import com.ai.challenge.core.token.TokenDetails
-import com.ai.challenge.core.token.TokenDetailsRepository
+import com.ai.challenge.core.shared.CreatedAt
+import com.ai.challenge.core.shared.UpdatedAt
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.turn.TurnRepository
-import com.ai.challenge.llm.OpenRouterService
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.engine.mock.toByteArray
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import com.ai.challenge.core.usage.model.Cost
+import com.ai.challenge.core.usage.model.TokenCount
+import com.ai.challenge.core.usage.model.UsageRecord
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import java.math.BigDecimal
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 
-class OpenRouterAgentTest {
+class AiChatServiceTest {
 
-    private val sessionRepo = FakeSessionRepository()
-    private val turnRepo = FakeTurnRepository()
-    private val tokenRepo = FakeTokenRepository()
-    private val costRepo = FakeCostRepository()
-    private val contextManager = PassThroughContextManager(turnRepo)
-    private val contextManagementRepo = FakeContextManagementTypeRepository()
-    private val branchRepo = FakeBranchRepository()
-    private val branchTurnRepo = FakeBranchTurnRepository()
+    private val sessionRepo = FakeAgentSessionRepository()
+    private val contextManager = PassThroughContextManager(sessionRepo = sessionRepo)
 
-    private fun createMockClient(responseJson: String): HttpClient {
-        val mockEngine = MockEngine { _ ->
-            respond(
-                content = responseJson,
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
-            )
-        }
-        return HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true; encodeDefaults = false })
-            }
-        }
+    private suspend fun createTestSession(): Pair<AgentSessionId, BranchId> {
+        val mainBranchId = BranchId.generate()
+        val now = Clock.System.now()
+        val session = AgentSession(
+            id = AgentSessionId.generate(),
+            title = SessionTitle(value = ""),
+            contextManagementType = ContextManagementType.None,
+            createdAt = CreatedAt(value = now),
+            updatedAt = UpdatedAt(value = now),
+        )
+        sessionRepo.save(session = session)
+        sessionRepo.createBranch(branch = Branch(
+            id = mainBranchId,
+            sessionId = session.id,
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = emptyList()),
+            createdAt = CreatedAt(value = now),
+        ))
+        return session.id to mainBranchId
     }
 
-    private fun createService(responseJson: String): OpenRouterService =
-        OpenRouterService(apiKey = "test-key", client = createMockClient(responseJson))
-
-    private fun createAgent(responseJson: String): AiAgent =
-        AiAgent(
-            service = createService(responseJson),
-            model = "test-model",
-            sessionRepository = sessionRepo,
-            turnRepository = turnRepo,
-            tokenRepository = tokenRepo,
-            costRepository = costRepo,
+    private fun createChatService(fakeLlmPort: FakeLlmPort): AiChatService =
+        AiChatService(
+            llmPort = fakeLlmPort,
+            repository = sessionRepo,
             contextManager = contextManager,
-            contextManagementRepository = contextManagementRepo,
-            branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
         )
 
     @Test
-    fun `send returns Right with response text on success`() = runTest {
-        val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+    fun `send returns Right with Turn on success`() = runTest {
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "Hello!"),
+                usage = UsageRecord.ZERO,
+            )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
 
-        val result = agent.send(sessionId, "Hi")
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        assertIs<Either.Right<AgentResponse>>(result)
-        assertEquals("Hello!", result.value.text)
+        assertIs<Either.Right<Turn>>(result)
+        assertEquals(MessageContent(value = "Hello!"), result.value.assistantMessage)
     }
 
     @Test
-    fun `send returns AgentResponse with full token and cost details`() = runTest {
-        val agent = createAgent("""{
-              "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
-              "usage":{
-                "prompt_tokens":100,"completion_tokens":50,"total_tokens":150,
-                "prompt_tokens_details":{"cached_tokens":20,"cache_write_tokens":80},
-                "completion_tokens_details":{"reasoning_tokens":10},
-                "cost":0.0015
-              },
-              "cost":0.0015,
-              "cost_details":{
-                "upstream_inference_cost":0.0012,
-                "upstream_inference_prompt_cost":0.0008,
-                "upstream_inference_completions_cost":0.0004
-              }
-            }""")
-        val sessionId = sessionRepo.create()
+    fun `send returns Turn with usage record`() = runTest {
+        val usage = UsageRecord(
+            promptTokens = TokenCount(value = 100),
+            completionTokens = TokenCount(value = 50),
+            cachedTokens = TokenCount(value = 20),
+            cacheWriteTokens = TokenCount(value = 80),
+            reasoningTokens = TokenCount(value = 10),
+            totalCost = Cost(value = BigDecimal.valueOf(0.0015)),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "Hello!"),
+                usage = usage,
+            )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
 
-        val result = agent.send(sessionId, "Hi")
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        assertIs<Either.Right<AgentResponse>>(result)
-        assertEquals(TokenDetails(promptTokens = 100, completionTokens = 50, cachedTokens = 20, cacheWriteTokens = 80, reasoningTokens = 10), result.value.tokenDetails)
-        assertEquals(0.0015, result.value.costDetails.totalCost, 1e-9)
-        assertEquals(0.0012, result.value.costDetails.upstreamCost, 1e-9)
-        assertEquals(0.0008, result.value.costDetails.upstreamPromptCost, 1e-9)
-        assertEquals(0.0004, result.value.costDetails.upstreamCompletionsCost, 1e-9)
-    }
-
-    @Test
-    fun `send returns default details when usage is null`() = runTest {
-        val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
-
-        val result = agent.send(sessionId, "Hi")
-
-        assertIs<Either.Right<AgentResponse>>(result)
-        assertEquals(TokenDetails(), result.value.tokenDetails)
-        assertEquals(CostDetails(), result.value.costDetails)
-    }
-
-    @Test
-    fun `send persists token and cost details`() = runTest {
-        val agent = createAgent("""{
-              "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
-              "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
-            }""")
-        val sessionId = sessionRepo.create()
-
-        val result = agent.send(sessionId, "Hi")
-
-        assertIs<Either.Right<AgentResponse>>(result)
-        val storedTokens = tokenRepo.getByTurn(result.value.turnId)
-        assertNotNull(storedTokens)
-        assertEquals(10, storedTokens.promptTokens)
-        assertEquals(5, storedTokens.completionTokens)
-
-        val storedCost = costRepo.getByTurn(result.value.turnId)
-        assertNotNull(storedCost)
+        assertIs<Either.Right<Turn>>(result)
+        assertEquals(TokenCount(value = 100), result.value.usage.promptTokens)
+        assertEquals(TokenCount(value = 50), result.value.usage.completionTokens)
+        assertEquals(TokenCount(value = 20), result.value.usage.cachedTokens)
+        assertEquals(TokenCount(value = 80), result.value.usage.cacheWriteTokens)
+        assertEquals(TokenCount(value = 10), result.value.usage.reasoningTokens)
     }
 
     @Test
     fun `send saves turn on success`() = runTest {
-        val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create()
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "Hello!"),
+                usage = UsageRecord.ZERO,
+            )
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
 
-        agent.send(sessionId, "Hi")
+        chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        val history = turnRepo.getBySession(sessionId)
-        assertEquals(1, history.size)
-        assertEquals("Hi", history[0].userMessage)
-        assertEquals("Hello!", history[0].agentResponse)
+        val turns = sessionRepo.getTurnsByBranch(branchId = branchId)
+        assertEquals(1, turns.size)
+        assertEquals(MessageContent(value = "Hi"), turns[0].userMessage)
+        assertEquals(MessageContent(value = "Hello!"), turns[0].assistantMessage)
     }
 
     @Test
     fun `send does not save turn on failure`() = runTest {
-        val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create()
+        val fakeLlm = FakeLlmPort(response = Either.Left(
+            value = DomainError.ApiError(message = "Rate limit exceeded"),
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
 
-        agent.send(sessionId, "Hi")
+        chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        val history = turnRepo.getBySession(sessionId)
-        assertTrue(history.isEmpty())
+        val turns = sessionRepo.getTurnsByBranch(branchId = branchId)
+        assertTrue(turns.isEmpty())
     }
 
     @Test
-    fun `send returns Left ApiError when response has error`() = runTest {
-        val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create()
+    fun `send returns Left ApiError when LLM returns error`() = runTest {
+        val fakeLlm = FakeLlmPort(response = Either.Left(
+            value = DomainError.ApiError(message = "Rate limit exceeded"),
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
 
-        val result = agent.send(sessionId, "Hi")
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        assertIs<Either.Left<AgentError>>(result)
-        assertIs<AgentError.ApiError>(result.value)
+        assertIs<Either.Left<DomainError>>(result)
+        assertIs<DomainError.ApiError>(result.value)
         assertEquals("Rate limit exceeded", result.value.message)
     }
 
     @Test
-    fun `send returns Left NetworkError when service throws`() = runTest {
-        val mockEngine = MockEngine { _ -> throw RuntimeException("Connection refused") }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
-        }
-        val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(
-            service = service,
-            model = "test-model",
-            sessionRepository = sessionRepo,
-            turnRepository = turnRepo,
-            tokenRepository = tokenRepo,
-            costRepository = costRepo,
-            contextManager = contextManager,
-            contextManagementRepository = contextManagementRepo,
-            branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
-        )
-        val sessionId = sessionRepo.create()
+    fun `send returns Left NetworkError when LLM returns network error`() = runTest {
+        val fakeLlm = FakeLlmPort(response = Either.Left(
+            value = DomainError.NetworkError(message = "Connection refused"),
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
 
-        val result = agent.send(sessionId, "Hi")
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        assertIs<Either.Left<AgentError>>(result)
-        assertIs<AgentError.NetworkError>(result.value)
+        assertIs<Either.Left<DomainError>>(result)
+        assertIs<DomainError.NetworkError>(result.value)
         assertEquals("Connection refused", result.value.message)
     }
 
     @Test
     fun `send includes history in LLM request`() = runTest {
-        var capturedBody: String? = null
-        val mockEngine = MockEngine { request ->
-            capturedBody = request.body.toByteArray().decodeToString()
-            respond(
-                content = """{"choices":[{"index":0,"message":{"role":"assistant","content":"I remember!"}}]}""",
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+        val fakeLlm = FakeLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "I remember!"),
+                usage = UsageRecord.ZERO,
             )
-        }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
-        }
-        val service = OpenRouterService(apiKey = "test-key", client = client)
-        val agent = AiAgent(
-            service = service,
-            model = "test-model",
-            sessionRepository = sessionRepo,
-            turnRepository = turnRepo,
-            tokenRepository = tokenRepo,
-            costRepository = costRepo,
-            contextManager = contextManager,
-            contextManagementRepository = contextManagementRepo,
-            branchRepository = branchRepo,
-            branchTurnRepository = branchTurnRepo,
+        ))
+        val chatService = createChatService(fakeLlmPort = fakeLlm)
+        val (sessionId, branchId) = createTestSession()
+
+        val turn = Turn(
+            id = TurnId.generate(),
+            sessionId = sessionId,
+            userMessage = MessageContent(value = "Hi"),
+            assistantMessage = MessageContent(value = "Hello!"),
+            usage = UsageRecord.ZERO,
+            createdAt = CreatedAt(value = Clock.System.now()),
         )
-        val sessionId = sessionRepo.create()
+        sessionRepo.appendTurn(branchId = branchId, turn = turn)
 
-        turnRepo.append(sessionId, Turn(userMessage = "Hi", agentResponse = "Hello!"))
+        chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Remember me?"))
 
-        agent.send(sessionId, "Remember me?")
-
-        val json = Json.parseToJsonElement(capturedBody!!).jsonObject
-        val messages = json["messages"]!!.jsonArray
+        val messages = fakeLlm.lastMessages!!
         assertEquals(3, messages.size)
-        assertEquals("user", messages[0].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Hi", messages[0].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("assistant", messages[1].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Hello!", messages[1].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("user", messages[2].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Remember me?", messages[2].jsonObject["content"]!!.jsonPrimitive.content)
+        assertEquals(MessageRole.User, messages[0].role)
+        assertEquals(MessageContent(value = "Hi"), messages[0].content)
+        assertEquals(MessageRole.Assistant, messages[1].role)
+        assertEquals(MessageContent(value = "Hello!"), messages[1].content)
+        assertEquals(MessageRole.User, messages[2].role)
+        assertEquals(MessageContent(value = "Remember me?"), messages[2].content)
     }
 }
 
 // --- Test fakes ---
 
-private class FakeSessionRepository : AgentSessionRepository {
-    private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
+private class FakeLlmPort(
+    private val response: Either<DomainError, LlmResponse>,
+) : LlmPort {
+    var lastMessages: List<ContextMessage>? = null
+    var lastResponseFormat: ResponseFormat? = null
 
-    override suspend fun create(title: String): AgentSessionId {
-        val id = AgentSessionId.generate()
-        sessions[id] = AgentSession(id = id, title = title)
-        return id
+    override suspend fun complete(
+        messages: List<ContextMessage>,
+        responseFormat: ResponseFormat,
+    ): Either<DomainError, LlmResponse> {
+        lastMessages = messages
+        lastResponseFormat = responseFormat
+        return response
+    }
+}
+
+private class FakeAgentSessionRepository : AgentSessionRepository {
+    private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
+    private val branches = ConcurrentHashMap<BranchId, Branch>()
+    private val turnsByBranch = ConcurrentHashMap<BranchId, MutableList<Turn>>()
+    private val turnsById = ConcurrentHashMap<TurnId, Turn>()
+
+    override suspend fun save(session: AgentSession): AgentSession {
+        sessions[session.id] = session
+        return session
     }
     override suspend fun get(id: AgentSessionId): AgentSession? = sessions[id]
-    override suspend fun delete(id: AgentSessionId): Boolean = sessions.remove(id) != null
+    override suspend fun delete(id: AgentSessionId) { sessions.remove(id) }
     override suspend fun list(): List<AgentSession> = sessions.values.toList()
-    override suspend fun updateTitle(id: AgentSessionId, title: String) {
-        sessions.computeIfPresent(id) { _, s -> s.copy(title = title) }
-    }
-}
-
-private class FakeTurnRepository : TurnRepository {
-    private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
-
-    override suspend fun append(sessionId: AgentSessionId, turn: Turn): TurnId {
-        turns[turn.id] = sessionId to turn
-        return turn.id
-    }
-    override suspend fun getBySession(sessionId: AgentSessionId, limit: Int?): List<Turn> {
-        val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
-        return if (limit != null && all.size > limit) all.takeLast(limit) else all
-    }
-    override suspend fun get(turnId: TurnId): Turn? = turns[turnId]?.second
-}
-
-private class FakeTokenRepository : TokenDetailsRepository {
-    private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, TokenDetails>>()
-
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) { data[turnId] = sessionId to details }
-    override suspend fun getByTurn(turnId: TurnId): TokenDetails? = data[turnId]?.second
-    override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
-        data.filter { it.value.first == sessionId }.mapValues { it.value.second }
-    override suspend fun getSessionTotal(sessionId: AgentSessionId): TokenDetails =
-        getBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
-}
-
-private class FakeCostRepository : CostDetailsRepository {
-    private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, CostDetails>>()
-
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) { data[turnId] = sessionId to details }
-    override suspend fun getByTurn(turnId: TurnId): CostDetails? = data[turnId]?.second
-    override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
-        data.filter { it.value.first == sessionId }.mapValues { it.value.second }
-    override suspend fun getSessionTotal(sessionId: AgentSessionId): CostDetails =
-        getBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
-}
-
-private class FakeContextManagementTypeRepository : ContextManagementTypeRepository {
-    private val store = mutableMapOf<AgentSessionId, ContextManagementType>()
-
-    override suspend fun save(sessionId: AgentSessionId, type: ContextManagementType) {
-        store[sessionId] = type
+    override suspend fun update(session: AgentSession): AgentSession {
+        sessions[session.id] = session
+        return session
     }
 
-    override suspend fun getBySession(sessionId: AgentSessionId): ContextManagementType =
-        store[sessionId] ?: ContextManagementType.None
-
-    override suspend fun delete(sessionId: AgentSessionId) {
-        store.remove(sessionId)
+    override suspend fun createBranch(branch: Branch): Branch {
+        branches[branch.id] = branch
+        turnsByBranch.putIfAbsent(branch.id, mutableListOf())
+        return branch
     }
+    override suspend fun getBranches(sessionId: AgentSessionId): List<Branch> =
+        branches.values.filter { it.sessionId == sessionId }
+    override suspend fun getBranch(branchId: BranchId): Branch? = branches[branchId]
+    override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? =
+        branches.values.firstOrNull { it.sessionId == sessionId && it.isMain }
+    override suspend fun deleteBranch(branchId: BranchId) { branches.remove(branchId) }
+    override suspend fun deleteTurnsByBranch(branchId: BranchId) { turnsByBranch[branchId]?.clear() }
+
+    override suspend fun appendTurn(branchId: BranchId, turn: Turn): Turn {
+        turnsById[turn.id] = turn
+        turnsByBranch.getOrPut(branchId) { mutableListOf() }.add(turn)
+        val branch = branches[branchId]
+        if (branch != null) {
+            branches[branchId] = branch.copy(turnSequence = TurnSequence(values = branch.turnSequence.values + turn.id))
+        }
+        return turn
+    }
+    override suspend fun getTurnsByBranch(branchId: BranchId): List<Turn> {
+        val branch = branches[branchId] ?: return emptyList()
+        return branch.turnSequence.values.mapNotNull { turnsById[it] }
+    }
+    override suspend fun getTurn(turnId: TurnId): Turn? = turnsById[turnId]
 }
 
 private class PassThroughContextManager(
-    private val turnRepo: TurnRepository,
+    private val sessionRepo: AgentSessionRepository,
 ) : ContextManager {
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
-        newMessage: String,
+        branchId: BranchId,
+        newMessage: MessageContent,
     ): PreparedContext {
-        val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
+        val history = sessionRepo.getTurnsByBranch(branchId = branchId)
         val messages = buildList {
             for (turn in history) {
-                add(ContextMessage(MessageRole.User, turn.userMessage))
-                add(ContextMessage(MessageRole.Assistant, turn.agentResponse))
+                add(ContextMessage(role = MessageRole.User, content = turn.userMessage))
+                add(ContextMessage(role = MessageRole.Assistant, content = turn.assistantMessage))
             }
-            add(ContextMessage(MessageRole.User, newMessage))
+            add(ContextMessage(role = MessageRole.User, content = newMessage))
         }
         return PreparedContext(
             messages = messages,
@@ -361,63 +301,5 @@ private class PassThroughContextManager(
             retainedTurnCount = history.size,
             summaryCount = 0,
         )
-    }
-}
-
-private class FakeBranchRepository : BranchRepository {
-    private val branches = mutableMapOf<BranchId, Branch>()
-    private val activeBranches = mutableMapOf<AgentSessionId, BranchId>()
-
-    override suspend fun create(branch: Branch): BranchId {
-        branches[branch.id] = branch
-        if (branch.isActive) {
-            activeBranches[branch.sessionId] = branch.id
-        }
-        return branch.id
-    }
-
-    override suspend fun get(branchId: BranchId): Branch? = branches[branchId]
-
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Branch> =
-        branches.values.filter { it.sessionId == sessionId }
-
-    override suspend fun getMainBranch(sessionId: AgentSessionId): Branch? =
-        branches.values.firstOrNull { it.sessionId == sessionId && it.isMain }
-
-    override suspend fun getActiveBranch(sessionId: AgentSessionId): Branch? {
-        val activeId = activeBranches[sessionId] ?: return null
-        return branches[activeId]
-    }
-
-    override suspend fun setActive(sessionId: AgentSessionId, branchId: BranchId) {
-        activeBranches[sessionId] = branchId
-    }
-
-    override suspend fun delete(branchId: BranchId) {
-        val branch = branches.remove(branchId)
-        if (branch != null) {
-            activeBranches.entries.removeIf { it.value == branchId }
-        }
-    }
-}
-
-private class FakeBranchTurnRepository : BranchTurnRepository {
-    private val entries = mutableListOf<Triple<BranchId, TurnId, Int>>()
-
-    override suspend fun append(branchId: BranchId, turnId: TurnId, orderIndex: Int) {
-        entries.add(Triple(branchId, turnId, orderIndex))
-    }
-
-    override suspend fun getTurnIds(branchId: BranchId): List<TurnId> =
-        entries.filter { it.first == branchId }.sortedBy { it.third }.map { it.second }
-
-    override suspend fun findBranchByTurnId(turnId: TurnId): BranchId? =
-        entries.firstOrNull { it.second == turnId }?.first
-
-    override suspend fun getMaxOrderIndex(branchId: BranchId): Int? =
-        entries.filter { it.first == branchId }.maxOfOrNull { it.third }
-
-    override suspend fun deleteByBranch(branchId: BranchId) {
-        entries.removeIf { it.first == branchId }
     }
 }

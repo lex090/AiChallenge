@@ -14,9 +14,8 @@ modules/
 ├── data/                          ← Layer 1: Data
 │   ├── open-router-service/
 │   ├── session-repository-exposed/
-│   ├── turn-repository-exposed/
-│   ├── token-repository-exposed/
-│   └── cost-repository-exposed/
+│   ├── fact-repository-exposed/
+│   └── summary-repository-exposed/
 ├── domain/                        ← Layer 2: Domain
 │   ├── ai-agent/
 │   └── context-manager/
@@ -27,18 +26,17 @@ modules/
 ```
 
 ### Layer 0 — Foundation (`modules/core`)
-- **core** — Domain models (AgentSession, Turn, TokenDetails, CostDetails), ID types, repository interfaces, Agent facade interface, AgentError (Arrow Either)
+- **core** — Domain models (AgentSession, Branch, Turn, TurnSequence, Fact, Summary, UsageRecord, ContextManagementType), ID types (AgentSessionId, BranchId, TurnId), repository interfaces (AgentSessionRepository, FactRepository, SummaryRepository), domain service interfaces (SessionService, BranchService, ChatService, UsageQueryService), ports (LlmPort, ContextManager), application use cases (SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService), domain events (DomainEventPublisher, DomainEventHandler), DomainError (Arrow Either)
 
 ### Layer 1 — Data (`modules/data/*`)
-- **open-router-service** — OpenRouter HTTP client, request/response models, DSL
-- **session-repository-exposed** — SessionRepository implementation (Exposed + SQLite)
-- **turn-repository-exposed** — TurnRepository implementation
-- **token-repository-exposed** — TokenRepository implementation
-- **cost-repository-exposed** — CostRepository implementation
+- **open-router-service** — OpenRouter HTTP client (LlmPort implementation), request/response models
+- **session-repository-exposed** — AgentSessionRepository implementation (Exposed + SQLite). Single access point to AgentSession aggregate (sessions, branches, turns)
+- **fact-repository-exposed** — FactRepository implementation (Exposed + SQLite)
+- **summary-repository-exposed** — SummaryRepository implementation (Exposed + SQLite)
 
 ### Layer 2 — Domain (`modules/domain/*`)
-- **ai-agent** — OpenRouterAgent (Agent facade implementation), delegates to repositories
-- **context-manager** — Context management: compression, summarization, LLM compressor
+- **ai-agent** — Domain service implementations (AiChatService, AiSessionService, AiBranchService, AiUsageQueryService)
+- **context-manager** — ContextPreparationService (ContextManager port implementation), 5 strategies (Passthrough, SlidingWindow, StickyFacts, SummarizeOnThreshold, Branching), LlmContextCompressor, LlmFactExtractor, SessionDeletedCleanupHandler (domain event handler)
 
 ### Layer 3 — Presentation (`modules/presentation/*`)
 - **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through Agent interface.
@@ -59,8 +57,17 @@ No module may depend on a module above it.
 - Koin 4.1.0 (DI)
 - Arrow 2.1.2 (functional error handling with Either)
 - Kotlinx Serialization 1.10.0
+- Kotlinx Coroutines 1.10.2
+- Exposed 0.61.0 (SQL framework, SQLite)
+- SLF4J 2.0.17 (logging)
+- Kotlinx Datetime 0.7.1
 
 ## Key Rules
+
+### DDD Audit (mandatory)
+
+- **When adding/modifying domain entities, aggregates, VOs, repositories, services, or events** — you MUST read `architecture/ddd-audit-checklist.md` and validate the change against formal DDD rules before implementation.
+- Every design decision must cite a specific principle (Evans or Vernon), not subjective preference.
 
 ### Dependencies
 
@@ -87,18 +94,22 @@ No module may depend on a module above it.
 ### Repository Naming
 
 - **Repository interfaces MUST be named `{DomainModel}Repository`** where `{DomainModel}` is the exact name of the domain model class they persist.
-- Examples: `AgentSession` → `AgentSessionRepository`, `Turn` → `TurnRepository`, `ContextManagementType` → `ContextManagementTypeRepository`.
+- Examples: `AgentSession` → `AgentSessionRepository`, `Fact` → `FactRepository`, `Summary` → `SummaryRepository`.
 
-### Error Handling
+### Error Handling (Arrow Either)
 
-- Use Arrow `Either<AgentError, T>` at domain boundaries (Agent interface).
-- No try/catch in presentation layer — pattern-match on Either.
+- Use Arrow `Either<DomainError, T>` at domain boundaries (service interfaces).
+- No `try/catch` in presentation layer.
+- **Before writing or modifying Arrow code**, fetch the latest Arrow documentation via MCP context7 (`resolve-library-id` → `query-docs`) to verify current idiomatic patterns. Arrow API evolves between versions — do not rely on memorized patterns.
+- **Never silently drop errors** — `is Either.Left -> {}` is forbidden. Every error must be surfaced (via `Msg.Error`, logging) or handled with an explicit fallback.
+- Prefer Arrow DSL (`either { }`, `ensure`, `ensureNotNull`, `catch`, `bind`, `fold`, `getOrElse`) over manual `Either.Left/Right` construction and verbose `when` pattern matching.
 
 ### Presentation Layer (compose-ui)
 
 - Decompose `ComponentContext` for lifecycle and navigation.
 - MVIKotlin `Store` (Intent -> Executor -> Msg -> Reducer -> State) for state management.
 - Compose `@Composable` functions only render state — no business logic.
+- Presentation layer calls application use cases (SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase), not domain services directly.
 - `CoroutineExecutor` requires `kotlinx-coroutines-swing` on Desktop for `Dispatchers.Main`.
 
 ### Testing

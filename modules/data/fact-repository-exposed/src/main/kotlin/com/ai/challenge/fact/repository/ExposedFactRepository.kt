@@ -1,8 +1,9 @@
 package com.ai.challenge.fact.repository
 
+import com.ai.challenge.core.context.model.FactKey
+import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactId
 import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.session.AgentSessionId
 import org.jetbrains.exposed.sql.Database
@@ -18,7 +19,25 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
 
     init {
         transaction(database) {
+            migrateFactsTableIfNeeded()
             SchemaUtils.createMissingTablesAndColumns(FactsTable)
+        }
+    }
+
+    private fun migrateFactsTableIfNeeded() {
+        transaction(database) {
+            val columns = exec("PRAGMA table_info(facts)") { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(rs.getString("name") to rs.getString("type"))
+                    }
+                }
+            } ?: emptyList()
+
+            val idColumn = columns.firstOrNull { it.first == "id" }
+            if (idColumn != null && idColumn.second.uppercase() != "INT" && idColumn.second.uppercase() != "INTEGER") {
+                exec("DROP TABLE facts")
+            }
         }
     }
 
@@ -26,11 +45,10 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
         transaction(database) {
             FactsTable.deleteWhere { FactsTable.sessionId eq sessionId.value }
             FactsTable.batchInsert(facts) { fact ->
-                this[FactsTable.id] = fact.id.value
-                this[FactsTable.sessionId] = sessionId.value
+                this[FactsTable.sessionId] = fact.sessionId.value
                 this[FactsTable.category] = fact.category.toStorageString()
-                this[FactsTable.key] = fact.key
-                this[FactsTable.value] = fact.value
+                this[FactsTable.key] = fact.key.value
+                this[FactsTable.value] = fact.value.value
             }
         }
     }
@@ -49,10 +67,10 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
     }
 
     private fun ResultRow.toFact() = Fact(
-        id = FactId(value = this[FactsTable.id]),
+        sessionId = AgentSessionId(value = this[FactsTable.sessionId]),
         category = this[FactsTable.category].toFactCategory(),
-        key = this[FactsTable.key],
-        value = this[FactsTable.value],
+        key = FactKey(value = this[FactsTable.key]),
+        value = FactValue(value = this[FactsTable.value]),
     )
 }
 

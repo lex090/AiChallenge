@@ -1,9 +1,13 @@
 package com.ai.challenge.ui.chat
 
-import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.usage.UsageQueryService
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.store.ChatStore
 import com.ai.challenge.ui.chat.store.ChatStoreFactory
 import com.arkivanov.decompose.ComponentContext
@@ -16,12 +20,23 @@ import kotlinx.coroutines.flow.StateFlow
 class ChatComponent(
     componentContext: ComponentContext,
     storeFactory: StoreFactory,
-    agent: Agent,
+    sendMessageUseCase: SendMessageUseCase,
+    chatService: ChatService,
+    sessionService: SessionService,
+    usageService: UsageQueryService,
+    branchService: BranchService,
     sessionId: AgentSessionId,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {
-        ChatStoreFactory(storeFactory = storeFactory, agent = agent).create()
+        ChatStoreFactory(
+            storeFactory = storeFactory,
+            sendMessageUseCase = sendMessageUseCase,
+            chatService = chatService,
+            sessionService = sessionService,
+            usageService = usageService,
+            branchService = branchService,
+        ).create()
     }
 
     init {
@@ -35,8 +50,8 @@ class ChatComponent(
         store.accept(ChatStore.Intent.SendMessage(text = text))
     }
 
-    fun onCreateBranch(name: String, parentTurnId: TurnId) {
-        store.accept(ChatStore.Intent.CreateBranch(name = name, parentTurnId = parentTurnId))
+    fun onCreateBranch(sourceTurnId: TurnId) {
+        store.accept(ChatStore.Intent.CreateBranch(sourceTurnId = sourceTurnId))
     }
 
     fun onSwitchBranch(branchId: BranchId) {

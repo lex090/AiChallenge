@@ -1,57 +1,66 @@
 package com.ai.challenge.context
 
+import arrow.core.getOrElse
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.model.FactKey
+import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactId
-import com.ai.challenge.llm.OpenRouterService
+import com.ai.challenge.core.llm.LlmPort
+import com.ai.challenge.core.llm.ResponseFormat
+import com.ai.challenge.core.session.AgentSessionId
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class LlmFactExtractor(
-    private val service: OpenRouterService,
-    private val model: String,
+    private val llmPort: LlmPort,
 ) : FactExtractor {
 
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun extract(
+        sessionId: AgentSessionId,
         currentFacts: List<Fact>,
-        newUserMessage: String,
-        lastAssistantResponse: String?,
+        newUserMessage: MessageContent,
+        lastAssistantResponse: MessageContent?,
     ): List<Fact> {
-        val responseText = service.chatText(model = model) {
-            jsonMode = true
-            system(SYSTEM_PROMPT)
+        val messages = buildList {
+            add(ContextMessage(role = MessageRole.System, content = MessageContent(value = SYSTEM_PROMPT)))
             if (currentFacts.isNotEmpty()) {
-                user("Current facts:\n${formatFactsAsJson(facts = currentFacts)}")
+                add(ContextMessage(role = MessageRole.User, content = MessageContent(value = "Current facts:\n${formatFactsAsJson(facts = currentFacts)}")))
             }
             if (lastAssistantResponse != null) {
-                assistant(lastAssistantResponse)
+                add(ContextMessage(role = MessageRole.Assistant, content = lastAssistantResponse))
             }
-            user(newUserMessage)
-            user("Extract and return the updated facts as a JSON array.")
+            add(ContextMessage(role = MessageRole.User, content = newUserMessage))
+            add(ContextMessage(role = MessageRole.User, content = MessageContent(value = "Extract and return the updated facts as a JSON array.")))
         }
-        return parseFacts(responseText = responseText, fallback = currentFacts)
+
+        val response = llmPort.complete(messages = messages, responseFormat = ResponseFormat.Json)
+            .getOrElse { return currentFacts }
+        return parseFacts(sessionId = sessionId, responseText = response.content.value, fallback = currentFacts)
     }
 
     private fun formatFactsAsJson(facts: List<Fact>): String {
         val entries = facts.joinToString(",\n  ") { fact ->
-            """{"category":"${fact.category.name}","key":"${fact.key}","value":"${fact.value}"}"""
+            """{"category":"${fact.category.name}","key":"${fact.key.value}","value":"${fact.value.value}"}"""
         }
         return "[\n  $entries\n]"
     }
 
-    private fun parseFacts(responseText: String, fallback: List<Fact>): List<Fact> =
+    private fun parseFacts(sessionId: AgentSessionId, responseText: String, fallback: List<Fact>): List<Fact> =
         try {
             json.parseToJsonElement(responseText).jsonArray.map { element ->
                 val obj = element.jsonObject
                 Fact(
-                    id = FactId.generate(),
+                    sessionId = sessionId,
                     category = parseCategory(category = obj["category"]!!.jsonPrimitive.content),
-                    key = obj["key"]!!.jsonPrimitive.content,
-                    value = obj["value"]!!.jsonPrimitive.content,
+                    key = FactKey(value = obj["key"]!!.jsonPrimitive.content),
+                    value = FactValue(value = obj["value"]!!.jsonPrimitive.content),
                 )
             }
         } catch (_: Exception) {

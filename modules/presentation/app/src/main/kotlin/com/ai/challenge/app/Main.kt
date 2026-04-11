@@ -4,7 +4,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.ai.challenge.app.di.appModule
-import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.usage.UsageQueryService
+import com.ai.challenge.core.usecase.ApplicationInitService
+import com.ai.challenge.core.usecase.CreateSessionUseCase
+import com.ai.challenge.core.usecase.DeleteSessionUseCase
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
 import com.arkivanov.decompose.DefaultComponentContext
@@ -24,7 +31,14 @@ fun main() {
         RootComponent(
             componentContext = DefaultComponentContext(lifecycle = lifecycle),
             storeFactory = DefaultStoreFactory(),
-            agent = koin.get<Agent>(),
+            sessionService = koin.get<SessionService>(),
+            chatService = koin.get<ChatService>(),
+            usageService = koin.get<UsageQueryService>(),
+            branchService = koin.get<BranchService>(),
+            sendMessageUseCase = koin.get<SendMessageUseCase>(),
+            createSessionUseCase = koin.get<CreateSessionUseCase>(),
+            deleteSessionUseCase = koin.get<DeleteSessionUseCase>(),
+            applicationInitService = koin.get<ApplicationInitService>(),
         )
     }
 

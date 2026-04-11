@@ -1,22 +1,16 @@
 package com.ai.challenge.context
 
-import com.ai.challenge.core.turn.Turn
-import com.ai.challenge.llm.OpenRouterService
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.engine.mock.toByteArray
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import arrow.core.Either
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.error.DomainError
+import com.ai.challenge.core.llm.LlmPort
+import com.ai.challenge.core.llm.LlmResponse
+import com.ai.challenge.core.llm.ResponseFormat
+import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.usage.model.UsageRecord
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -25,46 +19,72 @@ class LlmContextCompressorTest {
 
     @Test
     fun `compress sends conversation to LLM and returns summary text`() = runTest {
-        var capturedBody: String? = null
-        val mockEngine = MockEngine { request ->
-            capturedBody = request.body.toByteArray().decodeToString()
-            respond(
-                content = """{"choices":[{"index":0,"message":{"role":"assistant","content":"This is a summary."}}]}""",
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+        val fakeLlm = FakeCompressorLlmPort(response = Either.Right(
+            value = LlmResponse(
+                content = MessageContent(value = "This is a summary."),
+                usage = UsageRecord.ZERO,
             )
-        }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = false }) }
-        }
-        val service = OpenRouterService(apiKey = "test-key", client = client)
-        val compressor = LlmContextCompressor(service = service, model = "test-model")
+        ))
+        val compressor = LlmContextCompressor(llmPort = fakeLlm)
 
+        val sessionId = AgentSessionId(value = "test-session")
         val turns = listOf(
-            Turn(userMessage = "Hello", agentResponse = "Hi there!"),
-            Turn(userMessage = "How are you?", agentResponse = "I'm fine!"),
+            createTestTurn(sessionId = sessionId, userMessage = "Hello", assistantMessage = "Hi there!"),
+            createTestTurn(sessionId = sessionId, userMessage = "How are you?", assistantMessage = "I'm fine!"),
         )
 
-        val result = compressor.compress(turns)
+        val result = compressor.compress(turns = turns, previousSummary = null)
 
-        assertEquals("This is a summary.", result)
+        assertEquals("This is a summary.", result.value)
 
-        val json = Json.parseToJsonElement(capturedBody!!).jsonObject
-        val messages = json["messages"]!!.jsonArray
+        val messages = fakeLlm.lastMessages!!
 
         // system + 2 user + 2 assistant + final user instruction = 6
         assertEquals(6, messages.size)
-        assertEquals("system", messages[0].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("user", messages[1].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Hello", messages[1].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("assistant", messages[2].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("Hi there!", messages[2].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("user", messages[3].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("How are you?", messages[3].jsonObject["content"]!!.jsonPrimitive.content)
-        assertEquals("assistant", messages[4].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals("I'm fine!", messages[4].jsonObject["content"]!!.jsonPrimitive.content)
+        assertEquals(MessageRole.System, messages[0].role)
+        assertEquals(MessageRole.User, messages[1].role)
+        assertEquals(MessageContent(value = "Hello"), messages[1].content)
+        assertEquals(MessageRole.Assistant, messages[2].role)
+        assertEquals(MessageContent(value = "Hi there!"), messages[2].content)
+        assertEquals(MessageRole.User, messages[3].role)
+        assertEquals(MessageContent(value = "How are you?"), messages[3].content)
+        assertEquals(MessageRole.Assistant, messages[4].role)
+        assertEquals(MessageContent(value = "I'm fine!"), messages[4].content)
         // Last message is the summarization instruction
-        assertEquals("user", messages[5].jsonObject["role"]!!.jsonPrimitive.content)
-        assertTrue(messages[5].jsonObject["content"]!!.jsonPrimitive.content.contains("summary"))
+        assertEquals(MessageRole.User, messages[5].role)
+        assertTrue(messages[5].content.value.contains("summary"))
+    }
+
+    @Test
+    fun `compress returns fallback when LLM returns error`() = runTest {
+        val fakeLlm = FakeCompressorLlmPort(response = Either.Left(
+            value = DomainError.NetworkError(message = "Connection refused"),
+        ))
+        val compressor = LlmContextCompressor(llmPort = fakeLlm)
+
+        val sessionId = AgentSessionId(value = "test-session")
+        val turns = listOf(
+            createTestTurn(sessionId = sessionId, userMessage = "Hello", assistantMessage = "Hi!"),
+        )
+
+        val result = compressor.compress(turns = turns, previousSummary = null)
+
+        assertEquals("Summary unavailable", result.value)
+    }
+}
+
+private class FakeCompressorLlmPort(
+    private val response: Either<DomainError, LlmResponse>,
+) : LlmPort {
+    var lastMessages: List<ContextMessage>? = null
+    var lastResponseFormat: ResponseFormat? = null
+
+    override suspend fun complete(
+        messages: List<ContextMessage>,
+        responseFormat: ResponseFormat,
+    ): Either<DomainError, LlmResponse> {
+        lastMessages = messages
+        lastResponseFormat = responseFormat
+        return response
     }
 }

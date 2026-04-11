@@ -1,19 +1,31 @@
 package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.Agent
-import com.ai.challenge.core.agent.AgentError
-import com.ai.challenge.core.agent.AgentResponse
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.branch.TurnSequence
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.core.error.DomainError
+import com.ai.challenge.core.event.DomainEvent
+import com.ai.challenge.core.event.DomainEventPublisher
 import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.token.TokenDetails
+import com.ai.challenge.core.shared.CreatedAt
+import com.ai.challenge.core.shared.UpdatedAt
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.usage.UsageQueryService
+import com.ai.challenge.core.usage.model.Cost
+import com.ai.challenge.core.usage.model.TokenCount
+import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.model.UiMessage
+import kotlin.time.Clock
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -21,6 +33,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import java.math.BigDecimal
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -39,30 +52,69 @@ class ChatStoreTest {
     @AfterTest
     fun tearDown() { Dispatchers.resetMain() }
 
-    private fun createStore(agent: Agent = FakeAgent()): ChatStore =
-        ChatStoreFactory(DefaultStoreFactory(), agent).create()
+    private fun createStore(
+        sendMessageUseCase: SendMessageUseCase,
+        chatService: ChatService,
+        sessionService: SessionService,
+        usageService: UsageQueryService,
+        branchService: BranchService,
+    ): ChatStore =
+        ChatStoreFactory(
+            storeFactory = DefaultStoreFactory(),
+            sendMessageUseCase = sendMessageUseCase,
+            chatService = chatService,
+            sessionService = sessionService,
+            usageService = usageService,
+            branchService = branchService,
+        ).create()
+
+    private fun createStoreWithFake(fake: FakeServices): ChatStore {
+        val sendMessageUseCase = SendMessageUseCase(
+            chatService = fake,
+            sessionService = fake,
+            eventPublisher = NoOpDomainEventPublisher(),
+        )
+        return createStore(
+            sendMessageUseCase = sendMessageUseCase,
+            chatService = fake,
+            sessionService = fake,
+            usageService = fake,
+            branchService = fake,
+        )
+    }
 
     @Test
     fun `initial state is empty with no session`() {
-        val store = createStore()
+        val fake = FakeServices()
+        val store = createStoreWithFake(fake = fake)
         assertEquals(emptyList(), store.state.messages)
         assertFalse(store.state.isLoading)
         assertNull(store.state.sessionId)
-        assertEquals(emptyMap(), store.state.turnTokens)
-        assertEquals(emptyMap(), store.state.turnCosts)
-        assertEquals(TokenDetails(), store.state.sessionTokens)
-        assertEquals(CostDetails(), store.state.sessionCosts)
+        assertEquals(emptyMap(), store.state.turnUsage)
+        assertEquals(emptyUsage(), store.state.sessionUsage)
         store.dispose()
     }
 
     @Test
     fun `LoadSession sets sessionId and loads history as UiMessages`() = runTest {
-        val agent = FakeAgent()
-        val sessionId = agent.createSession()
-        agent.appendTurnDirect(sessionId, Turn(userMessage = "hi", agentResponse = "hello"))
-        val store = createStore(agent)
+        val fake = FakeServices()
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
+        val turnId = TurnId.generate()
+        fake.appendTurnDirect(
+            sessionId = sessionId,
+            turn = Turn(
+                id = turnId,
+                sessionId = sessionId,
+                userMessage = MessageContent(value = "hi"),
+                assistantMessage = MessageContent(value = "hello"),
+                usage = emptyUsage(),
+                createdAt = CreatedAt(value = Clock.System.now()),
+            ),
+        )
+        val store = createStoreWithFake(fake = fake)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
 
         assertEquals(sessionId, store.state.sessionId)
@@ -77,11 +129,12 @@ class ChatStoreTest {
     @Test
     fun `SendMessage adds user message and agent response`() = runTest {
         val turnId = TurnId.generate()
-        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("Hello from agent!", turnId, TokenDetails(), CostDetails())))
-        val sessionId = agent.createSession()
-        val store = createStore(agent)
+        val fake = FakeServices(sendTurnId = turnId, sendAssistantMessage = "Hello from agent!")
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
+        val store = createStoreWithFake(fake = fake)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hi"))
         advanceUntilIdle()
@@ -98,41 +151,50 @@ class ChatStoreTest {
 
     @Test
     fun `SendMessage adds error message on agent failure`() = runTest {
-        val agent = FakeAgent(sendResult = Either.Left(AgentError.NetworkError("Timeout")))
-        val sessionId = agent.createSession()
-        val store = createStore(agent)
+        val fake = FakeServices(sendError = DomainError.NetworkError(message = "Timeout"))
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
+        val store = createStoreWithFake(fake = fake)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hi"))
         advanceUntilIdle()
 
         val messages = store.state.messages
         assertEquals(2, messages.size)
-        assertEquals(UiMessage("Hi", isUser = true), messages[0])
-        assertEquals(UiMessage("Timeout", isUser = false, isError = true), messages[1])
+        assertEquals(UiMessage(text = "Hi", isUser = true), messages[0])
+        assertEquals(UiMessage(text = "Timeout", isUser = false, isError = true), messages[1])
         assertFalse(store.state.isLoading)
         store.dispose()
     }
 
     @Test
-    fun `SendMessage populates turnTokens, turnCosts, sessionTokens, sessionCosts`() = runTest {
+    fun `SendMessage populates turnUsage and sessionUsage`() = runTest {
         val turnId = TurnId.generate()
-        val tokens = TokenDetails(promptTokens = 100, completionTokens = 50)
-        val costs = CostDetails(totalCost = 0.001)
-        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("Hi!", turnId, tokens, costs)))
-        val sessionId = agent.createSession()
-        val store = createStore(agent)
+        val usage = UsageRecord(
+            promptTokens = TokenCount(value = 100),
+            completionTokens = TokenCount(value = 50),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal("0.001")),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
+        val fake = FakeServices(sendTurnId = turnId, sendAssistantMessage = "Hi!", sendUsage = usage)
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
+        val store = createStoreWithFake(fake = fake)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hello"))
         advanceUntilIdle()
 
-        assertEquals(tokens, store.state.turnTokens[turnId])
-        assertEquals(costs, store.state.turnCosts[turnId])
-        assertEquals(tokens, store.state.sessionTokens)
-        assertEquals(costs, store.state.sessionCosts)
+        assertEquals(usage, store.state.turnUsage[turnId])
+        assertEquals(usage, store.state.sessionUsage)
         store.dispose()
     }
 
@@ -140,138 +202,296 @@ class ChatStoreTest {
     fun `SendMessage accumulates session metrics across multiple turns`() = runTest {
         val turnId1 = TurnId.generate()
         val turnId2 = TurnId.generate()
-        val tokens1 = TokenDetails(promptTokens = 100, completionTokens = 50)
-        val costs1 = CostDetails(totalCost = 0.001)
-        val tokens2 = TokenDetails(promptTokens = 200, completionTokens = 100)
-        val costs2 = CostDetails(totalCost = 0.002)
+        val usage1 = UsageRecord(
+            promptTokens = TokenCount(value = 100),
+            completionTokens = TokenCount(value = 50),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal("0.001")),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
+        val usage2 = UsageRecord(
+            promptTokens = TokenCount(value = 200),
+            completionTokens = TokenCount(value = 100),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal("0.002")),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
 
         var callCount = 0
-        val agent = object : FakeAgent() {
-            override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> {
+        val fake = object : FakeServices() {
+            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
                 callCount++
-                return if (callCount == 1) Either.Right(AgentResponse("r1", turnId1, tokens1, costs1))
-                else Either.Right(AgentResponse("r2", turnId2, tokens2, costs2))
+                val turnId = if (callCount == 1) turnId1 else turnId2
+                val usage = if (callCount == 1) usage1 else usage2
+                val response = if (callCount == 1) "r1" else "r2"
+                val turn = Turn(
+                    id = turnId,
+                    sessionId = sessionId,
+                    userMessage = message,
+                    assistantMessage = MessageContent(value = response),
+                    usage = usage,
+                    createdAt = CreatedAt(value = Clock.System.now()),
+                )
+                appendTurnDirect(sessionId = sessionId, turn = turn)
+                recordUsageDirect(turnId = turnId, sessionId = sessionId, usage = usage)
+                return Either.Right(value = turn)
             }
         }
-        val sessionId = agent.createSession()
-        val store = createStore(agent)
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
+        val store = createStoreWithFake(fake = fake)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hello"))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Again"))
         advanceUntilIdle()
 
-        assertEquals(tokens1 + tokens2, store.state.sessionTokens)
-        assertEquals(costs1 + costs2, store.state.sessionCosts)
-        assertEquals(2, store.state.turnTokens.size)
+        assertEquals(usage1 + usage2, store.state.sessionUsage)
+        assertEquals(2, store.state.turnUsage.size)
         store.dispose()
     }
 
     @Test
-    fun `LoadSession loads token and cost data from agent`() = runTest {
-        val agent = FakeAgent()
-        val sessionId = agent.createSession()
+    fun `LoadSession loads usage data from service`() = runTest {
+        val fake = FakeServices()
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
 
-        val turn1 = Turn(userMessage = "a", agentResponse = "b")
-        val turn2 = Turn(userMessage = "c", agentResponse = "d")
-        val turnId1 = agent.appendTurnDirect(sessionId, turn1)
-        val turnId2 = agent.appendTurnDirect(sessionId, turn2)
-        agent.recordTokensDirect(sessionId, turnId1, TokenDetails(promptTokens = 10, completionTokens = 5))
-        agent.recordTokensDirect(sessionId, turnId2, TokenDetails(promptTokens = 20, completionTokens = 10))
-        agent.recordCostsDirect(sessionId, turnId1, CostDetails(totalCost = 0.001))
-        agent.recordCostsDirect(sessionId, turnId2, CostDetails(totalCost = 0.002))
+        val turnId1 = TurnId.generate()
+        val turnId2 = TurnId.generate()
+        val usage1 = UsageRecord(
+            promptTokens = TokenCount(value = 10),
+            completionTokens = TokenCount(value = 5),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal("0.001")),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
+        val usage2 = UsageRecord(
+            promptTokens = TokenCount(value = 20),
+            completionTokens = TokenCount(value = 10),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal("0.002")),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
 
-        val store = createStore(agent)
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        fake.appendTurnDirect(
+            sessionId = sessionId,
+            turn = Turn(
+                id = turnId1,
+                sessionId = sessionId,
+                userMessage = MessageContent(value = "a"),
+                assistantMessage = MessageContent(value = "b"),
+                usage = usage1,
+                createdAt = CreatedAt(value = Clock.System.now()),
+            ),
+        )
+        fake.appendTurnDirect(
+            sessionId = sessionId,
+            turn = Turn(
+                id = turnId2,
+                sessionId = sessionId,
+                userMessage = MessageContent(value = "c"),
+                assistantMessage = MessageContent(value = "d"),
+                usage = usage2,
+                createdAt = CreatedAt(value = Clock.System.now()),
+            ),
+        )
+        fake.recordUsageDirect(turnId = turnId1, sessionId = sessionId, usage = usage1)
+        fake.recordUsageDirect(turnId = turnId2, sessionId = sessionId, usage = usage2)
+
+        val store = createStoreWithFake(fake = fake)
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
 
-        assertEquals(TokenDetails(promptTokens = 10, completionTokens = 5), store.state.turnTokens[turnId1])
-        assertEquals(TokenDetails(promptTokens = 20, completionTokens = 10), store.state.turnTokens[turnId2])
-        assertEquals(TokenDetails(promptTokens = 30, completionTokens = 15), store.state.sessionTokens)
-        assertEquals(CostDetails(totalCost = 0.003), store.state.sessionCosts)
+        assertEquals(usage1, store.state.turnUsage[turnId1])
+        assertEquals(usage2, store.state.turnUsage[turnId2])
+        assertEquals(usage1 + usage2, store.state.sessionUsage)
         store.dispose()
     }
 
     @Test
     fun `SendMessage auto-titles session on first message`() = runTest {
-        val agent = FakeAgent(sendResult = Either.Right(AgentResponse("response", TurnId.generate(), TokenDetails(), CostDetails())))
-        val sessionId = agent.createSession()
-        val store = createStore(agent)
+        val fake = FakeServices(sendAssistantMessage = "response")
+        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val sessionId = session.id
+        val store = createStoreWithFake(fake = fake)
 
-        store.accept(ChatStore.Intent.LoadSession(sessionId))
+        store.accept(ChatStore.Intent.LoadSession(sessionId = sessionId))
         advanceUntilIdle()
         store.accept(ChatStore.Intent.SendMessage("Hello world, this is a long message for auto-title testing purposes"))
         advanceUntilIdle()
 
-        val title = agent.getSession(sessionId)?.title ?: ""
+        val title = when (val r = fake.get(id = sessionId)) {
+            is Either.Right -> r.value.title.value
+            is Either.Left -> ""
+        }
         assertEquals("Hello world, this is a long message for auto-title", title)
         store.dispose()
     }
 }
 
-open class FakeAgent(
-    private val sendResult: Either<AgentError, AgentResponse> = Either.Right(AgentResponse("", TurnId.generate(), TokenDetails(), CostDetails())),
-) : Agent {
+private fun emptyUsage(): UsageRecord = UsageRecord(
+    promptTokens = TokenCount(value = 0),
+    completionTokens = TokenCount(value = 0),
+    cachedTokens = TokenCount(value = 0),
+    cacheWriteTokens = TokenCount(value = 0),
+    reasoningTokens = TokenCount(value = 0),
+    totalCost = Cost(value = BigDecimal.ZERO),
+    upstreamCost = Cost(value = BigDecimal.ZERO),
+    upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+    upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+)
+
+private class NoOpDomainEventPublisher : DomainEventPublisher {
+    override suspend fun publish(event: DomainEvent) {}
+}
+
+open class FakeServices(
+    private val sendTurnId: TurnId = TurnId.generate(),
+    private val sendAssistantMessage: String = "",
+    private val sendUsage: UsageRecord = emptyUsage(),
+    private val sendError: DomainError? = null,
+) : ChatService, SessionService, UsageQueryService, BranchService {
+
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
-    private val tokenData = ConcurrentHashMap<TurnId, Pair<AgentSessionId, TokenDetails>>()
-    private val costData = ConcurrentHashMap<TurnId, Pair<AgentSessionId, CostDetails>>()
+    private val usageData = ConcurrentHashMap<TurnId, Pair<AgentSessionId, UsageRecord>>()
+    private val mainBranches = ConcurrentHashMap<AgentSessionId, BranchId>()
 
-    override suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse> = sendResult
-    override suspend fun createSession(title: String): AgentSessionId {
+    // -- ChatService --
+
+    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
+        if (sendError != null) return Either.Left(value = sendError)
+        val turn = Turn(
+            id = sendTurnId,
+            sessionId = sessionId,
+            userMessage = message,
+            assistantMessage = MessageContent(value = sendAssistantMessage),
+            usage = sendUsage,
+            createdAt = CreatedAt(value = Clock.System.now()),
+        )
+        appendTurnDirect(sessionId = sessionId, turn = turn)
+        recordUsageDirect(turnId = sendTurnId, sessionId = sessionId, usage = sendUsage)
+        return Either.Right(value = turn)
+    }
+
+    // -- SessionService --
+
+    override suspend fun create(title: SessionTitle): Either<DomainError, AgentSession> {
         val id = AgentSessionId.generate()
-        sessions[id] = AgentSession(id = id, title = title)
-        return id
+        val mainBranchId = BranchId.generate()
+        val now = Clock.System.now()
+        val session = AgentSession(
+            id = id,
+            title = title,
+            contextManagementType = ContextManagementType.None,
+            createdAt = CreatedAt(value = now),
+            updatedAt = UpdatedAt(value = now),
+        )
+        sessions[id] = session
+        mainBranches[id] = mainBranchId
+        return Either.Right(value = session)
     }
-    override suspend fun deleteSession(id: AgentSessionId): Boolean = sessions.remove(id) != null
-    override suspend fun listSessions(): List<AgentSession> = sessions.values.toList()
-    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessions[id]
-    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) {
-        sessions.computeIfPresent(id) { _, s -> s.copy(title = title) }
+
+    override suspend fun get(id: AgentSessionId): Either<DomainError, AgentSession> {
+        val session = sessions[id]
+            ?: return Either.Left(value = DomainError.SessionNotFound(id = id))
+        return Either.Right(value = session)
     }
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> {
-        val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.timestamp }
-        return if (limit != null && all.size > limit) all.takeLast(limit) else all
+
+    override suspend fun delete(id: AgentSessionId): Either<DomainError, Unit> {
+        sessions.remove(id)
+        return Either.Right(value = Unit)
     }
-    override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenData[turnId]?.second
-    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
-        tokenData.filter { it.value.first == sessionId }.mapValues { it.value.second }
-    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails =
-        getTokensBySession(sessionId).values.fold(TokenDetails()) { acc, t -> acc + t }
-    override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costData[turnId]?.second
-    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
-        costData.filter { it.value.first == sessionId }.mapValues { it.value.second }
-    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails =
-        getCostBySession(sessionId).values.fold(CostDetails()) { acc, c -> acc + c }
-    override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
-        Either.Right(ContextManagementType.None)
-    override suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit> =
-        Either.Right(value = Unit)
-    override suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId, fromBranchId: BranchId): Either<AgentError, BranchId> =
-        Either.Left(value = AgentError.ApiError(message = "Not implemented"))
-    override suspend fun deleteBranch(branchId: BranchId): Either<AgentError, Unit> =
-        Either.Left(value = AgentError.ApiError(message = "Not implemented"))
-    override suspend fun getBranches(sessionId: AgentSessionId): Either<AgentError, List<Branch>> =
-        Either.Right(value = emptyList())
-    override suspend fun switchBranch(sessionId: AgentSessionId, branchId: BranchId): Either<AgentError, Unit> =
-        Either.Left(value = AgentError.ApiError(message = "Not implemented"))
-    override suspend fun getActiveBranch(sessionId: AgentSessionId): Either<AgentError, Branch?> =
-        Either.Right(value = null)
-    override suspend fun getActiveBranchTurns(sessionId: AgentSessionId): Either<AgentError, List<Turn>> =
-        Either.Right(value = getTurns(sessionId = sessionId))
-    override suspend fun getBranchParentMap(sessionId: AgentSessionId): Either<AgentError, Map<BranchId, BranchId?>> =
-        Either.Right(value = emptyMap())
+
+    override suspend fun list(): Either<DomainError, List<AgentSession>> =
+        Either.Right(value = sessions.values.toList())
+
+    override suspend fun updateTitle(id: AgentSessionId, title: SessionTitle): Either<DomainError, AgentSession> {
+        val session = sessions[id]
+            ?: return Either.Left(value = DomainError.SessionNotFound(id = id))
+        val updated = session.withUpdatedTitle(newTitle = title)
+        sessions[id] = updated
+        return Either.Right(value = updated)
+    }
+
+    override suspend fun updateContextManagementType(id: AgentSessionId, type: ContextManagementType): Either<DomainError, AgentSession> {
+        val session = sessions[id]
+            ?: return Either.Left(value = DomainError.SessionNotFound(id = id))
+        val updated = session.withContextManagementType(type = type)
+        sessions[id] = updated
+        return Either.Right(value = updated)
+    }
+
+    // -- UsageQueryService --
+
+    override suspend fun getByTurn(turnId: TurnId): Either<DomainError, UsageRecord> {
+        val record = usageData[turnId]?.second
+            ?: return Either.Left(value = DomainError.TurnNotFound(id = turnId))
+        return Either.Right(value = record)
+    }
+
+    override suspend fun getBySession(sessionId: AgentSessionId): Either<DomainError, Map<TurnId, UsageRecord>> =
+        Either.Right(value = usageData.filter { it.value.first == sessionId }.mapValues { it.value.second })
+
+    override suspend fun getSessionTotal(sessionId: AgentSessionId): Either<DomainError, UsageRecord> {
+        val records = usageData.filter { it.value.first == sessionId }.mapValues { it.value.second }
+        return Either.Right(value = records.values.fold(emptyUsage()) { acc, u -> acc + u })
+    }
+
+    // -- BranchService --
+
+    override suspend fun create(sessionId: AgentSessionId, sourceTurnId: TurnId, fromBranchId: BranchId): Either<DomainError, Branch> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun delete(branchId: BranchId): Either<DomainError, Unit> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun getAll(sessionId: AgentSessionId): Either<DomainError, List<Branch>> {
+        val branchId = mainBranches[sessionId] ?: return Either.Right(value = emptyList())
+        val branch = Branch(
+            id = branchId,
+            sessionId = sessionId,
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = turns.values.filter { it.first == sessionId }.map { it.second.id }),
+            createdAt = CreatedAt(value = Clock.System.now()),
+        )
+        return Either.Right(value = listOf(branch))
+    }
+
+    override suspend fun getTurns(branchId: BranchId): Either<DomainError, List<Turn>> {
+        val sessionId = mainBranches.entries.firstOrNull { it.value == branchId }?.key
+            ?: return Either.Right(value = emptyList())
+        val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.createdAt.value }
+        return Either.Right(value = all)
+    }
+
+    // -- Direct helpers for tests --
 
     fun appendTurnDirect(sessionId: AgentSessionId, turn: Turn): TurnId {
         turns[turn.id] = sessionId to turn
         return turn.id
     }
-    fun recordTokensDirect(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) {
-        tokenData[turnId] = sessionId to details
-    }
-    fun recordCostsDirect(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) {
-        costData[turnId] = sessionId to details
+
+    fun recordUsageDirect(turnId: TurnId, sessionId: AgentSessionId, usage: UsageRecord) {
+        usageData[turnId] = sessionId to usage
     }
 }

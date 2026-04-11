@@ -1,12 +1,16 @@
 package com.ai.challenge.summary.repository
 
+import com.ai.challenge.core.context.model.SummaryContent
+import com.ai.challenge.core.context.model.TurnIndex
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.shared.CreatedAt
 import com.ai.challenge.core.summary.Summary
-import com.ai.challenge.core.summary.SummaryId
 import com.ai.challenge.core.summary.SummaryRepository
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -16,19 +20,36 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
 
     init {
         transaction(database) {
+            migrateSummariesTableIfNeeded()
             SchemaUtils.createMissingTablesAndColumns(SummariesTable)
         }
     }
 
-    override suspend fun save(sessionId: AgentSessionId, summary: Summary) {
+    private fun migrateSummariesTableIfNeeded() {
+        transaction(database) {
+            val columns = exec("PRAGMA table_info(summaries)") { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(rs.getString("name") to rs.getString("type"))
+                    }
+                }
+            } ?: emptyList()
+
+            val idColumn = columns.firstOrNull { it.first == "id" }
+            if (idColumn != null && idColumn.second.uppercase() != "INT" && idColumn.second.uppercase() != "INTEGER") {
+                exec("DROP TABLE summaries")
+            }
+        }
+    }
+
+    override suspend fun save(summary: Summary) {
         transaction(database) {
             SummariesTable.insert {
-                it[id] = summary.id.value
-                it[SummariesTable.sessionId] = sessionId.value
-                it[text] = summary.text
-                it[fromTurnIndex] = summary.fromTurnIndex
-                it[toTurnIndex] = summary.toTurnIndex
-                it[createdAt] = summary.createdAt.toEpochMilliseconds()
+                it[sessionId] = summary.sessionId.value
+                it[text] = summary.content.value
+                it[fromTurnIndex] = summary.fromTurnIndex.value
+                it[toTurnIndex] = summary.toTurnIndex.value
+                it[createdAt] = summary.createdAt.value.toEpochMilliseconds()
             }
         }
     }
@@ -39,11 +60,17 @@ class ExposedSummaryRepository(private val database: Database) : SummaryReposito
             .map { it.toSummary() }
     }
 
+    override suspend fun deleteBySession(sessionId: AgentSessionId) {
+        transaction(database) {
+            SummariesTable.deleteWhere { SummariesTable.sessionId eq sessionId.value }
+        }
+    }
+
     private fun ResultRow.toSummary() = Summary(
-        id = SummaryId(this[SummariesTable.id]),
-        text = this[SummariesTable.text],
-        fromTurnIndex = this[SummariesTable.fromTurnIndex],
-        toTurnIndex = this[SummariesTable.toTurnIndex],
-        createdAt = Instant.fromEpochMilliseconds(this[SummariesTable.createdAt]),
+        sessionId = AgentSessionId(value = this[SummariesTable.sessionId]),
+        content = SummaryContent(value = this[SummariesTable.text]),
+        fromTurnIndex = TurnIndex(value = this[SummariesTable.fromTurnIndex]),
+        toTurnIndex = TurnIndex(value = this[SummariesTable.toTurnIndex]),
+        createdAt = CreatedAt(value = Instant.fromEpochMilliseconds(this[SummariesTable.createdAt])),
     )
 }

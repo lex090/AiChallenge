@@ -1,7 +1,16 @@
 package com.ai.challenge.ui.root
 
-import com.ai.challenge.core.agent.Agent
+import arrow.core.getOrElse
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.core.usage.UsageQueryService
+import com.ai.challenge.core.usecase.ApplicationInitService
+import com.ai.challenge.core.usecase.CreateSessionUseCase
+import com.ai.challenge.core.usecase.DeleteSessionUseCase
+import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
@@ -25,11 +34,18 @@ import kotlinx.serialization.Serializable
 class RootComponent(
     componentContext: ComponentContext,
     private val storeFactory: StoreFactory,
-    private val agent: Agent,
+    private val sessionService: SessionService,
+    private val chatService: ChatService,
+    private val usageService: UsageQueryService,
+    private val branchService: BranchService,
+    private val sendMessageUseCase: SendMessageUseCase,
+    private val createSessionUseCase: CreateSessionUseCase,
+    private val deleteSessionUseCase: DeleteSessionUseCase,
+    private val applicationInitService: ApplicationInitService,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
-        SessionListStoreFactory(storeFactory, agent).create()
+        SessionListStoreFactory(storeFactory = storeFactory, sessionService = sessionService).create()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -51,15 +67,23 @@ class RootComponent(
 
     init {
         runBlocking {
-            val sessions = agent.listSessions()
-            if (sessions.isEmpty()) {
-                val id = agent.createSession()
-                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                selectSession(id)
-            } else {
-                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                selectSession(sessions.first().id)
-            }
+            applicationInitService.ensureAtLeastOneSession()
+                .fold(
+                    ifLeft = { error -> println("Failed to initialize session: ${error.message}") },
+                    ifRight = { session ->
+                        if (session != null) {
+                            selectSession(sessionId = session.id)
+                        } else {
+                            val firstSession = sessionService.list()
+                                .getOrElse { emptyList() }
+                                .firstOrNull()
+                            if (firstSession != null) {
+                                selectSession(sessionId = firstSession.id)
+                            }
+                        }
+                    },
+                )
+            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
         }
     }
 
@@ -70,9 +94,14 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            val id = agent.createSession()
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-            selectSession(id)
+            createSessionUseCase.execute(title = SessionTitle(value = ""))
+                .fold(
+                    ifLeft = { error -> println("Failed to create session: ${error.message}") },
+                    ifRight = { session ->
+                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                        selectSession(sessionId = session.id)
+                    },
+                )
         }
     }
 
@@ -83,7 +112,7 @@ class RootComponent(
             _settingsComponent.value = SessionSettingsComponent(
                 componentContext = this,
                 storeFactory = storeFactory,
-                agent = agent,
+                sessionService = sessionService,
                 sessionId = sessionId,
             )
         }
@@ -99,18 +128,23 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
-            agent.deleteSession(sessionId)
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+            deleteSessionUseCase.execute(sessionId = sessionId)
+                .fold(
+                    ifLeft = { error -> println("Failed to delete session: ${error.message}") },
+                    ifRight = {
+                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
-            val remaining = agent.listSessions()
-            if (remaining.isEmpty()) {
-                createNewSession()
-            } else {
-                val currentActive = sessionListStore.stateFlow.value.activeSessionId
-                if (currentActive == sessionId) {
-                    selectSession(remaining.first().id)
-                }
-            }
+                        val remaining = sessionService.list().getOrElse { emptyList() }
+                        if (remaining.isEmpty()) {
+                            createNewSession()
+                        } else {
+                            val currentActive = sessionListStore.stateFlow.value.activeSessionId
+                            if (currentActive == sessionId) {
+                                selectSession(sessionId = remaining.first().id)
+                            }
+                        }
+                    },
+                )
         }
     }
 
@@ -120,7 +154,11 @@ class RootComponent(
                 ChatComponent(
                     componentContext = componentContext,
                     storeFactory = storeFactory,
-                    agent = agent,
+                    sendMessageUseCase = sendMessageUseCase,
+                    chatService = chatService,
+                    sessionService = sessionService,
+                    usageService = usageService,
+                    branchService = branchService,
                     sessionId = AgentSessionId(config.sessionId),
                 )
             )

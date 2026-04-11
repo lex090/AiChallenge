@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.settings
 
-import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.settings.store.SessionSettingsStore
@@ -15,12 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 class SessionSettingsComponent(
     componentContext: ComponentContext,
     storeFactory: StoreFactory,
-    agent: Agent,
+    sessionService: SessionService,
     sessionId: AgentSessionId,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {
-        SessionSettingsStoreFactory(storeFactory, agent).create()
+        SessionSettingsStoreFactory(storeFactory = storeFactory, sessionService = sessionService).create()
     }
 
     init {
