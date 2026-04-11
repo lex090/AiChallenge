@@ -3,9 +3,9 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.BranchRepository
 import com.ai.challenge.core.branch.BranchTurnRepository
 import com.ai.challenge.core.context.ContextManager
-import com.ai.challenge.core.context.ContextManager.PreparedContext
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnRepository

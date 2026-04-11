@@ -11,11 +11,11 @@ import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.context.ContextManagementTypeRepository
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
+import com.ai.challenge.core.context.ContextMessage
+import com.ai.challenge.core.context.MessageRole
+import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
-import com.ai.challenge.core.context.ContextManager.PreparedContext
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
-import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.session.AgentSessionRepository
 import com.ai.challenge.core.token.TokenDetails
@@ -350,10 +350,10 @@ private class PassThroughContextManager(
         val history = turnRepo.getBySession(sessionId = sessionId, limit = null)
         val messages = buildList {
             for (turn in history) {
-                add(ContextMessage(MessageRole.User, turn.userMessage))
-                add(ContextMessage(MessageRole.Assistant, turn.agentResponse))
+                add(ContextMessage(role = MessageRole.User, content = turn.userMessage))
+                add(ContextMessage(role = MessageRole.Assistant, content = turn.agentResponse))
             }
-            add(ContextMessage(MessageRole.User, newMessage))
+            add(ContextMessage(role = MessageRole.User, content = newMessage))
         }
         return PreparedContext(
             messages = messages,
