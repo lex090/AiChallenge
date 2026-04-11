@@ -56,6 +56,16 @@ class OpenRouterAgentTest {
     private val contextManagementRepo = FakeContextManagementTypeRepository()
     private val branchRepo = FakeBranchRepository()
 
+    private suspend fun createTestSession(): AgentSessionId {
+        val session = AgentSession(
+            id = AgentSessionId.generate(),
+            title = "",
+            createdAt = Clock.System.now(),
+            updatedAt = Clock.System.now(),
+        )
+        return sessionRepo.save(session = session)
+    }
+
     private fun createMockClient(responseJson: String): HttpClient {
         val mockEngine = MockEngine { _ ->
             respond(
@@ -90,7 +100,7 @@ class OpenRouterAgentTest {
     @Test
     fun `send returns Right with response text on success`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -115,7 +125,7 @@ class OpenRouterAgentTest {
                 "upstream_inference_completions_cost":0.0004
               }
             }""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -130,7 +140,7 @@ class OpenRouterAgentTest {
     @Test
     fun `send returns default details when usage is null`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -145,7 +155,7 @@ class OpenRouterAgentTest {
               "choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}],
               "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
             }""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -162,7 +172,7 @@ class OpenRouterAgentTest {
     @Test
     fun `send saves turn on success`() = runTest {
         val agent = createAgent("""{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         agent.send(sessionId, "Hi")
 
@@ -175,7 +185,7 @@ class OpenRouterAgentTest {
     @Test
     fun `send does not save turn on failure`() = runTest {
         val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         agent.send(sessionId, "Hi")
 
@@ -186,7 +196,7 @@ class OpenRouterAgentTest {
     @Test
     fun `send returns Left ApiError when response has error`() = runTest {
         val agent = createAgent("""{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -213,7 +223,7 @@ class OpenRouterAgentTest {
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
         )
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         val result = agent.send(sessionId, "Hi")
 
@@ -248,7 +258,7 @@ class OpenRouterAgentTest {
             contextManagementRepository = contextManagementRepo,
             branchRepository = branchRepo,
         )
-        val sessionId = sessionRepo.create(title = "")
+        val sessionId = createTestSession()
 
         turnRepo.append(turn = Turn(id = TurnId.generate(), sessionId = sessionId, userMessage = "Hi", agentResponse = "Hello!", timestamp = Clock.System.now()))
 
@@ -271,16 +281,15 @@ class OpenRouterAgentTest {
 private class FakeSessionRepository : AgentSessionRepository {
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
 
-    override suspend fun create(title: String): AgentSessionId {
-        val id = AgentSessionId.generate()
-        sessions[id] = AgentSession(id = id, title = title, createdAt = Clock.System.now(), updatedAt = Clock.System.now())
-        return id
+    override suspend fun save(session: AgentSession): AgentSessionId {
+        sessions[session.id] = session
+        return session.id
     }
     override suspend fun get(id: AgentSessionId): AgentSession? = sessions[id]
     override suspend fun delete(id: AgentSessionId): Boolean = sessions.remove(id) != null
     override suspend fun list(): List<AgentSession> = sessions.values.toList()
-    override suspend fun updateTitle(id: AgentSessionId, title: String) {
-        sessions.computeIfPresent(id) { _, s -> s.copy(title = title) }
+    override suspend fun update(session: AgentSession) {
+        sessions[session.id] = session
     }
 }
 

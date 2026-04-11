@@ -1,5 +1,6 @@
 package com.ai.challenge.session.repository
 
+import com.ai.challenge.core.session.AgentSession
 import com.ai.challenge.core.session.AgentSessionId
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.Database
@@ -10,6 +11,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 
 class ExposedSessionRepositoryTest {
 
@@ -27,13 +29,24 @@ class ExposedSessionRepositoryTest {
         repository = ExposedSessionRepository(database = db)
     }
 
+    private fun createSession(title: String): AgentSession {
+        val now = Clock.System.now()
+        return AgentSession(
+            id = AgentSessionId.generate(),
+            title = title,
+            createdAt = now,
+            updatedAt = now,
+        )
+    }
+
     @Test
-    fun `create and get round-trip`() = runTest {
-        val id = repository.create(title = "Test chat")
-        val session = repository.get(id = id)
-        assertNotNull(actual = session)
-        assertEquals(expected = "Test chat", actual = session.title)
-        assertEquals(expected = id, actual = session.id)
+    fun `save and get round-trip`() = runTest {
+        val session = createSession(title = "Test chat")
+        val id = repository.save(session = session)
+        val loaded = repository.get(id = id)
+        assertNotNull(actual = loaded)
+        assertEquals(expected = "Test chat", actual = loaded.title)
+        assertEquals(expected = id, actual = loaded.id)
     }
 
     @Test
@@ -43,7 +56,8 @@ class ExposedSessionRepositoryTest {
 
     @Test
     fun `delete removes session and returns true`() = runTest {
-        val id = repository.create(title = "")
+        val session = createSession(title = "")
+        val id = repository.save(session = session)
         assertTrue(actual = repository.delete(id = id))
         assertNull(actual = repository.get(id = id))
     }
@@ -55,9 +69,11 @@ class ExposedSessionRepositoryTest {
 
     @Test
     fun `list returns all sessions sorted by updatedAt descending`() = runTest {
-        val id1 = repository.create(title = "First")
+        val session1 = createSession(title = "First")
+        val id1 = repository.save(session = session1)
         Thread.sleep(10)
-        val id2 = repository.create(title = "Second")
+        val session2 = createSession(title = "Second")
+        val id2 = repository.save(session = session2)
 
         val sessions = repository.list()
         assertEquals(expected = 2, actual = sessions.size)
@@ -66,9 +82,11 @@ class ExposedSessionRepositoryTest {
     }
 
     @Test
-    fun `updateTitle changes session title`() = runTest {
-        val id = repository.create(title = "Old")
-        repository.updateTitle(id = id, title = "New")
+    fun `update changes session title`() = runTest {
+        val session = createSession(title = "Old")
+        val id = repository.save(session = session)
+        val loaded = repository.get(id = id)!!
+        repository.update(session = loaded.copy(title = "New", updatedAt = Clock.System.now()))
         assertEquals(expected = "New", actual = repository.get(id = id)?.title)
     }
 }

@@ -87,7 +87,13 @@ class AiAgent(
     }
 
     override suspend fun createSession(title: String): AgentSessionId {
-        val sessionId = sessionRepository.create(title = title)
+        val session = AgentSession(
+            id = AgentSessionId.generate(),
+            title = title,
+            createdAt = Clock.System.now(),
+            updatedAt = Clock.System.now(),
+        )
+        val sessionId = sessionRepository.save(session = session)
         contextManagementRepository.save(sessionId = sessionId, type = ContextManagementType.None)
         return sessionId
     }
@@ -99,7 +105,10 @@ class AiAgent(
 
     override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
     override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id = id)
-    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) = sessionRepository.updateTitle(id = id, title = title)
+    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) {
+        val session = sessionRepository.get(id = id) ?: return
+        sessionRepository.update(session = session.copy(title = title, updatedAt = Clock.System.now()))
+    }
     override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId = sessionId, limit = limit)
     override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId = turnId)
     override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId = sessionId)
