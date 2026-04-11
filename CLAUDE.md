@@ -62,6 +62,11 @@ No module may depend on a module above it.
 
 ## Key Rules
 
+### DDD Audit (mandatory)
+
+- **When adding/modifying domain entities, aggregates, VOs, repositories, services, or events** — you MUST read `architecture/ddd-audit-checklist.md` and validate the change against formal DDD rules before implementation.
+- Every design decision must cite a specific principle (Evans or Vernon), not subjective preference.
+
 ### Dependencies
 
 - **All dependencies MUST go through Gradle Version Catalog** (`gradle/libs.versions.toml`). Never hardcode dependency coordinates directly in `build.gradle.kts` files.
