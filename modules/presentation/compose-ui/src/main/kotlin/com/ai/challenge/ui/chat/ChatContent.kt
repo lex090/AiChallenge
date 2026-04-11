@@ -83,7 +83,7 @@ fun ChatContent(component: ChatComponent) {
                         usage = usage,
                         isBranchingEnabled = state.isBranchingEnabled,
                         onCreateBranch = { turnId ->
-                            component.onCreateBranch(parentTurnId = turnId)
+                            component.onCreateBranch(sourceTurnId = turnId)
                         },
                     )
                 }

@@ -36,6 +36,7 @@ class AiUsageService(
     private suspend fun getAllTurns(sessionId: AgentSessionId): List<Turn> {
         val branches = repository.getBranches(sessionId = sessionId)
         return branches.flatMap { branch -> repository.getTurnsByBranch(branchId = branch.id) }
+            .distinctBy { turn -> turn.id }
     }
 
     companion object {
