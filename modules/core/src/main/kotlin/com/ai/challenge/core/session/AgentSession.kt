@@ -1,6 +1,8 @@
 package com.ai.challenge.core.session
 
 import arrow.core.Either
+import arrow.core.raise.either
+import arrow.core.raise.ensure
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -40,10 +42,9 @@ data class AgentSession(
     fun withContextManagementType(type: ContextManagementType): AgentSession =
         copy(contextManagementType = type, updatedAt = UpdatedAt(value = Clock.System.now()))
 
-    fun ensureBranchDeletable(branch: Branch): Either<DomainError, Unit> =
-        if (branch.isMain) {
-            Either.Left(value = DomainError.MainBranchCannotBeDeleted(sessionId = id))
-        } else {
-            Either.Right(value = Unit)
+    fun ensureBranchDeletable(branch: Branch): Either<DomainError, Unit> = either {
+        ensure(!branch.isMain) {
+            DomainError.MainBranchCannotBeDeleted(sessionId = id)
         }
+    }
 }
