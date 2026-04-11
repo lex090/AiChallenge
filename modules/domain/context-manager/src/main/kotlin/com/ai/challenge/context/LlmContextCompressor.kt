@@ -1,6 +1,6 @@
 package com.ai.challenge.context
 
-import arrow.core.Either
+import arrow.core.getOrElse
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextMessage
 import com.ai.challenge.core.context.MessageRole
@@ -41,10 +41,8 @@ class LlmContextCompressor(
             ))
         }
 
-        val result = llmPort.complete(messages = messages, responseFormat = ResponseFormat.Text)
-        return when (result) {
-            is Either.Right -> SummaryContent(value = result.value.content.value)
-            is Either.Left -> SummaryContent(value = "Summary unavailable")
-        }
+        val response = llmPort.complete(messages = messages, responseFormat = ResponseFormat.Text)
+            .getOrElse { return SummaryContent(value = "Summary unavailable") }
+        return SummaryContent(value = response.content.value)
     }
 }
