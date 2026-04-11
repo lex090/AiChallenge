@@ -1,29 +1,34 @@
 package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
-import com.ai.challenge.core.agent.BranchManager
-import com.ai.challenge.core.agent.ChatAgent
-import com.ai.challenge.core.agent.SessionManager
-import com.ai.challenge.core.agent.UsageTracker
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.chat.BranchService
+import com.ai.challenge.core.chat.ChatService
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.chat.model.BranchName
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.token.TokenDetails
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.model.Cost
+import com.ai.challenge.core.usage.model.TokenCount
+import com.ai.challenge.core.usage.model.UsageRecord
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 
 class ChatStoreFactory(
     private val storeFactory: StoreFactory,
-    private val chatAgent: ChatAgent,
-    private val sessionManager: SessionManager,
-    private val usageTracker: UsageTracker,
-    private val branchManager: BranchManager,
+    private val chatService: ChatService,
+    private val sessionService: SessionService,
+    private val usageService: UsageService,
+    private val branchService: BranchService,
 ) {
     fun create(): ChatStore =
         object : ChatStore,
@@ -31,10 +36,10 @@ class ChatStoreFactory(
                 name = "ChatStore",
                 initialState = ChatStore.State(),
                 executorFactory = { ExecutorImpl(
-                    chatAgent = chatAgent,
-                    sessionManager = sessionManager,
-                    usageTracker = usageTracker,
-                    branchManager = branchManager,
+                    chatService = chatService,
+                    sessionService = sessionService,
+                    usageService = usageService,
+                    branchService = branchService,
                 ) },
                 reducer = ReducerImpl,
             ) {}
@@ -43,17 +48,14 @@ class ChatStoreFactory(
         data class SessionLoaded(
             val sessionId: AgentSessionId,
             val messages: List<UiMessage>,
-            val turnTokens: Map<TurnId, TokenDetails>,
-            val turnCosts: Map<TurnId, CostDetails>,
-            val sessionTokens: TokenDetails,
-            val sessionCosts: CostDetails,
+            val turnUsage: Map<TurnId, UsageRecord>,
+            val sessionUsage: UsageRecord,
         ) : Msg
         data class UserMessage(val text: String) : Msg
         data class AgentResponseMsg(
             val text: String,
             val turnId: TurnId,
-            val tokenDetails: TokenDetails,
-            val costDetails: CostDetails,
+            val usage: UsageRecord,
         ) : Msg
         data class Error(val text: String) : Msg
         data object Loading : Msg
@@ -68,19 +70,17 @@ class ChatStoreFactory(
             val messages: List<UiMessage>,
             val activeBranch: Branch?,
             val branches: List<Branch>,
-            val turnTokens: Map<TurnId, TokenDetails>,
-            val turnCosts: Map<TurnId, CostDetails>,
-            val sessionTokens: TokenDetails,
-            val sessionCosts: CostDetails,
+            val turnUsage: Map<TurnId, UsageRecord>,
+            val sessionUsage: UsageRecord,
             val branchParentMap: Map<BranchId, BranchId?>,
         ) : Msg
     }
 
     private class ExecutorImpl(
-        private val chatAgent: ChatAgent,
-        private val sessionManager: SessionManager,
-        private val usageTracker: UsageTracker,
-        private val branchManager: BranchManager,
+        private val chatService: ChatService,
+        private val sessionService: SessionService,
+        private val usageService: UsageService,
+        private val branchService: BranchService,
     ) : CoroutineExecutor<ChatStore.Intent, Nothing, ChatStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: ChatStore.Intent) {
@@ -96,36 +96,26 @@ class ChatStoreFactory(
 
         private fun handleLoadSession(sessionId: AgentSessionId) {
             scope.launch {
-                val history = when (val r = branchManager.getActiveBranchTurns(sessionId = sessionId)) {
+                val history = when (val r = branchService.getActiveTurns(sessionId = sessionId)) {
                     is Either.Right -> r.value
-                    is Either.Left -> when (val t = sessionManager.getTurns(sessionId = sessionId, limit = null)) {
-                        is Either.Right -> t.value
-                        is Either.Left -> emptyList()
-                    }
+                    is Either.Left -> emptyList()
                 }
                 val messages = history.flatMap { turn ->
                     listOf(
-                        UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
-                        UiMessage(text = turn.agentResponse, isUser = false, turnId = turn.id),
+                        UiMessage(text = turn.userMessage.value, isUser = true, turnId = turn.id),
+                        UiMessage(text = turn.assistantMessage.value, isUser = false, turnId = turn.id),
                     )
                 }
-                val turnTokens = when (val r = usageTracker.getTokensBySession(sessionId = sessionId)) {
+                val turnUsage = when (val r = usageService.getBySession(sessionId = sessionId)) {
                     is Either.Right -> r.value
                     is Either.Left -> emptyMap()
                 }
-                val turnCosts = when (val r = usageTracker.getCostBySession(sessionId = sessionId)) {
-                    is Either.Right -> r.value
-                    is Either.Left -> emptyMap()
-                }
-                val sessionTokens = turnTokens.values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
-                val sessionCosts = turnCosts.values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
+                val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
                 dispatch(Msg.SessionLoaded(
                     sessionId = sessionId,
                     messages = messages,
-                    turnTokens = turnTokens,
-                    turnCosts = turnCosts,
-                    sessionTokens = sessionTokens,
-                    sessionCosts = sessionCosts,
+                    turnUsage = turnUsage,
+                    sessionUsage = sessionUsage,
                 ))
                 handleLoadBranches()
             }
@@ -137,23 +127,25 @@ class ChatStoreFactory(
             dispatch(Msg.Loading)
 
             scope.launch {
-                when (val result = chatAgent.send(sessionId = sessionId, message = text)) {
-                    is Either.Right -> dispatch(
-                        Msg.AgentResponseMsg(
-                            text = result.value.text,
-                            turnId = result.value.turnId,
-                            tokenDetails = result.value.tokenDetails,
-                            costDetails = result.value.costDetails,
+                when (val result = chatService.send(sessionId = sessionId, message = MessageContent(value = text))) {
+                    is Either.Right -> {
+                        val turn = result.value
+                        dispatch(
+                            Msg.AgentResponseMsg(
+                                text = turn.assistantMessage.value,
+                                turnId = turn.id,
+                                usage = turn.usage,
+                            )
                         )
-                    )
+                    }
                     is Either.Left -> dispatch(Msg.Error(text = result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)
 
-                when (val sessionResult = sessionManager.getSession(id = sessionId)) {
+                when (val sessionResult = sessionService.get(id = sessionId)) {
                     is Either.Right -> {
-                        if (sessionResult.value.title.isEmpty()) {
-                            sessionManager.updateSessionTitle(id = sessionId, title = text.take(n = 50))
+                        if (sessionResult.value.title.value.isEmpty()) {
+                            sessionService.updateTitle(id = sessionId, title = SessionTitle(value = text.take(n = 50)))
                         }
                     }
                     is Either.Left -> {}
@@ -165,22 +157,22 @@ class ChatStoreFactory(
         private fun handleLoadBranches() {
             val sessionId = state().sessionId ?: return
             scope.launch {
-                val typeResult = sessionManager.getContextManagementType(sessionId = sessionId)
-                val isBranching = typeResult is Either.Right && typeResult.value is ContextManagementType.Branching
+                val sessionResult = sessionService.get(id = sessionId)
+                val isBranching = sessionResult is Either.Right && sessionResult.value.contextManagementType is ContextManagementType.Branching
                 val branches = if (isBranching) {
-                    when (val r = branchManager.getBranches(sessionId = sessionId)) {
+                    when (val r = branchService.getAll(sessionId = sessionId)) {
                         is Either.Right -> r.value
                         is Either.Left -> emptyList()
                     }
                 } else emptyList()
                 val activeBranch = if (isBranching) {
-                    when (val r = branchManager.getActiveBranch(sessionId = sessionId)) {
+                    when (val r = branchService.getActive(sessionId = sessionId)) {
                         is Either.Right -> r.value
                         is Either.Left -> null
                     }
                 } else null
                 val branchParentMap = if (isBranching) {
-                    when (val r = branchManager.getBranchParentMap(sessionId = sessionId)) {
+                    when (val r = branchService.getParentMap(sessionId = sessionId)) {
                         is Either.Right -> r.value
                         is Either.Left -> emptyMap()
                     }
@@ -198,7 +190,7 @@ class ChatStoreFactory(
             val sessionId = state().sessionId ?: return
             val activeBranch = state().activeBranch ?: return
             scope.launch {
-                when (branchManager.createBranch(sessionId = sessionId, name = name, parentTurnId = parentTurnId, fromBranchId = activeBranch.id)) {
+                when (branchService.create(sessionId = sessionId, name = BranchName(value = name), parentTurnId = parentTurnId, fromBranchId = activeBranch.id)) {
                     is Either.Right -> handleLoadBranches()
                     is Either.Left -> {}
                 }
@@ -209,40 +201,32 @@ class ChatStoreFactory(
             val sessionId = state().sessionId ?: return
             dispatch(Msg.Loading)
             scope.launch {
-                when (branchManager.switchBranch(sessionId = sessionId, branchId = branchId)) {
+                when (branchService.switch(sessionId = sessionId, branchId = branchId)) {
                     is Either.Right -> {
-                        val history = when (val r = branchManager.getActiveBranchTurns(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> when (val t = sessionManager.getTurns(sessionId = sessionId, limit = null)) {
-                                is Either.Right -> t.value
-                                is Either.Left -> emptyList()
-                            }
-                        }
-                        val messages = history.flatMap { turn ->
-                            listOf(
-                                UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
-                                UiMessage(text = turn.agentResponse, isUser = false, turnId = turn.id),
-                            )
-                        }
-                        val turnTokens = when (val r = usageTracker.getTokensBySession(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> emptyMap()
-                        }
-                        val turnCosts = when (val r = usageTracker.getCostBySession(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> emptyMap()
-                        }
-                        val sessionTokens = turnTokens.values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
-                        val sessionCosts = turnCosts.values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
-                        val branches = when (val r = branchManager.getBranches(sessionId = sessionId)) {
+                        val history = when (val r = branchService.getActiveTurns(sessionId = sessionId)) {
                             is Either.Right -> r.value
                             is Either.Left -> emptyList()
                         }
-                        val activeBranch = when (val r = branchManager.getActiveBranch(sessionId = sessionId)) {
+                        val messages = history.flatMap { turn ->
+                            listOf(
+                                UiMessage(text = turn.userMessage.value, isUser = true, turnId = turn.id),
+                                UiMessage(text = turn.assistantMessage.value, isUser = false, turnId = turn.id),
+                            )
+                        }
+                        val turnUsage = when (val r = usageService.getBySession(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> emptyMap()
+                        }
+                        val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
+                        val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> emptyList()
+                        }
+                        val activeBranch = when (val r = branchService.getActive(sessionId = sessionId)) {
                             is Either.Right -> r.value
                             is Either.Left -> null
                         }
-                        val branchParentMap = when (val r = branchManager.getBranchParentMap(sessionId = sessionId)) {
+                        val branchParentMap = when (val r = branchService.getParentMap(sessionId = sessionId)) {
                             is Either.Right -> r.value
                             is Either.Left -> emptyMap()
                         }
@@ -250,10 +234,8 @@ class ChatStoreFactory(
                             messages = messages,
                             activeBranch = activeBranch,
                             branches = branches,
-                            turnTokens = turnTokens,
-                            turnCosts = turnCosts,
-                            sessionTokens = sessionTokens,
-                            sessionCosts = sessionCosts,
+                            turnUsage = turnUsage,
+                            sessionUsage = sessionUsage,
                             branchParentMap = branchParentMap,
                         ))
                     }
@@ -266,7 +248,7 @@ class ChatStoreFactory(
         private fun handleDeleteBranch(branchId: BranchId) {
             val sessionId = state().sessionId ?: return
             scope.launch {
-                when (branchManager.deleteBranch(branchId = branchId)) {
+                when (branchService.delete(branchId = branchId)) {
                     is Either.Right -> {
                         handleLoadBranches()
                         handleSwitchBranch(branchId = state().branches.first { it.isMain }.id)
@@ -275,6 +257,18 @@ class ChatStoreFactory(
                 }
             }
         }
+
+        private fun emptyUsageRecord(): UsageRecord = UsageRecord(
+            promptTokens = TokenCount(value = 0),
+            completionTokens = TokenCount(value = 0),
+            cachedTokens = TokenCount(value = 0),
+            cacheWriteTokens = TokenCount(value = 0),
+            reasoningTokens = TokenCount(value = 0),
+            totalCost = Cost(value = BigDecimal.ZERO),
+            upstreamCost = Cost(value = BigDecimal.ZERO),
+            upstreamPromptCost = Cost(value = BigDecimal.ZERO),
+            upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
+        )
     }
 
     private object ReducerImpl : com.arkivanov.mvikotlin.core.store.Reducer<ChatStore.State, Msg> {
@@ -283,20 +277,16 @@ class ChatStoreFactory(
                 is Msg.SessionLoaded -> copy(
                     sessionId = msg.sessionId,
                     messages = msg.messages,
-                    turnTokens = msg.turnTokens,
-                    turnCosts = msg.turnCosts,
-                    sessionTokens = msg.sessionTokens,
-                    sessionCosts = msg.sessionCosts,
+                    turnUsage = msg.turnUsage,
+                    sessionUsage = msg.sessionUsage,
                 )
                 is Msg.UserMessage -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = true),
                 )
                 is Msg.AgentResponseMsg -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = false, turnId = msg.turnId),
-                    turnTokens = turnTokens + (msg.turnId to msg.tokenDetails),
-                    turnCosts = turnCosts + (msg.turnId to msg.costDetails),
-                    sessionTokens = sessionTokens + msg.tokenDetails,
-                    sessionCosts = sessionCosts + msg.costDetails,
+                    turnUsage = turnUsage + (msg.turnId to msg.usage),
+                    sessionUsage = sessionUsage + msg.usage,
                 )
                 is Msg.Error -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = false, isError = true),
@@ -313,10 +303,8 @@ class ChatStoreFactory(
                     messages = msg.messages,
                     activeBranch = msg.activeBranch,
                     branches = msg.branches,
-                    turnTokens = msg.turnTokens,
-                    turnCosts = msg.turnCosts,
-                    sessionTokens = msg.sessionTokens,
-                    sessionCosts = msg.sessionCosts,
+                    turnUsage = msg.turnUsage,
+                    sessionUsage = msg.sessionUsage,
                     branchParentMap = msg.branchParentMap,
                 )
             }

@@ -20,15 +20,9 @@ dependencies {
     implementation(project(":modules:data:open-router-service"))
     implementation(project(":modules:core"))
     implementation(project(":modules:data:session-repository-exposed"))
-    implementation(project(":modules:data:turn-repository-exposed"))
-    implementation(project(":modules:data:token-repository-exposed"))
-    implementation(project(":modules:data:cost-repository-exposed"))
     implementation(project(":modules:domain:context-manager"))
     implementation(project(":modules:data:summary-repository-exposed"))
-    implementation(project(":modules:data:context-management-repository-exposed"))
     implementation(project(":modules:data:fact-repository-exposed"))
-    implementation(project(":modules:data:branch-repository-exposed"))
-
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
