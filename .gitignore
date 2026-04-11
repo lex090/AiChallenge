@@ -47,3 +47,7 @@ bin/
 
 ### Worktrees ###
 .worktrees/
+
+### Claude / Superpowers ###
+.claude/
+.superpowers/
