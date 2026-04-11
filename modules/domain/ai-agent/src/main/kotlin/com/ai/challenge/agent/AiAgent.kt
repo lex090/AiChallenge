@@ -80,8 +80,8 @@ class AiAgent(
                 branchRepository.appendTurn(branchId = activeBranch.id, turnId = turnId)
             }
         }
-        tokenRepository.record(sessionId = sessionId, turnId = turnId, details = tokenDetails)
-        costRepository.record(sessionId = sessionId, turnId = turnId, details = costDetails)
+        tokenRepository.record(turnId = turnId, details = tokenDetails)
+        costRepository.record(turnId = turnId, details = costDetails)
 
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }

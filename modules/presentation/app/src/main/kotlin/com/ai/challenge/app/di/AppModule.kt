@@ -45,8 +45,8 @@ val appModule = module {
     }
     single<AgentSessionRepository> { ExposedSessionRepository(createSessionDatabase()) }
     single<TurnRepository> { ExposedTurnRepository(createTurnDatabase()) }
-    single<TokenDetailsRepository> { ExposedTokenRepository(createTokenDatabase()) }
-    single<CostDetailsRepository> { ExposedCostRepository(createCostDatabase()) }
+    single<TokenDetailsRepository> { ExposedTokenRepository(database = createTokenDatabase(), turnRepository = get()) }
+    single<CostDetailsRepository> { ExposedCostRepository(database = createCostDatabase(), turnRepository = get()) }
     single<SummaryRepository> { ExposedSummaryRepository(createSummaryDatabase()) }
     single<ContextManagementTypeRepository> { ExposedContextManagementTypeRepository(createContextManagementDatabase()) }
     single<ContextCompressor> { LlmContextCompressor(service = get(), model = "google/gemini-2.0-flash-001") }

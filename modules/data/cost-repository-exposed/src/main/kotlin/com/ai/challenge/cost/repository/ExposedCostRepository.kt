@@ -4,10 +4,14 @@ import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.cost.CostDetailsRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
+import com.ai.challenge.core.turn.TurnRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
-class ExposedCostRepository(private val database: Database) : CostDetailsRepository {
+class ExposedCostRepository(
+    private val database: Database,
+    private val turnRepository: TurnRepository,
+) : CostDetailsRepository {
 
     init {
         transaction(database) {
@@ -15,11 +19,13 @@ class ExposedCostRepository(private val database: Database) : CostDetailsReposit
         }
     }
 
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) {
+    override suspend fun record(turnId: TurnId, details: CostDetails) {
+        val turn = turnRepository.get(turnId = turnId)
+            ?: error("Turn not found for turnId=${turnId.value}")
         transaction(database) {
             CostDetailsTable.insert {
                 it[CostDetailsTable.turnId] = turnId.value
-                it[CostDetailsTable.sessionId] = sessionId.value
+                it[CostDetailsTable.sessionId] = turn.sessionId.value
                 it[totalCost] = details.totalCost
                 it[upstreamCost] = details.upstreamCost
                 it[upstreamPromptCost] = details.upstreamPromptCost

@@ -50,8 +50,8 @@ class OpenRouterAgentTest {
 
     private val sessionRepo = FakeSessionRepository()
     private val turnRepo = FakeTurnRepository()
-    private val tokenRepo = FakeTokenRepository()
-    private val costRepo = FakeCostRepository()
+    private val tokenRepo = FakeTokenRepository(turnRepository = turnRepo)
+    private val costRepo = FakeCostRepository(turnRepository = turnRepo)
     private val contextManager = PassThroughContextManager(turnRepo)
     private val contextManagementRepo = FakeContextManagementTypeRepository()
     private val branchRepo = FakeBranchRepository()
@@ -298,10 +298,16 @@ private class FakeTurnRepository : TurnRepository {
     override suspend fun get(turnId: TurnId): Turn? = turns[turnId]
 }
 
-private class FakeTokenRepository : TokenDetailsRepository {
+private class FakeTokenRepository(
+    private val turnRepository: TurnRepository,
+) : TokenDetailsRepository {
     private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, TokenDetails>>()
 
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: TokenDetails) { data[turnId] = sessionId to details }
+    override suspend fun record(turnId: TurnId, details: TokenDetails) {
+        val turn = turnRepository.get(turnId = turnId)
+            ?: error("Turn not found for turnId=${turnId.value}")
+        data[turnId] = turn.sessionId to details
+    }
     override suspend fun getByTurn(turnId: TurnId): TokenDetails? = data[turnId]?.second
     override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> =
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
@@ -309,10 +315,16 @@ private class FakeTokenRepository : TokenDetailsRepository {
         getBySession(sessionId).values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
 }
 
-private class FakeCostRepository : CostDetailsRepository {
+private class FakeCostRepository(
+    private val turnRepository: TurnRepository,
+) : CostDetailsRepository {
     private val data = ConcurrentHashMap<TurnId, Pair<AgentSessionId, CostDetails>>()
 
-    override suspend fun record(sessionId: AgentSessionId, turnId: TurnId, details: CostDetails) { data[turnId] = sessionId to details }
+    override suspend fun record(turnId: TurnId, details: CostDetails) {
+        val turn = turnRepository.get(turnId = turnId)
+            ?: error("Turn not found for turnId=${turnId.value}")
+        data[turnId] = turn.sessionId to details
+    }
     override suspend fun getByTurn(turnId: TurnId): CostDetails? = data[turnId]?.second
     override suspend fun getBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> =
         data.filter { it.value.first == sessionId }.mapValues { it.value.second }
