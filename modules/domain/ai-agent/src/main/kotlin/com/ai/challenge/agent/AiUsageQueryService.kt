@@ -7,12 +7,12 @@ import com.ai.challenge.core.error.DomainError
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usage.model.UsageRecord
 
-class AiUsageService(
+class AiUsageQueryService(
     private val repository: AgentSessionRepository,
-) : UsageService {
+) : UsageQueryService {
 
     override suspend fun getByTurn(turnId: TurnId): Either<DomainError, UsageRecord> = either {
         val turn = repository.getTurn(turnId = turnId)

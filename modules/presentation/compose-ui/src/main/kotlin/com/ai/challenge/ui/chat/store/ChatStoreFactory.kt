@@ -10,7 +10,7 @@ import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usage.model.UsageRecord
 import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.model.UiMessage
@@ -24,7 +24,7 @@ class ChatStoreFactory(
     private val sendMessageUseCase: SendMessageUseCase,
     private val chatService: ChatService,
     private val sessionService: SessionService,
-    private val usageService: UsageService,
+    private val usageService: UsageQueryService,
     private val branchService: BranchService,
 ) {
     fun create(): ChatStore =
@@ -77,7 +77,7 @@ class ChatStoreFactory(
     private class ExecutorImpl(
         private val sendMessageUseCase: SendMessageUseCase,
         private val sessionService: SessionService,
-        private val usageService: UsageService,
+        private val usageService: UsageQueryService,
         private val branchService: BranchService,
     ) : CoroutineExecutor<ChatStore.Intent, Nothing, ChatStore.State, Msg, Nothing>() {
 

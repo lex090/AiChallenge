@@ -3,7 +3,7 @@ package com.ai.challenge.app.di
 import com.ai.challenge.agent.AiBranchService
 import com.ai.challenge.agent.AiChatService
 import com.ai.challenge.agent.AiSessionService
-import com.ai.challenge.agent.AiUsageService
+import com.ai.challenge.agent.AiUsageQueryService
 import com.ai.challenge.context.BranchingContextManager
 import com.ai.challenge.context.ContextCompressor
 import com.ai.challenge.context.ContextPreparationService
@@ -27,7 +27,7 @@ import com.ai.challenge.core.llm.LlmPort
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.event.DomainEvent
 import com.ai.challenge.core.event.DomainEventPublisher
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usecase.ApplicationInitService
 import com.ai.challenge.core.usecase.CreateSessionUseCase
 import com.ai.challenge.core.usecase.DeleteSessionUseCase
@@ -119,7 +119,7 @@ val appModule = module {
     single<ChatService> { AiChatService(llmPort = get(), repository = get(), contextManager = get()) }
     single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
-    single<UsageService> { AiUsageService(repository = get()) }
+    single<UsageQueryService> { AiUsageQueryService(repository = get()) }
 
     // Domain Events
     single {

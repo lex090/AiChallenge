@@ -10,7 +10,7 @@ import java.math.BigDecimal
  * Two UsageRecords with identical fields are fully interchangeable.
  *
  * Supports aggregation through [plus] operator for computing
- * session-level totals via UsageService.
+ * session-level totals via UsageQueryService.
  *
  * Preserves full granularity from OpenRouter API:
  * 5 token fields (prompt, completion, cached, cacheWrite, reasoning)

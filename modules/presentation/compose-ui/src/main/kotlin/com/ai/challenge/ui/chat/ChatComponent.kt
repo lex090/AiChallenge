@@ -6,7 +6,7 @@ import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.store.ChatStore
 import com.ai.challenge.ui.chat.store.ChatStoreFactory
@@ -23,7 +23,7 @@ class ChatComponent(
     sendMessageUseCase: SendMessageUseCase,
     chatService: ChatService,
     sessionService: SessionService,
-    usageService: UsageService,
+    usageService: UsageQueryService,
     branchService: BranchService,
     sessionId: AgentSessionId,
 ) : ComponentContext by componentContext {

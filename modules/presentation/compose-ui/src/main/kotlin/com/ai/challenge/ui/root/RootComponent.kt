@@ -6,7 +6,7 @@ import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usecase.ApplicationInitService
 import com.ai.challenge.core.usecase.CreateSessionUseCase
 import com.ai.challenge.core.usecase.DeleteSessionUseCase
@@ -36,7 +36,7 @@ class RootComponent(
     private val storeFactory: StoreFactory,
     private val sessionService: SessionService,
     private val chatService: ChatService,
-    private val usageService: UsageService,
+    private val usageService: UsageQueryService,
     private val branchService: BranchService,
     private val sendMessageUseCase: SendMessageUseCase,
     private val createSessionUseCase: CreateSessionUseCase,

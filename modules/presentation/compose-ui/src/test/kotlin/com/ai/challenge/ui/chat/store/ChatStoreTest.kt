@@ -19,7 +19,7 @@ import com.ai.challenge.core.shared.CreatedAt
 import com.ai.challenge.core.shared.UpdatedAt
 import com.ai.challenge.core.turn.Turn
 import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usage.model.Cost
 import com.ai.challenge.core.usage.model.TokenCount
 import com.ai.challenge.core.usage.model.UsageRecord
@@ -56,7 +56,7 @@ class ChatStoreTest {
         sendMessageUseCase: SendMessageUseCase,
         chatService: ChatService,
         sessionService: SessionService,
-        usageService: UsageService,
+        usageService: UsageQueryService,
         branchService: BranchService,
     ): ChatStore =
         ChatStoreFactory(
@@ -369,7 +369,7 @@ open class FakeServices(
     private val sendAssistantMessage: String = "",
     private val sendUsage: UsageRecord = emptyUsage(),
     private val sendError: DomainError? = null,
-) : ChatService, SessionService, UsageService, BranchService {
+) : ChatService, SessionService, UsageQueryService, BranchService {
 
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
@@ -441,7 +441,7 @@ open class FakeServices(
         return Either.Right(value = updated)
     }
 
-    // -- UsageService --
+    // -- UsageQueryService --
 
     override suspend fun getByTurn(turnId: TurnId): Either<DomainError, UsageRecord> {
         val record = usageData[turnId]?.second
