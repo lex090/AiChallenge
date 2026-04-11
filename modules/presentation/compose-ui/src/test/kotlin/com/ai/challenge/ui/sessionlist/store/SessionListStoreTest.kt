@@ -1,5 +1,6 @@
 package com.ai.challenge.ui.sessionlist.store
 
+import arrow.core.Either
 import com.ai.challenge.ui.chat.store.FakeAgent
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import kotlinx.coroutines.Dispatchers
@@ -38,8 +39,8 @@ class SessionListStoreTest {
     @Test
     fun `LoadSessions populates session list`() = runTest {
         val agent = FakeAgent()
-        agent.createSession(title = "Chat 1")
-        agent.createSession(title = "Chat 2")
+        (agent.createSession(title = "Chat 1") as Either.Right).value
+        (agent.createSession(title = "Chat 2") as Either.Right).value
 
         val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
@@ -66,7 +67,7 @@ class SessionListStoreTest {
     @Test
     fun `DeleteSession removes session from list`() = runTest {
         val agent = FakeAgent()
-        val id = agent.createSession(title = "To delete")
+        val id = (agent.createSession(title = "To delete") as Either.Right).value
 
         val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
@@ -76,15 +77,15 @@ class SessionListStoreTest {
         advanceUntilIdle()
 
         assertTrue(store.state.sessions.isEmpty())
-        assertNull(agent.getSession(id))
+        assertTrue(agent.getSession(id = id) is Either.Left)
         store.dispose()
     }
 
     @Test
     fun `DeleteSession switches active to first remaining if active was deleted`() = runTest {
         val agent = FakeAgent()
-        val id1 = agent.createSession(title = "First")
-        val id2 = agent.createSession(title = "Second")
+        val id1 = (agent.createSession(title = "First") as Either.Right).value
+        val id2 = (agent.createSession(title = "Second") as Either.Right).value
 
         val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)
@@ -103,7 +104,7 @@ class SessionListStoreTest {
     @Test
     fun `SelectSession sets activeSessionId`() = runTest {
         val agent = FakeAgent()
-        val id = agent.createSession(title = "Test")
+        val id = (agent.createSession(title = "Test") as Either.Right).value
 
         val store = SessionListStoreFactory(DefaultStoreFactory(), agent).create()
         store.accept(SessionListStore.Intent.LoadSessions)

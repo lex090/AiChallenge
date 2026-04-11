@@ -13,18 +13,18 @@ import com.ai.challenge.core.turn.TurnId
 
 interface Agent {
     suspend fun send(sessionId: AgentSessionId, message: String): Either<AgentError, AgentResponse>
-    suspend fun createSession(title: String): AgentSessionId
-    suspend fun deleteSession(id: AgentSessionId): Boolean
-    suspend fun listSessions(): List<AgentSession>
-    suspend fun getSession(id: AgentSessionId): AgentSession?
-    suspend fun updateSessionTitle(id: AgentSessionId, title: String)
-    suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn>
-    suspend fun getTokensByTurn(turnId: TurnId): TokenDetails?
-    suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails>
-    suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails
-    suspend fun getCostByTurn(turnId: TurnId): CostDetails?
-    suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails>
-    suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails
+    suspend fun createSession(title: String): Either<AgentError, AgentSessionId>
+    suspend fun deleteSession(id: AgentSessionId): Either<AgentError, Unit>
+    suspend fun listSessions(): Either<AgentError, List<AgentSession>>
+    suspend fun getSession(id: AgentSessionId): Either<AgentError, AgentSession>
+    suspend fun updateSessionTitle(id: AgentSessionId, title: String): Either<AgentError, Unit>
+    suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): Either<AgentError, List<Turn>>
+    suspend fun getTokensByTurn(turnId: TurnId): Either<AgentError, TokenDetails>
+    suspend fun getTokensBySession(sessionId: AgentSessionId): Either<AgentError, Map<TurnId, TokenDetails>>
+    suspend fun getSessionTotalTokens(sessionId: AgentSessionId): Either<AgentError, TokenDetails>
+    suspend fun getCostByTurn(turnId: TurnId): Either<AgentError, CostDetails>
+    suspend fun getCostBySession(sessionId: AgentSessionId): Either<AgentError, Map<TurnId, CostDetails>>
+    suspend fun getSessionTotalCost(sessionId: AgentSessionId): Either<AgentError, CostDetails>
     suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType>
     suspend fun updateContextManagementType(sessionId: AgentSessionId, type: ContextManagementType): Either<AgentError, Unit>
     suspend fun createBranch(sessionId: AgentSessionId, name: String, parentTurnId: TurnId, fromBranchId: BranchId): Either<AgentError, BranchId>

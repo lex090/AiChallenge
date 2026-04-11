@@ -84,7 +84,10 @@ class ChatStoreFactory(
             scope.launch {
                 val history = when (val r = agent.getActiveBranchTurns(sessionId = sessionId)) {
                     is Either.Right -> r.value
-                    is Either.Left -> agent.getTurns(sessionId = sessionId, limit = null)
+                    is Either.Left -> when (val t = agent.getTurns(sessionId = sessionId, limit = null)) {
+                        is Either.Right -> t.value
+                        is Either.Left -> emptyList()
+                    }
                 }
                 val messages = history.flatMap { turn ->
                     listOf(
@@ -92,8 +95,14 @@ class ChatStoreFactory(
                         UiMessage(text = turn.agentResponse, isUser = false, turnId = turn.id),
                     )
                 }
-                val turnTokens = agent.getTokensBySession(sessionId)
-                val turnCosts = agent.getCostBySession(sessionId)
+                val turnTokens = when (val r = agent.getTokensBySession(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyMap()
+                }
+                val turnCosts = when (val r = agent.getCostBySession(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyMap()
+                }
                 val sessionTokens = turnTokens.values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
                 val sessionCosts = turnCosts.values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
                 dispatch(Msg.SessionLoaded(
@@ -127,9 +136,13 @@ class ChatStoreFactory(
                 }
                 dispatch(Msg.LoadingComplete)
 
-                val session = agent.getSession(id = sessionId)
-                if (session != null && session.title.isEmpty()) {
-                    agent.updateSessionTitle(id = sessionId, title = text.take(50))
+                when (val sessionResult = agent.getSession(id = sessionId)) {
+                    is Either.Right -> {
+                        if (sessionResult.value.title.isEmpty()) {
+                            agent.updateSessionTitle(id = sessionId, title = text.take(n = 50))
+                        }
+                    }
+                    is Either.Left -> {}
                 }
                 handleLoadBranches()
             }
@@ -186,7 +199,10 @@ class ChatStoreFactory(
                     is Either.Right -> {
                         val history = when (val r = agent.getActiveBranchTurns(sessionId = sessionId)) {
                             is Either.Right -> r.value
-                            is Either.Left -> agent.getTurns(sessionId = sessionId, limit = null)
+                            is Either.Left -> when (val t = agent.getTurns(sessionId = sessionId, limit = null)) {
+                                is Either.Right -> t.value
+                                is Either.Left -> emptyList()
+                            }
                         }
                         val messages = history.flatMap { turn ->
                             listOf(
@@ -194,8 +210,14 @@ class ChatStoreFactory(
                                 UiMessage(text = turn.agentResponse, isUser = false, turnId = turn.id),
                             )
                         }
-                        val turnTokens = agent.getTokensBySession(sessionId = sessionId)
-                        val turnCosts = agent.getCostBySession(sessionId = sessionId)
+                        val turnTokens = when (val r = agent.getTokensBySession(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> emptyMap()
+                        }
+                        val turnCosts = when (val r = agent.getCostBySession(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> emptyMap()
+                        }
                         val sessionTokens = turnTokens.values.fold(TokenDetails(promptTokens = 0, completionTokens = 0, cachedTokens = 0, cacheWriteTokens = 0, reasoningTokens = 0)) { acc, t -> acc + t }
                         val sessionCosts = turnCosts.values.fold(CostDetails(totalCost = 0.0, upstreamCost = 0.0, upstreamPromptCost = 0.0, upstreamCompletionsCost = 0.0)) { acc, c -> acc + c }
                         val branches = when (val r = agent.getBranches(sessionId = sessionId)) {

@@ -1,5 +1,6 @@
 package com.ai.challenge.ui.sessionlist.store
 
+import arrow.core.Either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.session.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
@@ -42,41 +43,63 @@ class SessionListStoreFactory(
 
         private fun handleLoadSessions() {
             scope.launch {
-                val sessions = agent.listSessions().map { session ->
-                    SessionListStore.SessionItem(
-                        id = session.id,
-                        title = session.title,
-                        updatedAt = session.updatedAt,
-                    )
+                when (val result = agent.listSessions()) {
+                    is Either.Right -> {
+                        val sessions = result.value.map { session ->
+                            SessionListStore.SessionItem(
+                                id = session.id,
+                                title = session.title,
+                                updatedAt = session.updatedAt,
+                            )
+                        }
+                        dispatch(Msg.SessionsLoaded(sessions, activeSessionId = state().activeSessionId))
+                    }
+                    is Either.Left -> {}
                 }
-                dispatch(Msg.SessionsLoaded(sessions, activeSessionId = state().activeSessionId))
             }
         }
 
         private fun handleCreateSession() {
             scope.launch {
-                val id = agent.createSession(title = "")
-                val session = agent.getSession(id)!!
-                val item = SessionListStore.SessionItem(
-                    id = session.id,
-                    title = session.title,
-                    updatedAt = session.updatedAt,
-                )
-                dispatch(Msg.SessionCreated(item))
+                when (val idResult = agent.createSession(title = "")) {
+                    is Either.Right -> {
+                        when (val sessionResult = agent.getSession(id = idResult.value)) {
+                            is Either.Right -> {
+                                val session = sessionResult.value
+                                val item = SessionListStore.SessionItem(
+                                    id = session.id,
+                                    title = session.title,
+                                    updatedAt = session.updatedAt,
+                                )
+                                dispatch(Msg.SessionCreated(item))
+                            }
+                            is Either.Left -> {}
+                        }
+                    }
+                    is Either.Left -> {}
+                }
             }
         }
 
         private fun handleDeleteSession(id: AgentSessionId) {
             scope.launch {
-                agent.deleteSession(id)
-                val remaining = agent.listSessions()
-                val currentActive = state().activeSessionId
-                val newActiveId = if (currentActive == id) {
-                    remaining.firstOrNull()?.id
-                } else {
-                    currentActive
+                when (agent.deleteSession(id = id)) {
+                    is Either.Right -> {
+                        when (val remaining = agent.listSessions()) {
+                            is Either.Right -> {
+                                val currentActive = state().activeSessionId
+                                val newActiveId = if (currentActive == id) {
+                                    remaining.value.firstOrNull()?.id
+                                } else {
+                                    currentActive
+                                }
+                                dispatch(Msg.SessionDeleted(id = id, newActiveId = newActiveId))
+                            }
+                            is Either.Left -> dispatch(Msg.SessionDeleted(id = id, newActiveId = null))
+                        }
+                    }
+                    is Either.Left -> {}
                 }
-                dispatch(Msg.SessionDeleted(id, newActiveId))
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.ai.challenge.ui.root
 
+import arrow.core.Either
 import com.ai.challenge.core.agent.Agent
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatComponent
@@ -51,14 +52,23 @@ class RootComponent(
 
     init {
         runBlocking {
-            val sessions = agent.listSessions()
-            if (sessions.isEmpty()) {
-                val id = agent.createSession(title = "")
-                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                selectSession(id)
-            } else {
-                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                selectSession(sessions.first().id)
+            when (val result = agent.listSessions()) {
+                is Either.Right -> {
+                    val sessions = result.value
+                    if (sessions.isEmpty()) {
+                        when (val createResult = agent.createSession(title = "")) {
+                            is Either.Right -> {
+                                sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                                selectSession(sessionId = createResult.value)
+                            }
+                            is Either.Left -> {}
+                        }
+                    } else {
+                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                        selectSession(sessionId = sessions.first().id)
+                    }
+                }
+                is Either.Left -> {}
             }
         }
     }
@@ -70,9 +80,13 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            val id = agent.createSession(title = "")
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-            selectSession(id)
+            when (val result = agent.createSession(title = "")) {
+                is Either.Right -> {
+                    sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                    selectSession(sessionId = result.value)
+                }
+                is Either.Left -> {}
+            }
         }
     }
 
@@ -99,17 +113,25 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun deleteSession(sessionId: AgentSessionId) {
         runBlocking {
-            agent.deleteSession(sessionId)
-            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+            when (agent.deleteSession(id = sessionId)) {
+                is Either.Right -> {
+                    sessionListStore.accept(SessionListStore.Intent.LoadSessions)
 
-            val remaining = agent.listSessions()
-            if (remaining.isEmpty()) {
-                createNewSession()
-            } else {
-                val currentActive = sessionListStore.stateFlow.value.activeSessionId
-                if (currentActive == sessionId) {
-                    selectSession(remaining.first().id)
+                    when (val remaining = agent.listSessions()) {
+                        is Either.Right -> {
+                            if (remaining.value.isEmpty()) {
+                                createNewSession()
+                            } else {
+                                val currentActive = sessionListStore.stateFlow.value.activeSessionId
+                                if (currentActive == sessionId) {
+                                    selectSession(sessionId = remaining.value.first().id)
+                                }
+                            }
+                        }
+                        is Either.Left -> {}
+                    }
                 }
+                is Either.Left -> {}
             }
         }
     }

@@ -86,31 +86,57 @@ class AiAgent(
         AgentResponse(text = text, turnId = turnId, tokenDetails = tokenDetails, costDetails = costDetails)
     }
 
-    override suspend fun createSession(title: String): AgentSessionId {
+    override suspend fun createSession(title: String): Either<AgentError, AgentSessionId> = either {
         val session = AgentSession.create(title = title)
         val sessionId = sessionRepository.save(session = session)
         contextManagementRepository.save(sessionId = sessionId, type = ContextManagementType.None)
-        return sessionId
+        sessionId
     }
 
-    override suspend fun deleteSession(id: AgentSessionId): Boolean {
+    override suspend fun deleteSession(id: AgentSessionId): Either<AgentError, Unit> {
         contextManagementRepository.delete(sessionId = id)
-        return sessionRepository.delete(id = id)
+        sessionRepository.delete(id = id)
+        return Either.Right(value = Unit)
     }
 
-    override suspend fun listSessions(): List<AgentSession> = sessionRepository.list()
-    override suspend fun getSession(id: AgentSessionId): AgentSession? = sessionRepository.get(id = id)
-    override suspend fun updateSessionTitle(id: AgentSessionId, title: String) {
-        val session = sessionRepository.get(id = id) ?: return
+    override suspend fun listSessions(): Either<AgentError, List<AgentSession>> =
+        Either.Right(value = sessionRepository.list())
+
+    override suspend fun getSession(id: AgentSessionId): Either<AgentError, AgentSession> = either {
+        sessionRepository.get(id = id)
+            ?: raise(AgentError.NotFound(message = "Session not found: ${id.value}"))
+    }
+
+    override suspend fun updateSessionTitle(id: AgentSessionId, title: String): Either<AgentError, Unit> = either {
+        val session = sessionRepository.get(id = id)
+            ?: raise(AgentError.NotFound(message = "Session not found: ${id.value}"))
         sessionRepository.update(session = session.withUpdatedTitle(newTitle = title))
     }
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> = turnRepository.getBySession(sessionId = sessionId, limit = limit)
-    override suspend fun getTokensByTurn(turnId: TurnId): TokenDetails? = tokenRepository.getByTurn(turnId = turnId)
-    override suspend fun getTokensBySession(sessionId: AgentSessionId): Map<TurnId, TokenDetails> = tokenRepository.getBySession(sessionId = sessionId)
-    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): TokenDetails = tokenRepository.getSessionTotal(sessionId = sessionId)
-    override suspend fun getCostByTurn(turnId: TurnId): CostDetails? = costRepository.getByTurn(turnId = turnId)
-    override suspend fun getCostBySession(sessionId: AgentSessionId): Map<TurnId, CostDetails> = costRepository.getBySession(sessionId = sessionId)
-    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): CostDetails = costRepository.getSessionTotal(sessionId = sessionId)
+
+    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): Either<AgentError, List<Turn>> =
+        Either.Right(value = turnRepository.getBySession(sessionId = sessionId, limit = limit))
+
+    override suspend fun getTokensByTurn(turnId: TurnId): Either<AgentError, TokenDetails> = either {
+        tokenRepository.getByTurn(turnId = turnId)
+            ?: raise(AgentError.NotFound(message = "Token details not found for turn: ${turnId.value}"))
+    }
+
+    override suspend fun getTokensBySession(sessionId: AgentSessionId): Either<AgentError, Map<TurnId, TokenDetails>> =
+        Either.Right(value = tokenRepository.getBySession(sessionId = sessionId))
+
+    override suspend fun getSessionTotalTokens(sessionId: AgentSessionId): Either<AgentError, TokenDetails> =
+        Either.Right(value = tokenRepository.getSessionTotal(sessionId = sessionId))
+
+    override suspend fun getCostByTurn(turnId: TurnId): Either<AgentError, CostDetails> = either {
+        costRepository.getByTurn(turnId = turnId)
+            ?: raise(AgentError.NotFound(message = "Cost details not found for turn: ${turnId.value}"))
+    }
+
+    override suspend fun getCostBySession(sessionId: AgentSessionId): Either<AgentError, Map<TurnId, CostDetails>> =
+        Either.Right(value = costRepository.getBySession(sessionId = sessionId))
+
+    override suspend fun getSessionTotalCost(sessionId: AgentSessionId): Either<AgentError, CostDetails> =
+        Either.Right(value = costRepository.getSessionTotal(sessionId = sessionId))
 
     override suspend fun getContextManagementType(sessionId: AgentSessionId): Either<AgentError, ContextManagementType> =
         Either.Right(value = contextManagementRepository.getBySession(sessionId = sessionId))
