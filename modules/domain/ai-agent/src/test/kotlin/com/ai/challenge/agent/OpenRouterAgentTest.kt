@@ -4,7 +4,7 @@ import arrow.core.Either
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.AgentSessionRepository
-import com.ai.challenge.core.chat.model.BranchName
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -51,14 +51,13 @@ class AiChatServiceTest {
     private val sessionRepo = FakeAgentSessionRepository()
     private val contextManager = PassThroughContextManager(sessionRepo = sessionRepo)
 
-    private suspend fun createTestSession(): AgentSessionId {
+    private suspend fun createTestSession(): Pair<AgentSessionId, BranchId> {
         val mainBranchId = BranchId.generate()
         val now = Clock.System.now()
         val session = AgentSession(
             id = AgentSessionId.generate(),
             title = SessionTitle(value = ""),
             contextManagementType = ContextManagementType.None,
-            activeBranchId = mainBranchId,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )
@@ -66,12 +65,11 @@ class AiChatServiceTest {
         sessionRepo.createBranch(branch = Branch(
             id = mainBranchId,
             sessionId = session.id,
-            parentId = null,
-            name = BranchName(value = "main"),
-            turnIds = emptyList(),
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = emptyList()),
             createdAt = CreatedAt(value = now),
         ))
-        return session.id
+        return session.id to mainBranchId
     }
 
     private fun createMockClient(responseJson: String): HttpClient {
@@ -103,9 +101,9 @@ class AiChatServiceTest {
     @Test
     fun `send returns Right with Turn on success`() = runTest {
         val chatService = createChatService(responseJson = """{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        val result = chatService.send(sessionId = sessionId, message = MessageContent(value = "Hi"))
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
         assertIs<Either.Right<Turn>>(result)
         assertEquals(MessageContent(value = "Hello!"), result.value.assistantMessage)
@@ -122,9 +120,9 @@ class AiChatServiceTest {
                 "cost":0.0015
               }
             }""")
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        val result = chatService.send(sessionId = sessionId, message = MessageContent(value = "Hi"))
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
         assertIs<Either.Right<Turn>>(result)
         assertEquals(TokenCount(value = 100), result.value.usage.promptTokens)
@@ -137,11 +135,11 @@ class AiChatServiceTest {
     @Test
     fun `send saves turn on success`() = runTest {
         val chatService = createChatService(responseJson = """{"choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"}}]}""")
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        chatService.send(sessionId = sessionId, message = MessageContent(value = "Hi"))
+        chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        val turns = sessionRepo.getTurns(sessionId = sessionId, limit = null)
+        val turns = sessionRepo.getTurnsByBranch(branchId = branchId)
         assertEquals(1, turns.size)
         assertEquals(MessageContent(value = "Hi"), turns[0].userMessage)
         assertEquals(MessageContent(value = "Hello!"), turns[0].assistantMessage)
@@ -150,20 +148,20 @@ class AiChatServiceTest {
     @Test
     fun `send does not save turn on failure`() = runTest {
         val chatService = createChatService(responseJson = """{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        chatService.send(sessionId = sessionId, message = MessageContent(value = "Hi"))
+        chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
-        val turns = sessionRepo.getTurns(sessionId = sessionId, limit = null)
+        val turns = sessionRepo.getTurnsByBranch(branchId = branchId)
         assertTrue(turns.isEmpty())
     }
 
     @Test
     fun `send returns Left ApiError when response has error`() = runTest {
         val chatService = createChatService(responseJson = """{"error":{"message":"Rate limit exceeded","code":429},"choices":[]}""")
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        val result = chatService.send(sessionId = sessionId, message = MessageContent(value = "Hi"))
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
         assertIs<Either.Left<DomainError>>(result)
         assertIs<DomainError.ApiError>(result.value)
@@ -183,9 +181,9 @@ class AiChatServiceTest {
             repository = sessionRepo,
             contextManager = contextManager,
         )
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        val result = chatService.send(sessionId = sessionId, message = MessageContent(value = "Hi"))
+        val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Hi"))
 
         assertIs<Either.Left<DomainError>>(result)
         assertIs<DomainError.NetworkError>(result.value)
@@ -213,9 +211,8 @@ class AiChatServiceTest {
             repository = sessionRepo,
             contextManager = contextManager,
         )
-        val sessionId = createTestSession()
+        val (sessionId, branchId) = createTestSession()
 
-        val mainBranch = sessionRepo.getMainBranch(sessionId = sessionId)!!
         val turn = Turn(
             id = TurnId.generate(),
             sessionId = sessionId,
@@ -224,9 +221,9 @@ class AiChatServiceTest {
             usage = ZERO_USAGE,
             createdAt = CreatedAt(value = Clock.System.now()),
         )
-        sessionRepo.appendTurn(branchId = mainBranch.id, turn = turn)
+        sessionRepo.appendTurn(branchId = branchId, turn = turn)
 
-        chatService.send(sessionId = sessionId, message = MessageContent(value = "Remember me?"))
+        chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = "Remember me?"))
 
         val json = Json.parseToJsonElement(capturedBody!!).jsonObject
         val messages = json["messages"]!!.jsonArray
@@ -290,17 +287,13 @@ private class FakeAgentSessionRepository : AgentSessionRepository {
         turnsByBranch.getOrPut(branchId) { mutableListOf() }.add(turn)
         val branch = branches[branchId]
         if (branch != null) {
-            branches[branchId] = branch.copy(turnIds = branch.turnIds + turn.id)
+            branches[branchId] = branch.copy(turnSequence = TurnSequence(values = branch.turnSequence.values + turn.id))
         }
         return turn
     }
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> {
-        val allTurns = turnsById.values.filter { it.sessionId == sessionId }.sortedBy { it.createdAt.value }
-        return if (limit != null && allTurns.size > limit) allTurns.takeLast(n = limit) else allTurns
-    }
     override suspend fun getTurnsByBranch(branchId: BranchId): List<Turn> {
         val branch = branches[branchId] ?: return emptyList()
-        return branch.turnIds.mapNotNull { turnsById[it] }
+        return branch.turnSequence.values.mapNotNull { turnsById[it] }
     }
     override suspend fun getTurn(turnId: TurnId): Turn? = turnsById[turnId]
 }
@@ -310,9 +303,10 @@ private class PassThroughContextManager(
 ) : ContextManager {
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
+        branchId: BranchId,
         newMessage: MessageContent,
     ): PreparedContext {
-        val history = sessionRepo.getTurns(sessionId = sessionId, limit = null)
+        val history = sessionRepo.getTurnsByBranch(branchId = branchId)
         val messages = buildList {
             for (turn in history) {
                 add(ContextMessage(role = MessageRole.User, content = turn.userMessage))

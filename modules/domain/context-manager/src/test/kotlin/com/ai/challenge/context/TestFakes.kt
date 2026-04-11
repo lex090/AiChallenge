@@ -3,7 +3,7 @@ package com.ai.challenge.context
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.AgentSessionRepository
-import com.ai.challenge.core.chat.model.BranchName
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -71,17 +71,13 @@ internal class InMemoryAgentSessionRepository : AgentSessionRepository {
         turnsByBranch.getOrPut(branchId) { mutableListOf() }.add(turn)
         val branch = branches[branchId]
         if (branch != null) {
-            branches[branchId] = branch.copy(turnIds = branch.turnIds + turn.id)
+            branches[branchId] = branch.copy(turnSequence = TurnSequence(values = branch.turnSequence.values + turn.id))
         }
         return turn
     }
-    override suspend fun getTurns(sessionId: AgentSessionId, limit: Int?): List<Turn> {
-        val allTurns = turnsById.values.filter { it.sessionId == sessionId }.sortedBy { it.createdAt.value }
-        return if (limit != null && allTurns.size > limit) allTurns.takeLast(n = limit) else allTurns
-    }
     override suspend fun getTurnsByBranch(branchId: BranchId): List<Turn> {
         val branch = branches[branchId] ?: return emptyList()
-        return branch.turnIds.mapNotNull { turnsById[it] }
+        return branch.turnSequence.values.mapNotNull { turnsById[it] }
     }
     override suspend fun getTurn(turnId: TurnId): Turn? = turnsById[turnId]
 }
@@ -89,14 +85,12 @@ internal class InMemoryAgentSessionRepository : AgentSessionRepository {
 internal fun createTestSession(
     sessionId: AgentSessionId,
     contextManagementType: ContextManagementType,
-    activeBranchId: BranchId,
 ): AgentSession {
     val now = Clock.System.now()
     return AgentSession(
         id = sessionId,
         title = SessionTitle(value = "test"),
         contextManagementType = contextManagementType,
-        activeBranchId = activeBranchId,
         createdAt = CreatedAt(value = now),
         updatedAt = UpdatedAt(value = now),
     )
@@ -105,15 +99,14 @@ internal fun createTestSession(
 internal fun createTestBranch(
     id: BranchId,
     sessionId: AgentSessionId,
-    parentId: BranchId?,
+    sourceTurnId: TurnId?,
     turnIds: List<TurnId>,
 ): Branch {
     return Branch(
         id = id,
         sessionId = sessionId,
-        parentId = parentId,
-        name = BranchName(value = "branch-${id.value}"),
-        turnIds = turnIds,
+        sourceTurnId = sourceTurnId,
+        turnSequence = TurnSequence(values = turnIds),
         createdAt = CreatedAt(value = Clock.System.now()),
     )
 }

@@ -99,12 +99,10 @@ class ChatStoreFactory(
                 val sessionResult = sessionService.get(id = sessionId)
                 val isBranching = sessionResult is Either.Right && sessionResult.value.contextManagementType is ContextManagementType.Branching
 
-                val branches = if (isBranching) {
-                    when (val r = branchService.getAll(sessionId = sessionId)) {
-                        is Either.Right -> r.value
-                        is Either.Left -> emptyList()
-                    }
-                } else emptyList()
+                val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyList()
+                }
 
                 val mainBranchId = branches.firstOrNull { it.isMain }?.id
                 val activeBranchId = mainBranchId
@@ -177,12 +175,10 @@ class ChatStoreFactory(
             scope.launch {
                 val sessionResult = sessionService.get(id = sessionId)
                 val isBranching = sessionResult is Either.Right && sessionResult.value.contextManagementType is ContextManagementType.Branching
-                val branches = if (isBranching) {
-                    when (val r = branchService.getAll(sessionId = sessionId)) {
-                        is Either.Right -> r.value
-                        is Either.Left -> emptyList()
-                    }
-                } else emptyList()
+                val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyList()
+                }
                 dispatch(Msg.BranchesLoaded(
                     branches = branches,
                     activeBranchId = state().activeBranchId,

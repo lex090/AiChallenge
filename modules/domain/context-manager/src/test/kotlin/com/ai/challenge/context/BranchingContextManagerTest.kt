@@ -23,17 +23,17 @@ class BranchingContextManagerTest {
         val repo = InMemoryAgentSessionRepository()
         val mainBranchId = BranchId.generate()
 
-        repo.addSession(createTestSession(sessionId = sessionId, contextManagementType = ContextManagementType.Branching, activeBranchId = mainBranchId))
+        repo.addSession(createTestSession(sessionId = sessionId, contextManagementType = ContextManagementType.Branching))
 
         val turn1 = createTestTurn(sessionId = sessionId, userMessage = "user1", assistantMessage = "assistant1")
         val turn2 = createTestTurn(sessionId = sessionId, userMessage = "user2", assistantMessage = "assistant2")
 
-        repo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        repo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         repo.appendTurn(branchId = mainBranchId, turn = turn1)
         repo.appendTurn(branchId = mainBranchId, turn = turn2)
 
         val manager = buildManager(repo = repo)
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "newMessage"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage = MessageContent(value = "newMessage"))
 
         assertFalse(result.compressed)
         assertEquals(2, result.originalTurnCount)
@@ -58,23 +58,23 @@ class BranchingContextManagerTest {
         val mainBranchId = BranchId.generate()
         val childBranchId = BranchId.generate()
 
-        repo.addSession(createTestSession(sessionId = sessionId, contextManagementType = ContextManagementType.Branching, activeBranchId = childBranchId))
+        repo.addSession(createTestSession(sessionId = sessionId, contextManagementType = ContextManagementType.Branching))
 
         val turn1 = createTestTurn(sessionId = sessionId, userMessage = "main-user1", assistantMessage = "main-assistant1")
         val turn2 = createTestTurn(sessionId = sessionId, userMessage = "main-user2", assistantMessage = "main-assistant2")
         val turn3 = createTestTurn(sessionId = sessionId, userMessage = "main-user3", assistantMessage = "main-assistant3")
         val childTurn1 = createTestTurn(sessionId = sessionId, userMessage = "child-user1", assistantMessage = "child-assistant1")
 
-        repo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        repo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         repo.appendTurn(branchId = mainBranchId, turn = turn1)
         repo.appendTurn(branchId = mainBranchId, turn = turn2)
         repo.appendTurn(branchId = mainBranchId, turn = turn3)
 
-        repo.createBranch(branch = createTestBranch(id = childBranchId, sessionId = sessionId, parentId = mainBranchId, turnIds = listOf(turn1.id, turn2.id)))
+        repo.createBranch(branch = createTestBranch(id = childBranchId, sessionId = sessionId, sourceTurnId = turn2.id, turnIds = listOf(turn1.id, turn2.id)))
         repo.appendTurn(branchId = childBranchId, turn = childTurn1)
 
         val manager = buildManager(repo = repo)
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = childBranchId, newMessage = MessageContent(value = "new"))
 
         assertEquals(7, result.messages.size)
         assertEquals(MessageContent(value = "main-user1"), result.messages[0].content)
@@ -94,20 +94,20 @@ class BranchingContextManagerTest {
         val mainBranchId = BranchId.generate()
         val childBranchId = BranchId.generate()
 
-        repo.addSession(createTestSession(sessionId = sessionId, contextManagementType = ContextManagementType.Branching, activeBranchId = childBranchId))
+        repo.addSession(createTestSession(sessionId = sessionId, contextManagementType = ContextManagementType.Branching))
 
         val mainTurn1 = createTestTurn(sessionId = sessionId, userMessage = "main1", assistantMessage = "main-resp1")
         val mainTurn2 = createTestTurn(sessionId = sessionId, userMessage = "main2", assistantMessage = "main-resp2")
 
-        repo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        repo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         repo.appendTurn(branchId = mainBranchId, turn = mainTurn1)
         repo.appendTurn(branchId = mainBranchId, turn = mainTurn2)
 
         // child branch has mainTurn1 copied in from trunk, no own turns yet
-        repo.createBranch(branch = createTestBranch(id = childBranchId, sessionId = sessionId, parentId = mainBranchId, turnIds = listOf(mainTurn1.id)))
+        repo.createBranch(branch = createTestBranch(id = childBranchId, sessionId = sessionId, sourceTurnId = mainTurn1.id, turnIds = listOf(mainTurn1.id)))
 
         val manager = buildManager(repo = repo)
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = childBranchId, newMessage = MessageContent(value = "new"))
 
         assertEquals(3, result.messages.size)
         assertEquals(MessageContent(value = "main1"), result.messages[0].content)

@@ -6,7 +6,7 @@ import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.BranchService
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.chat.model.BranchName
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -215,7 +215,7 @@ class ChatStoreTest {
 
         var callCount = 0
         val fake = object : FakeServices() {
-            override suspend fun send(sessionId: AgentSessionId, message: MessageContent): Either<DomainError, Turn> {
+            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
                 callCount++
                 val turnId = if (callCount == 1) turnId1 else turnId2
                 val usage = if (callCount == 1) usage1 else usage2
@@ -358,10 +358,11 @@ open class FakeServices(
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
     private val usageData = ConcurrentHashMap<TurnId, Pair<AgentSessionId, UsageRecord>>()
+    private val mainBranches = ConcurrentHashMap<AgentSessionId, BranchId>()
 
     // -- ChatService --
 
-    override suspend fun send(sessionId: AgentSessionId, message: MessageContent): Either<DomainError, Turn> {
+    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
         if (sendError != null) return Either.Left(value = sendError)
         val turn = Turn(
             id = sendTurnId,
@@ -380,17 +381,17 @@ open class FakeServices(
 
     override suspend fun create(title: SessionTitle): Either<DomainError, AgentSession> {
         val id = AgentSessionId.generate()
-        val branchId = BranchId.generate()
+        val mainBranchId = BranchId.generate()
         val now = Clock.System.now()
         val session = AgentSession(
             id = id,
             title = title,
             contextManagementType = ContextManagementType.None,
-            activeBranchId = branchId,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )
         sessions[id] = session
+        mainBranches[id] = mainBranchId
         return Either.Right(value = session)
     }
 
@@ -442,28 +443,30 @@ open class FakeServices(
 
     // -- BranchService --
 
-    override suspend fun create(sessionId: AgentSessionId, name: BranchName, parentTurnId: TurnId, fromBranchId: BranchId): Either<DomainError, Branch> =
+    override suspend fun create(sessionId: AgentSessionId, sourceTurnId: TurnId, fromBranchId: BranchId): Either<DomainError, Branch> =
         Either.Left(value = DomainError.ApiError(message = "Not implemented"))
 
     override suspend fun delete(branchId: BranchId): Either<DomainError, Unit> =
         Either.Left(value = DomainError.ApiError(message = "Not implemented"))
 
-    override suspend fun switch(sessionId: AgentSessionId, branchId: BranchId): Either<DomainError, Unit> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+    override suspend fun getAll(sessionId: AgentSessionId): Either<DomainError, List<Branch>> {
+        val branchId = mainBranches[sessionId] ?: return Either.Right(value = emptyList())
+        val branch = Branch(
+            id = branchId,
+            sessionId = sessionId,
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = turns.values.filter { it.first == sessionId }.map { it.second.id }),
+            createdAt = CreatedAt(value = Clock.System.now()),
+        )
+        return Either.Right(value = listOf(branch))
+    }
 
-    override suspend fun getAll(sessionId: AgentSessionId): Either<DomainError, List<Branch>> =
-        Either.Right(value = emptyList())
-
-    override suspend fun getActive(sessionId: AgentSessionId): Either<DomainError, Branch> =
-        Either.Left(value = DomainError.BranchNotFound(id = BranchId.generate()))
-
-    override suspend fun getActiveTurns(sessionId: AgentSessionId): Either<DomainError, List<Turn>> {
+    override suspend fun getTurns(branchId: BranchId): Either<DomainError, List<Turn>> {
+        val sessionId = mainBranches.entries.firstOrNull { it.value == branchId }?.key
+            ?: return Either.Right(value = emptyList())
         val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.createdAt.value }
         return Either.Right(value = all)
     }
-
-    override suspend fun getParentMap(sessionId: AgentSessionId): Either<DomainError, Map<BranchId, BranchId?>> =
-        Either.Right(value = emptyMap())
 
     // -- Direct helpers for tests --
 

@@ -46,7 +46,7 @@ class DefaultContextManagerTest {
     }
 
     private fun setupSession(type: ContextManagementType) {
-        val session = createTestSession(sessionId = sessionId, contextManagementType = type, activeBranchId = mainBranchId)
+        val session = createTestSession(sessionId = sessionId, contextManagementType = type)
         fakeRepo.addSession(session)
         // create main branch synchronously not possible, we'll do it in coroutine
     }
@@ -66,7 +66,7 @@ class DefaultContextManagerTest {
     private suspend fun saveTurns(sessionId: AgentSessionId, turns: List<Turn>) {
         // Ensure main branch exists
         if (fakeRepo.getBranch(branchId = mainBranchId) == null) {
-            fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+            fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         }
         for (turn in turns) {
             fakeRepo.appendTurn(branchId = mainBranchId, turn = turn)
@@ -81,7 +81,7 @@ class DefaultContextManagerTest {
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 20))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertFalse(result.compressed)
         assertEquals(20, result.originalTurnCount)
@@ -97,7 +97,7 @@ class DefaultContextManagerTest {
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 3))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertFalse(result.compressed)
         assertEquals(3, result.originalTurnCount)
@@ -113,7 +113,7 @@ class DefaultContextManagerTest {
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 15))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertTrue(result.compressed)
         assertEquals(15, result.originalTurnCount)
@@ -129,12 +129,12 @@ class DefaultContextManagerTest {
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 15))
         val manager = createManager()
 
-        manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "msg15"))
+        manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "msg15"))
         assertEquals(1, fakeCompressor.callCount)
 
         val extraTurn = createTestTurn(sessionId = sessionId, userMessage = "msg16", assistantMessage = "resp16")
         fakeRepo.appendTurn(branchId = mainBranchId, turn = extraTurn)
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "msg16"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "msg16"))
         assertEquals(1, fakeCompressor.callCount)
         assertTrue(result.compressed)
     }
@@ -143,10 +143,10 @@ class DefaultContextManagerTest {
     fun `handles empty history`() = runTest {
         setupSession(type = ContextManagementType.SummarizeOnThreshold)
         // No need to create branch for empty history, but we need it for getTurns
-        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "hello"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "hello"))
 
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
@@ -162,7 +162,7 @@ class DefaultContextManagerTest {
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 5))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertFalse(result.compressed)
         assertEquals(5, result.originalTurnCount)
@@ -178,7 +178,7 @@ class DefaultContextManagerTest {
         saveTurns(sessionId = sessionId, turns = turns(sessionId = sessionId, count = 15))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertFalse(result.compressed)
         assertEquals(15, result.originalTurnCount)
@@ -193,10 +193,10 @@ class DefaultContextManagerTest {
     @Test
     fun `sliding window handles empty history`() = runTest {
         setupSession(type = ContextManagementType.SlidingWindow)
-        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "hello"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "hello"))
 
         assertFalse(result.compressed)
         assertEquals(0, result.originalTurnCount)
@@ -217,7 +217,7 @@ class DefaultContextManagerTest {
         )
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertTrue(result.compressed)
         assertEquals(3, result.originalTurnCount)
@@ -237,7 +237,7 @@ class DefaultContextManagerTest {
         )
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertTrue(result.compressed)
         assertEquals(8, result.originalTurnCount)
@@ -254,7 +254,7 @@ class DefaultContextManagerTest {
         fakeFactExtractor.factsToReturn = emptyList()
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "new msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "new msg"))
 
         assertFalse(result.compressed)
         assertEquals(2, result.originalTurnCount)
@@ -267,14 +267,14 @@ class DefaultContextManagerTest {
     @Test
     fun `stickyFacts persists extracted facts`() = runTest {
         setupSession(type = ContextManagementType.StickyFacts)
-        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         val expectedFacts = listOf(
             Fact(sessionId = AgentSessionId(value = "s1"), category = FactCategory.Decision, key = FactKey(value = "db"), value = FactValue(value = "SQLite")),
         )
         fakeFactExtractor.factsToReturn = expectedFacts
         val manager = createManager()
 
-        manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "Use SQLite"))
+        manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "Use SQLite"))
 
         val savedFacts = fakeFactRepo.getBySession(sessionId = sessionId)
         assertEquals(1, savedFacts.size)
@@ -284,13 +284,13 @@ class DefaultContextManagerTest {
     @Test
     fun `stickyFacts with empty history returns system message and new message`() = runTest {
         setupSession(type = ContextManagementType.StickyFacts)
-        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         fakeFactExtractor.factsToReturn = listOf(
             Fact(sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = FactKey(value = "goal"), value = FactValue(value = "Start fresh")),
         )
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "hello"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "hello"))
 
         assertTrue(result.compressed)
         assertEquals(0, result.originalTurnCount)
@@ -303,7 +303,7 @@ class DefaultContextManagerTest {
     @Test
     fun `stickyFacts formats categories in system message`() = runTest {
         setupSession(type = ContextManagementType.StickyFacts)
-        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, parentId = null, turnIds = emptyList()))
+        fakeRepo.createBranch(branch = createTestBranch(id = mainBranchId, sessionId = sessionId, sourceTurnId = null, turnIds = emptyList()))
         fakeFactExtractor.factsToReturn = listOf(
             Fact(sessionId = AgentSessionId(value = "s1"), category = FactCategory.Goal, key = FactKey(value = "goal"), value = FactValue(value = "Build bot")),
             Fact(sessionId = AgentSessionId(value = "s1"), category = FactCategory.Constraint, key = FactKey(value = "lang"), value = FactValue(value = "Kotlin")),
@@ -313,7 +313,7 @@ class DefaultContextManagerTest {
         )
         val manager = createManager()
 
-        val result = manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "msg"))
+        val result = manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "msg"))
 
         val systemContent = result.messages.first().content.value
         assertTrue(systemContent.contains("## Goals"))
@@ -336,7 +336,7 @@ class DefaultContextManagerTest {
         fakeFactExtractor.factsToReturn = emptyList()
         val manager = createManager()
 
-        manager.prepareContext(sessionId = sessionId, newMessage = MessageContent(value = "next msg"))
+        manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage =MessageContent(value = "next msg"))
 
         assertEquals(MessageContent(value = "hello there"), fakeFactExtractor.lastAssistantResponse)
         assertEquals(MessageContent(value = "next msg"), fakeFactExtractor.lastNewUserMessage)

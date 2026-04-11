@@ -2,7 +2,7 @@ package com.ai.challenge.session.repository
 
 import com.ai.challenge.core.branch.Branch
 import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.chat.model.BranchName
+import com.ai.challenge.core.branch.TurnSequence
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -44,12 +44,10 @@ class ExposedAgentSessionRepositoryTest {
 
     private fun createSession(title: String): AgentSession {
         val now = Clock.System.now()
-        val branchId = BranchId.generate()
         return AgentSession(
             id = AgentSessionId.generate(),
             title = SessionTitle(value = title),
             contextManagementType = ContextManagementType.None,
-            activeBranchId = branchId,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )
@@ -118,12 +116,12 @@ class ExposedAgentSessionRepositoryTest {
     fun `appendTurn and getTurn round-trip`() = runTest {
         val session = createSession(title = "Chat")
         repository.save(session = session)
+        val branchId = BranchId.generate()
         val branch = Branch(
-            id = session.activeBranchId,
+            id = branchId,
             sessionId = session.id,
-            parentId = null,
-            name = BranchName(value = "main"),
-            turnIds = emptyList(),
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = emptyList()),
             createdAt = session.createdAt,
         )
         repository.createBranch(branch = branch)
@@ -150,19 +148,18 @@ class ExposedAgentSessionRepositoryTest {
     fun `createBranch and getBranches round-trip`() = runTest {
         val session = createSession(title = "Chat")
         repository.save(session = session)
+        val branchId = BranchId.generate()
         val branch = Branch(
-            id = session.activeBranchId,
+            id = branchId,
             sessionId = session.id,
-            parentId = null,
-            name = BranchName(value = "main"),
-            turnIds = emptyList(),
+            sourceTurnId = null,
+            turnSequence = TurnSequence(values = emptyList()),
             createdAt = session.createdAt,
         )
         repository.createBranch(branch = branch)
 
         val branches = repository.getBranches(sessionId = session.id)
         assertEquals(expected = 1, actual = branches.size)
-        assertEquals(expected = "main", actual = branches[0].name.value)
         assertTrue(actual = branches[0].isMain)
     }
 }
