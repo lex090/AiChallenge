@@ -18,7 +18,11 @@ import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.chat.AgentSessionRepository
 import com.ai.challenge.core.llm.LlmPort
 import com.ai.challenge.core.summary.SummaryRepository
+import com.ai.challenge.core.event.DomainEvent
+import com.ai.challenge.core.event.DomainEventPublisher
 import com.ai.challenge.core.usage.UsageService
+import com.ai.challenge.app.event.InProcessDomainEventPublisher
+import com.ai.challenge.context.SessionDeletedCleanupHandler
 import com.ai.challenge.fact.repository.ExposedFactRepository
 import com.ai.challenge.fact.repository.createFactDatabase
 import com.ai.challenge.llm.OpenRouterAdapter
@@ -69,4 +73,20 @@ val appModule = module {
     single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageService> { AiUsageService(repository = get()) }
+
+    // Domain Events
+    single {
+        SessionDeletedCleanupHandler(
+            factRepository = get(),
+            summaryRepository = get(),
+        )
+    }
+
+    single<DomainEventPublisher> {
+        InProcessDomainEventPublisher(
+            handlers = mapOf(
+                DomainEvent.SessionDeleted::class to listOf(get<SessionDeletedCleanupHandler>()),
+            ),
+        )
+    }
 }

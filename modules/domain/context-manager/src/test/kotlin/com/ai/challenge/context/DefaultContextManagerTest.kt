@@ -10,10 +10,8 @@ import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.context.model.SummaryContent
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
-import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
 import kotlinx.coroutines.test.runTest
 import kotlin.test.BeforeTest
@@ -361,21 +359,6 @@ private class FakeContextCompressor : ContextCompressor {
     }
 }
 
-private class InMemorySummaryRepository : SummaryRepository {
-    private val store = mutableListOf<Summary>()
-
-    override suspend fun save(summary: Summary) {
-        store.add(summary)
-    }
-
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
-        store.filter { it.sessionId == sessionId }
-
-    override suspend fun deleteBySession(sessionId: AgentSessionId) {
-        store.removeAll { it.sessionId == sessionId }
-    }
-}
-
 private class FakeFactExtractor : FactExtractor {
     var callCount = 0
         private set
@@ -401,17 +384,3 @@ private class FakeFactExtractor : FactExtractor {
     }
 }
 
-private class InMemoryFactRepository : FactRepository {
-    private val store = mutableMapOf<AgentSessionId, List<Fact>>()
-
-    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
-        store[sessionId] = facts
-    }
-
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Fact> =
-        store[sessionId] ?: emptyList()
-
-    override suspend fun deleteBySession(sessionId: AgentSessionId) {
-        store.remove(sessionId)
-    }
-}

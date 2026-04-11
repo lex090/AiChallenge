@@ -36,6 +36,13 @@ dependencies {
     implementation(libs.mvikotlin.main)
     implementation(libs.koin.core)
     implementation(libs.kotlinx.coroutines.swing)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 kotlin {
