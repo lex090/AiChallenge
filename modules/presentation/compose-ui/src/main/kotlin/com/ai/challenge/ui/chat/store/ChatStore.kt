@@ -16,7 +16,7 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
     sealed interface Intent {
         data class SendMessage(val text: String) : Intent
         data class LoadSession(val sessionId: AgentSessionId) : Intent
-        data class CreateBranch(val name: String, val parentTurnId: TurnId) : Intent
+        data class CreateBranch(val sourceTurnId: TurnId) : Intent
         data class SwitchBranch(val branchId: BranchId) : Intent
         data class DeleteBranch(val branchId: BranchId) : Intent
         data object LoadBranches : Intent
@@ -39,8 +39,7 @@ interface ChatStore : Store<ChatStore.Intent, ChatStore.State, Nothing> {
             upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
         ),
         val branches: List<Branch> = emptyList(),
-        val activeBranch: Branch? = null,
+        val activeBranchId: BranchId? = null,
         val isBranchingEnabled: Boolean = false,
-        val branchParentMap: Map<BranchId, BranchId?> = emptyMap(),
     )
 }

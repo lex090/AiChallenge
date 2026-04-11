@@ -47,8 +47,8 @@ class ChatComponent(
         store.accept(ChatStore.Intent.SendMessage(text = text))
     }
 
-    fun onCreateBranch(name: String, parentTurnId: TurnId) {
-        store.accept(ChatStore.Intent.CreateBranch(name = name, parentTurnId = parentTurnId))
+    fun onCreateBranch(parentTurnId: TurnId) {
+        store.accept(ChatStore.Intent.CreateBranch(sourceTurnId = parentTurnId))
     }
 
     fun onSwitchBranch(branchId: BranchId) {

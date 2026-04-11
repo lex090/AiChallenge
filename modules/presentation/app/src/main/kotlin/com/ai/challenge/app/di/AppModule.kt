@@ -57,7 +57,7 @@ val appModule = module {
 
     // Domain services (4 instead of 1 god object)
     single<ChatService> { AiChatService(service = get(), model = "google/gemini-2.0-flash-001", repository = get(), contextManager = get()) }
-    single<SessionService> { AiSessionService(repository = get(), contextManager = get()) }
+    single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageService> { AiUsageService(repository = get()) }
 }

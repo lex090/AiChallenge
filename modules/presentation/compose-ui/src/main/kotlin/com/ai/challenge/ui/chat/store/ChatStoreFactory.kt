@@ -6,7 +6,6 @@ import com.ai.challenge.core.branch.BranchId
 import com.ai.challenge.core.chat.BranchService
 import com.ai.challenge.core.chat.ChatService
 import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.chat.model.BranchName
 import com.ai.challenge.core.chat.model.MessageContent
 import com.ai.challenge.core.chat.model.SessionTitle
 import com.ai.challenge.core.context.ContextManagementType
@@ -50,6 +49,9 @@ class ChatStoreFactory(
             val messages: List<UiMessage>,
             val turnUsage: Map<TurnId, UsageRecord>,
             val sessionUsage: UsageRecord,
+            val branches: List<Branch>,
+            val activeBranchId: BranchId?,
+            val isBranchingEnabled: Boolean,
         ) : Msg
         data class UserMessage(val text: String) : Msg
         data class AgentResponseMsg(
@@ -62,17 +64,15 @@ class ChatStoreFactory(
         data object LoadingComplete : Msg
         data class BranchesLoaded(
             val branches: List<Branch>,
-            val activeBranch: Branch?,
+            val activeBranchId: BranchId?,
             val isBranchingEnabled: Boolean,
-            val branchParentMap: Map<BranchId, BranchId?>,
         ) : Msg
         data class BranchSwitched(
             val messages: List<UiMessage>,
-            val activeBranch: Branch?,
+            val activeBranchId: BranchId?,
             val branches: List<Branch>,
             val turnUsage: Map<TurnId, UsageRecord>,
             val sessionUsage: UsageRecord,
-            val branchParentMap: Map<BranchId, BranchId?>,
         ) : Msg
     }
 
@@ -87,7 +87,7 @@ class ChatStoreFactory(
             when (intent) {
                 is ChatStore.Intent.SendMessage -> handleSendMessage(text = intent.text)
                 is ChatStore.Intent.LoadSession -> handleLoadSession(sessionId = intent.sessionId)
-                is ChatStore.Intent.CreateBranch -> handleCreateBranch(name = intent.name, parentTurnId = intent.parentTurnId)
+                is ChatStore.Intent.CreateBranch -> handleCreateBranch(sourceTurnId = intent.sourceTurnId)
                 is ChatStore.Intent.SwitchBranch -> handleSwitchBranch(branchId = intent.branchId)
                 is ChatStore.Intent.DeleteBranch -> handleDeleteBranch(branchId = intent.branchId)
                 is ChatStore.Intent.LoadBranches -> handleLoadBranches()
@@ -96,10 +96,26 @@ class ChatStoreFactory(
 
         private fun handleLoadSession(sessionId: AgentSessionId) {
             scope.launch {
-                val history = when (val r = branchService.getActiveTurns(sessionId = sessionId)) {
-                    is Either.Right -> r.value
-                    is Either.Left -> emptyList()
-                }
+                val sessionResult = sessionService.get(id = sessionId)
+                val isBranching = sessionResult is Either.Right && sessionResult.value.contextManagementType is ContextManagementType.Branching
+
+                val branches = if (isBranching) {
+                    when (val r = branchService.getAll(sessionId = sessionId)) {
+                        is Either.Right -> r.value
+                        is Either.Left -> emptyList()
+                    }
+                } else emptyList()
+
+                val mainBranchId = branches.firstOrNull { it.isMain }?.id
+                val activeBranchId = mainBranchId
+
+                val history = if (activeBranchId != null) {
+                    when (val r = branchService.getTurns(branchId = activeBranchId)) {
+                        is Either.Right -> r.value
+                        is Either.Left -> emptyList()
+                    }
+                } else emptyList()
+
                 val messages = history.flatMap { turn ->
                     listOf(
                         UiMessage(text = turn.userMessage.value, isUser = true, turnId = turn.id),
@@ -116,18 +132,21 @@ class ChatStoreFactory(
                     messages = messages,
                     turnUsage = turnUsage,
                     sessionUsage = sessionUsage,
+                    branches = branches,
+                    activeBranchId = activeBranchId,
+                    isBranchingEnabled = isBranching,
                 ))
-                handleLoadBranches()
             }
         }
 
         private fun handleSendMessage(text: String) {
             val sessionId = state().sessionId ?: return
+            val branchId = state().activeBranchId ?: return
             dispatch(Msg.UserMessage(text = text))
             dispatch(Msg.Loading)
 
             scope.launch {
-                when (val result = chatService.send(sessionId = sessionId, message = MessageContent(value = text))) {
+                when (val result = chatService.send(sessionId = sessionId, branchId = branchId, message = MessageContent(value = text))) {
                     is Either.Right -> {
                         val turn = result.value
                         dispatch(
@@ -150,7 +169,6 @@ class ChatStoreFactory(
                     }
                     is Either.Left -> {}
                 }
-                handleLoadBranches()
             }
         }
 
@@ -165,33 +183,23 @@ class ChatStoreFactory(
                         is Either.Left -> emptyList()
                     }
                 } else emptyList()
-                val activeBranch = if (isBranching) {
-                    when (val r = branchService.getActive(sessionId = sessionId)) {
-                        is Either.Right -> r.value
-                        is Either.Left -> null
-                    }
-                } else null
-                val branchParentMap = if (isBranching) {
-                    when (val r = branchService.getParentMap(sessionId = sessionId)) {
-                        is Either.Right -> r.value
-                        is Either.Left -> emptyMap()
-                    }
-                } else emptyMap()
                 dispatch(Msg.BranchesLoaded(
                     branches = branches,
-                    activeBranch = activeBranch,
+                    activeBranchId = state().activeBranchId,
                     isBranchingEnabled = isBranching,
-                    branchParentMap = branchParentMap,
                 ))
             }
         }
 
-        private fun handleCreateBranch(name: String, parentTurnId: TurnId) {
+        private fun handleCreateBranch(sourceTurnId: TurnId) {
             val sessionId = state().sessionId ?: return
-            val activeBranch = state().activeBranch ?: return
+            val activeBranchId = state().activeBranchId ?: return
             scope.launch {
-                when (branchService.create(sessionId = sessionId, name = BranchName(value = name), parentTurnId = parentTurnId, fromBranchId = activeBranch.id)) {
-                    is Either.Right -> handleLoadBranches()
+                when (val result = branchService.create(sessionId = sessionId, sourceTurnId = sourceTurnId, fromBranchId = activeBranchId)) {
+                    is Either.Right -> {
+                        val newBranch = result.value
+                        handleSwitchBranch(branchId = newBranch.id)
+                    }
                     is Either.Left -> {}
                 }
             }
@@ -201,46 +209,32 @@ class ChatStoreFactory(
             val sessionId = state().sessionId ?: return
             dispatch(Msg.Loading)
             scope.launch {
-                when (branchService.switch(sessionId = sessionId, branchId = branchId)) {
-                    is Either.Right -> {
-                        val history = when (val r = branchService.getActiveTurns(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> emptyList()
-                        }
-                        val messages = history.flatMap { turn ->
-                            listOf(
-                                UiMessage(text = turn.userMessage.value, isUser = true, turnId = turn.id),
-                                UiMessage(text = turn.assistantMessage.value, isUser = false, turnId = turn.id),
-                            )
-                        }
-                        val turnUsage = when (val r = usageService.getBySession(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> emptyMap()
-                        }
-                        val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
-                        val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> emptyList()
-                        }
-                        val activeBranch = when (val r = branchService.getActive(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> null
-                        }
-                        val branchParentMap = when (val r = branchService.getParentMap(sessionId = sessionId)) {
-                            is Either.Right -> r.value
-                            is Either.Left -> emptyMap()
-                        }
-                        dispatch(Msg.BranchSwitched(
-                            messages = messages,
-                            activeBranch = activeBranch,
-                            branches = branches,
-                            turnUsage = turnUsage,
-                            sessionUsage = sessionUsage,
-                            branchParentMap = branchParentMap,
-                        ))
-                    }
-                    is Either.Left -> {}
+                val history = when (val r = branchService.getTurns(branchId = branchId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyList()
                 }
+                val messages = history.flatMap { turn ->
+                    listOf(
+                        UiMessage(text = turn.userMessage.value, isUser = true, turnId = turn.id),
+                        UiMessage(text = turn.assistantMessage.value, isUser = false, turnId = turn.id),
+                    )
+                }
+                val turnUsage = when (val r = usageService.getBySession(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyMap()
+                }
+                val sessionUsage = turnUsage.values.fold(emptyUsageRecord()) { acc, u -> acc + u }
+                val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> emptyList()
+                }
+                dispatch(Msg.BranchSwitched(
+                    messages = messages,
+                    activeBranchId = branchId,
+                    branches = branches,
+                    turnUsage = turnUsage,
+                    sessionUsage = sessionUsage,
+                ))
                 dispatch(Msg.LoadingComplete)
             }
         }
@@ -250,8 +244,19 @@ class ChatStoreFactory(
             scope.launch {
                 when (branchService.delete(branchId = branchId)) {
                     is Either.Right -> {
-                        handleLoadBranches()
-                        handleSwitchBranch(branchId = state().branches.first { it.isMain }.id)
+                        val isActive = state().activeBranchId == branchId
+                        if (isActive) {
+                            val branches = when (val r = branchService.getAll(sessionId = sessionId)) {
+                                is Either.Right -> r.value
+                                is Either.Left -> emptyList()
+                            }
+                            val mainId = branches.firstOrNull { it.isMain }?.id
+                            if (mainId != null) {
+                                handleSwitchBranch(branchId = mainId)
+                            }
+                        } else {
+                            handleLoadBranches()
+                        }
                     }
                     is Either.Left -> {}
                 }
@@ -279,6 +284,9 @@ class ChatStoreFactory(
                     messages = msg.messages,
                     turnUsage = msg.turnUsage,
                     sessionUsage = msg.sessionUsage,
+                    branches = msg.branches,
+                    activeBranchId = msg.activeBranchId,
+                    isBranchingEnabled = msg.isBranchingEnabled,
                 )
                 is Msg.UserMessage -> copy(
                     messages = messages + UiMessage(text = msg.text, isUser = true),
@@ -295,17 +303,15 @@ class ChatStoreFactory(
                 is Msg.LoadingComplete -> copy(isLoading = false)
                 is Msg.BranchesLoaded -> copy(
                     branches = msg.branches,
-                    activeBranch = msg.activeBranch,
+                    activeBranchId = msg.activeBranchId,
                     isBranchingEnabled = msg.isBranchingEnabled,
-                    branchParentMap = msg.branchParentMap,
                 )
                 is Msg.BranchSwitched -> copy(
                     messages = msg.messages,
-                    activeBranch = msg.activeBranch,
+                    activeBranchId = msg.activeBranchId,
                     branches = msg.branches,
                     turnUsage = msg.turnUsage,
                     sessionUsage = msg.sessionUsage,
-                    branchParentMap = msg.branchParentMap,
                 )
             }
     }
