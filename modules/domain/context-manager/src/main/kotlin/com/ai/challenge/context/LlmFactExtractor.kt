@@ -1,8 +1,10 @@
 package com.ai.challenge.context
 
+import com.ai.challenge.core.chat.model.MessageContent
+import com.ai.challenge.core.context.model.FactKey
+import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactId
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.llm.OpenRouterService
 import kotlinx.serialization.json.Json
@@ -20,8 +22,8 @@ class LlmFactExtractor(
     override suspend fun extract(
         sessionId: AgentSessionId,
         currentFacts: List<Fact>,
-        newUserMessage: String,
-        lastAssistantResponse: String?,
+        newUserMessage: MessageContent,
+        lastAssistantResponse: MessageContent?,
     ): List<Fact> {
         val responseText = service.chatText(model = model) {
             jsonMode = true
@@ -30,9 +32,9 @@ class LlmFactExtractor(
                 user("Current facts:\n${formatFactsAsJson(facts = currentFacts)}")
             }
             if (lastAssistantResponse != null) {
-                assistant(lastAssistantResponse)
+                assistant(lastAssistantResponse.value)
             }
-            user(newUserMessage)
+            user(newUserMessage.value)
             user("Extract and return the updated facts as a JSON array.")
         }
         return parseFacts(sessionId = sessionId, responseText = responseText, fallback = currentFacts)
@@ -40,7 +42,7 @@ class LlmFactExtractor(
 
     private fun formatFactsAsJson(facts: List<Fact>): String {
         val entries = facts.joinToString(",\n  ") { fact ->
-            """{"category":"${fact.category.name}","key":"${fact.key}","value":"${fact.value}"}"""
+            """{"category":"${fact.category.name}","key":"${fact.key.value}","value":"${fact.value.value}"}"""
         }
         return "[\n  $entries\n]"
     }
@@ -50,11 +52,10 @@ class LlmFactExtractor(
             json.parseToJsonElement(responseText).jsonArray.map { element ->
                 val obj = element.jsonObject
                 Fact(
-                    id = FactId.generate(),
                     sessionId = sessionId,
                     category = parseCategory(category = obj["category"]!!.jsonPrimitive.content),
-                    key = obj["key"]!!.jsonPrimitive.content,
-                    value = obj["value"]!!.jsonPrimitive.content,
+                    key = FactKey(value = obj["key"]!!.jsonPrimitive.content),
+                    value = FactValue(value = obj["value"]!!.jsonPrimitive.content),
                 )
             }
         } catch (_: Exception) {
