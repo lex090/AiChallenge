@@ -15,8 +15,10 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 class OpenRouterService(
     private val apiKey: String,
@@ -32,12 +34,33 @@ class OpenRouterService(
             encodeDefaults = false
         }
 
+        private val prettyJson = Json { prettyPrint = true }
+
+        private fun formatJsonInMessage(message: String): String =
+            try {
+                val trimmed = message.trim()
+                if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                    val element = prettyJson.decodeFromString<JsonElement>(trimmed)
+                    prettyJson.encodeToString(serializer = JsonElement.serializer(), value = element)
+                } else {
+                    message
+                }
+            } catch (_: Exception) {
+                message
+            }
+
         fun createDefaultClient(): HttpClient = HttpClient(CIO) {
             install(ContentNegotiation) {
                 json(json)
             }
             install(Logging) {
                 level = LogLevel.BODY
+                logger = object : Logger {
+                    private val slf4j = org.slf4j.LoggerFactory.getLogger("HttpClient")
+                    override fun log(message: String) {
+                        slf4j.info(formatJsonInMessage(message = message))
+                    }
+                }
             }
             install(HttpTimeout) {
                 requestTimeoutMillis = 120_000
