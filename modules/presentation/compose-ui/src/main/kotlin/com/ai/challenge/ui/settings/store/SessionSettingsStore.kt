@@ -15,6 +15,6 @@ interface SessionSettingsStore : Store<SessionSettingsStore.Intent, SessionSetti
         val sessionId: AgentSessionId?,
         val currentType: ContextManagementType,
         val isLoading: Boolean,
-        val errorText: String? = null,
+        val errorText: String?,
     )
 }

@@ -71,7 +71,6 @@ class RootComponent(
                 .fold(
                     ifLeft = { error -> println("Failed to initialize session: ${error.message}") },
                     ifRight = { session ->
-                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
                         if (session != null) {
                             selectSession(sessionId = session.id)
                         } else {
@@ -84,6 +83,7 @@ class RootComponent(
                         }
                     },
                 )
+            sessionListStore.accept(SessionListStore.Intent.LoadSessions)
         }
     }
 

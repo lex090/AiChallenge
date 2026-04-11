@@ -20,6 +20,7 @@ class SessionSettingsStoreFactory(
                     sessionId = null,
                     currentType = ContextManagementType.None,
                     isLoading = false,
+                    errorText = null,
                 ),
                 executorFactory = { ExecutorImpl(sessionService = sessionService) },
                 reducer = ReducerImpl,
