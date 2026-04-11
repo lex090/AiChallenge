@@ -2,6 +2,9 @@ package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
 import com.ai.challenge.core.agent.Agent
+import com.ai.challenge.core.branch.Branch
+import com.ai.challenge.core.branch.BranchId
+import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.cost.CostDetails
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.token.TokenDetails
@@ -44,6 +47,22 @@ class ChatStoreFactory(
         data class Error(val text: String) : Msg
         data object Loading : Msg
         data object LoadingComplete : Msg
+        data class BranchesLoaded(
+            val branches: List<Branch>,
+            val activeBranch: Branch?,
+            val isBranchingEnabled: Boolean,
+            val branchParentMap: Map<BranchId, BranchId?>,
+        ) : Msg
+        data class BranchSwitched(
+            val messages: List<UiMessage>,
+            val activeBranch: Branch?,
+            val branches: List<Branch>,
+            val turnTokens: Map<TurnId, TokenDetails>,
+            val turnCosts: Map<TurnId, CostDetails>,
+            val sessionTokens: TokenDetails,
+            val sessionCosts: CostDetails,
+            val branchParentMap: Map<BranchId, BranchId?>,
+        ) : Msg
     }
 
     private class ExecutorImpl(
@@ -52,14 +71,21 @@ class ChatStoreFactory(
 
         override fun executeIntent(intent: ChatStore.Intent) {
             when (intent) {
-                is ChatStore.Intent.SendMessage -> handleSendMessage(intent.text)
-                is ChatStore.Intent.LoadSession -> handleLoadSession(intent.sessionId)
+                is ChatStore.Intent.SendMessage -> handleSendMessage(text = intent.text)
+                is ChatStore.Intent.LoadSession -> handleLoadSession(sessionId = intent.sessionId)
+                is ChatStore.Intent.CreateBranch -> handleCreateBranch(name = intent.name, parentTurnId = intent.parentTurnId)
+                is ChatStore.Intent.SwitchBranch -> handleSwitchBranch(branchId = intent.branchId)
+                is ChatStore.Intent.DeleteBranch -> handleDeleteBranch(branchId = intent.branchId)
+                is ChatStore.Intent.LoadBranches -> handleLoadBranches()
             }
         }
 
         private fun handleLoadSession(sessionId: AgentSessionId) {
             scope.launch {
-                val history = agent.getTurns(sessionId)
+                val history = when (val r = agent.getActiveBranchTurns(sessionId = sessionId)) {
+                    is Either.Right -> r.value
+                    is Either.Left -> agent.getTurns(sessionId)
+                }
                 val messages = history.flatMap { turn ->
                     listOf(
                         UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
@@ -70,17 +96,25 @@ class ChatStoreFactory(
                 val turnCosts = agent.getCostBySession(sessionId)
                 val sessionTokens = turnTokens.values.fold(TokenDetails()) { acc, t -> acc + t }
                 val sessionCosts = turnCosts.values.fold(CostDetails()) { acc, c -> acc + c }
-                dispatch(Msg.SessionLoaded(sessionId, messages, turnTokens, turnCosts, sessionTokens, sessionCosts))
+                dispatch(Msg.SessionLoaded(
+                    sessionId = sessionId,
+                    messages = messages,
+                    turnTokens = turnTokens,
+                    turnCosts = turnCosts,
+                    sessionTokens = sessionTokens,
+                    sessionCosts = sessionCosts,
+                ))
+                handleLoadBranches()
             }
         }
 
         private fun handleSendMessage(text: String) {
             val sessionId = state().sessionId ?: return
-            dispatch(Msg.UserMessage(text))
+            dispatch(Msg.UserMessage(text = text))
             dispatch(Msg.Loading)
 
             scope.launch {
-                when (val result = agent.send(sessionId, text)) {
+                when (val result = agent.send(sessionId = sessionId, message = text)) {
                     is Either.Right -> dispatch(
                         Msg.AgentResponseMsg(
                             text = result.value.text,
@@ -89,13 +123,119 @@ class ChatStoreFactory(
                             costDetails = result.value.costDetails,
                         )
                     )
-                    is Either.Left -> dispatch(Msg.Error(result.value.message))
+                    is Either.Left -> dispatch(Msg.Error(text = result.value.message))
                 }
                 dispatch(Msg.LoadingComplete)
 
-                val session = agent.getSession(sessionId)
+                val session = agent.getSession(id = sessionId)
                 if (session != null && session.title.isEmpty()) {
-                    agent.updateSessionTitle(sessionId, text.take(50))
+                    agent.updateSessionTitle(id = sessionId, title = text.take(50))
+                }
+                handleLoadBranches()
+            }
+        }
+
+        private fun handleLoadBranches() {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                val typeResult = agent.getContextManagementType(sessionId = sessionId)
+                val isBranching = typeResult is Either.Right && typeResult.value is ContextManagementType.Branching
+                val branches = if (isBranching) {
+                    when (val r = agent.getBranches(sessionId = sessionId)) {
+                        is Either.Right -> r.value
+                        is Either.Left -> emptyList()
+                    }
+                } else emptyList()
+                val activeBranch = if (isBranching) {
+                    when (val r = agent.getActiveBranch(sessionId = sessionId)) {
+                        is Either.Right -> r.value
+                        is Either.Left -> null
+                    }
+                } else null
+                val branchParentMap = if (isBranching) {
+                    when (val r = agent.getBranchParentMap(sessionId = sessionId)) {
+                        is Either.Right -> r.value
+                        is Either.Left -> emptyMap()
+                    }
+                } else emptyMap()
+                dispatch(Msg.BranchesLoaded(
+                    branches = branches,
+                    activeBranch = activeBranch,
+                    isBranchingEnabled = isBranching,
+                    branchParentMap = branchParentMap,
+                ))
+            }
+        }
+
+        private fun handleCreateBranch(name: String, parentTurnId: TurnId) {
+            val sessionId = state().sessionId ?: return
+            val activeBranch = state().activeBranch ?: return
+            scope.launch {
+                when (agent.createBranch(sessionId = sessionId, name = name, parentTurnId = parentTurnId, fromBranchId = activeBranch.id)) {
+                    is Either.Right -> handleLoadBranches()
+                    is Either.Left -> {}
+                }
+            }
+        }
+
+        private fun handleSwitchBranch(branchId: BranchId) {
+            val sessionId = state().sessionId ?: return
+            dispatch(Msg.Loading)
+            scope.launch {
+                when (agent.switchBranch(sessionId = sessionId, branchId = branchId)) {
+                    is Either.Right -> {
+                        val history = when (val r = agent.getActiveBranchTurns(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> agent.getTurns(sessionId = sessionId)
+                        }
+                        val messages = history.flatMap { turn ->
+                            listOf(
+                                UiMessage(text = turn.userMessage, isUser = true, turnId = turn.id),
+                                UiMessage(text = turn.agentResponse, isUser = false, turnId = turn.id),
+                            )
+                        }
+                        val turnTokens = agent.getTokensBySession(sessionId = sessionId)
+                        val turnCosts = agent.getCostBySession(sessionId = sessionId)
+                        val sessionTokens = turnTokens.values.fold(TokenDetails()) { acc, t -> acc + t }
+                        val sessionCosts = turnCosts.values.fold(CostDetails()) { acc, c -> acc + c }
+                        val branches = when (val r = agent.getBranches(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> emptyList()
+                        }
+                        val activeBranch = when (val r = agent.getActiveBranch(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> null
+                        }
+                        val branchParentMap = when (val r = agent.getBranchParentMap(sessionId = sessionId)) {
+                            is Either.Right -> r.value
+                            is Either.Left -> emptyMap()
+                        }
+                        dispatch(Msg.BranchSwitched(
+                            messages = messages,
+                            activeBranch = activeBranch,
+                            branches = branches,
+                            turnTokens = turnTokens,
+                            turnCosts = turnCosts,
+                            sessionTokens = sessionTokens,
+                            sessionCosts = sessionCosts,
+                            branchParentMap = branchParentMap,
+                        ))
+                    }
+                    is Either.Left -> {}
+                }
+                dispatch(Msg.LoadingComplete)
+            }
+        }
+
+        private fun handleDeleteBranch(branchId: BranchId) {
+            val sessionId = state().sessionId ?: return
+            scope.launch {
+                when (agent.deleteBranch(branchId = branchId)) {
+                    is Either.Right -> {
+                        handleLoadBranches()
+                        handleSwitchBranch(branchId = state().branches.first { it.isMain }.id)
+                    }
+                    is Either.Left -> {}
                 }
             }
         }
@@ -127,6 +267,22 @@ class ChatStoreFactory(
                 )
                 is Msg.Loading -> copy(isLoading = true)
                 is Msg.LoadingComplete -> copy(isLoading = false)
+                is Msg.BranchesLoaded -> copy(
+                    branches = msg.branches,
+                    activeBranch = msg.activeBranch,
+                    isBranchingEnabled = msg.isBranchingEnabled,
+                    branchParentMap = msg.branchParentMap,
+                )
+                is Msg.BranchSwitched -> copy(
+                    messages = msg.messages,
+                    activeBranch = msg.activeBranch,
+                    branches = msg.branches,
+                    turnTokens = msg.turnTokens,
+                    turnCosts = msg.turnCosts,
+                    sessionTokens = msg.sessionTokens,
+                    sessionCosts = msg.sessionCosts,
+                    branchParentMap = msg.branchParentMap,
+                )
             }
     }
 }

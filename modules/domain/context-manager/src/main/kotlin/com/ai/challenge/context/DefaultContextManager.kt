@@ -6,6 +6,9 @@ import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextManager.PreparedContext
 import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage
 import com.ai.challenge.core.context.ContextManager.PreparedContext.ContextMessage.MessageRole
+import com.ai.challenge.core.fact.Fact
+import com.ai.challenge.core.fact.FactCategory
+import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.summary.SummaryRepository
@@ -17,7 +20,14 @@ class DefaultContextManager(
     private val compressor: ContextCompressor,
     private val summaryRepository: SummaryRepository,
     private val turnRepository: TurnRepository,
+    private val factExtractor: FactExtractor,
+    private val factRepository: FactRepository,
+    private val branchingContextManager: BranchingContextManager,
 ) : ContextManager {
+
+    private companion object {
+        const val WINDOW_SIZE = 10
+    }
 
     override suspend fun prepareContext(
         sessionId: AgentSessionId,
@@ -29,8 +39,17 @@ class DefaultContextManager(
             is ContextManagementType.None -> passThrough(sessionId = sessionId, newMessage = newMessage)
             is ContextManagementType.SummarizeOnThreshold -> summarizeOnThreshold(
                 sessionId = sessionId,
-                newMessage = newMessage
+                newMessage = newMessage,
             )
+            is ContextManagementType.Branching -> branchingContextManager.prepareContext(
+                sessionId = sessionId,
+                newMessage = newMessage,
+            )
+            is ContextManagementType.SlidingWindow -> slidingWindow(
+                sessionId = sessionId,
+                newMessage = newMessage,
+            )
+            is ContextManagementType.StickyFacts -> stickyFacts(sessionId = sessionId, newMessage = newMessage)
         }
     }
 
@@ -71,6 +90,53 @@ class DefaultContextManager(
         val summaryText = compressTurns(history = history, splitAt = splitAt, lastSummary = lastSummary)
         saveSummary(sessionId = sessionId, summaryText = summaryText, toTurnIndex = splitAt)
         return withNewSummary(summaryText = summaryText, history = history, splitAt = splitAt, newMessage = newMessage)
+    }
+
+    private suspend fun slidingWindow(
+        sessionId: AgentSessionId,
+        newMessage: String,
+    ): PreparedContext {
+        val history = turnRepository.getBySession(sessionId = sessionId)
+        val windowed = history.takeLast(n = WINDOW_SIZE)
+        return PreparedContext(
+            messages = turnsToMessages(turns = windowed) + ContextMessage(role = MessageRole.User, content = newMessage),
+            compressed = false,
+            originalTurnCount = history.size,
+            retainedTurnCount = windowed.size,
+            summaryCount = 0,
+        )
+    }
+
+    private suspend fun stickyFacts(
+        sessionId: AgentSessionId,
+        newMessage: String,
+    ): PreparedContext {
+        val retainLast = 5
+
+        val currentFacts = factRepository.getBySession(sessionId = sessionId)
+        val history = turnRepository.getBySession(sessionId = sessionId)
+        val lastAssistantResponse = history.lastOrNull()?.agentResponse
+
+        val updatedFacts = factExtractor.extract(
+            currentFacts = currentFacts,
+            newUserMessage = newMessage,
+            lastAssistantResponse = lastAssistantResponse,
+        )
+        factRepository.save(sessionId = sessionId, facts = updatedFacts)
+
+        val retained = if (history.size > retainLast) {
+            history.subList(history.size - retainLast, history.size)
+        } else {
+            history
+        }
+
+        return if (updatedFacts.isEmpty()) {
+            withoutCompression(history = retained, newMessage = newMessage).copy(
+                originalTurnCount = history.size,
+            )
+        } else {
+            withFacts(facts = updatedFacts, retainedTurns = retained, history = history, newMessage = newMessage)
+        }
     }
 
     // --- side effects ---
@@ -150,6 +216,57 @@ class DefaultContextManager(
             retainedTurnCount = retained.size,
             summaryCount = 1,
         )
+    }
+
+    private fun withFacts(
+        facts: List<Fact>,
+        retainedTurns: List<Turn>,
+        history: List<Turn>,
+        newMessage: String,
+    ): PreparedContext =
+        PreparedContext(
+            messages = factsMessages(facts = facts, retainedTurns = retainedTurns, newMessage = newMessage),
+            compressed = true,
+            originalTurnCount = history.size,
+            retainedTurnCount = retainedTurns.size,
+            summaryCount = 0,
+        )
+
+    private fun factsMessages(
+        facts: List<Fact>,
+        retainedTurns: List<Turn>,
+        newMessage: String,
+    ): List<ContextMessage> =
+        buildList {
+            add(ContextMessage(role = MessageRole.System, content = formatFacts(facts = facts)))
+            addAll(turnsToMessages(turns = retainedTurns))
+            add(ContextMessage(role = MessageRole.User, content = newMessage))
+        }
+
+    private fun formatFacts(facts: List<Fact>): String {
+        val grouped = facts.groupBy { it.category }
+        return buildString {
+            appendLine("You have the following context about this conversation:")
+            appendLine()
+            appendCategoryIfPresent(grouped = grouped, category = FactCategory.Goal, header = "## Goals")
+            appendCategoryIfPresent(grouped = grouped, category = FactCategory.Constraint, header = "## Constraints")
+            appendCategoryIfPresent(grouped = grouped, category = FactCategory.Preference, header = "## Preferences")
+            appendCategoryIfPresent(grouped = grouped, category = FactCategory.Decision, header = "## Decisions")
+            appendCategoryIfPresent(grouped = grouped, category = FactCategory.Agreement, header = "## Agreements")
+        }.trimEnd()
+    }
+
+    private fun StringBuilder.appendCategoryIfPresent(
+        grouped: Map<FactCategory, List<Fact>>,
+        category: FactCategory,
+        header: String,
+    ) {
+        val categoryFacts = grouped[category] ?: return
+        appendLine(header)
+        for (fact in categoryFacts) {
+            appendLine("- ${fact.key}: ${fact.value}")
+        }
+        appendLine()
     }
 
     private fun summarizedMessages(
