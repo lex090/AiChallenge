@@ -16,6 +16,9 @@ rootProject.name = "AiChallenge"
 include(":modules:core")
 include(":modules:shared-kernel")
 
+// Conversation Bounded Context
+include(":modules:conversation:domain")
+
 // Layer 1: Data
 include(":modules:data:open-router-service")
 include(":modules:data:session-repository-exposed")
