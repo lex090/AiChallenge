@@ -14,11 +14,11 @@ modules/
 ├── data/                          ← Layer 1: Data
 │   ├── open-router-service/
 │   ├── session-repository-exposed/
-│   ├── fact-repository-exposed/
-│   └── summary-repository-exposed/
+│   └── memory-repository-exposed/
 ├── domain/                        ← Layer 2: Domain
 │   ├── ai-agent/
-│   └── context-manager/
+│   ├── context-manager/
+│   └── memory-service/
 ├── presentation/                  ← Layer 3: Presentation
 │   ├── compose-ui/                # Pure UI (components, stores, composables)
 │   └── app/                       # Bootstrap, DI, entry point
@@ -26,20 +26,20 @@ modules/
 ```
 
 ### Layer 0 — Foundation (`modules/core`)
-- **core** — Domain models (AgentSession, Branch, Turn, TurnSequence, Fact, Summary, UsageRecord, ContextManagementType), ID types (AgentSessionId, BranchId, TurnId), repository interfaces (AgentSessionRepository, FactRepository, SummaryRepository), domain service interfaces (SessionService, BranchService, ChatService, UsageQueryService), ports (LlmPort, ContextManager), application use cases (SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService), domain events (DomainEventPublisher, DomainEventHandler), DomainError (Arrow Either)
+- **core** — Domain models (AgentSession, Branch, Turn, TurnSequence, Fact, Summary, UsageRecord, ContextManagementType), ID types (AgentSessionId, BranchId, TurnId), repository interfaces (AgentSessionRepository, FactRepository, SummaryRepository), domain service interfaces (SessionService, BranchService, ChatService, UsageQueryService), ports (LlmPort, ContextManager), memory ports (MemoryService, MemoryProvider, MemoryType, MemoryScope, MemorySnapshot, FactMemoryProvider, SummaryMemoryProvider), memory use cases (GetMemoryUseCase, UpdateFactsUseCase, AddSummaryUseCase, DeleteSummaryUseCase), application use cases (SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService), domain events (DomainEventPublisher, DomainEventHandler), DomainError (Arrow Either)
 
 ### Layer 1 — Data (`modules/data/*`)
 - **open-router-service** — OpenRouter HTTP client (LlmPort implementation), request/response models
 - **session-repository-exposed** — AgentSessionRepository implementation (Exposed + SQLite). Single access point to AgentSession aggregate (sessions, branches, turns)
-- **fact-repository-exposed** — FactRepository implementation (Exposed + SQLite)
-- **summary-repository-exposed** — SummaryRepository implementation (Exposed + SQLite)
+- **memory-repository-exposed** — FactRepository and SummaryRepository implementations (Exposed + SQLite, unified memory.db)
 
 ### Layer 2 — Domain (`modules/domain/*`)
 - **ai-agent** — Domain service implementations (AiChatService, AiSessionService, AiBranchService, AiUsageQueryService)
-- **context-manager** — ContextPreparationService (ContextManager port implementation), 5 strategies (Passthrough, SlidingWindow, StickyFacts, SummarizeOnThreshold, Branching), LlmContextCompressor, LlmFactExtractor, SessionDeletedCleanupHandler (domain event handler)
+- **context-manager** — ContextPreparationService (ContextManager port implementation), 5 strategies (Passthrough, SlidingWindow, StickyFacts, SummarizeOnThreshold, Branching), LlmContextCompressor, LlmFactExtractor
+- **memory-service** — MemoryService implementation (DefaultMemoryService, registry pattern), FactMemoryProvider/SummaryMemoryProvider implementations, SessionDeletedCleanupHandler (domain event handler), memory use case implementations
 
 ### Layer 3 — Presentation (`modules/presentation/*`)
-- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through Agent interface.
+- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through use case interfaces. Includes Memory debug panel (MemoryDebugComponent, MemoryDebugStore, MemoryDebugScreen).
 - **app** — Application entry point, Koin DI configuration, bootstrap. Composition root that wires all layers together.
 
 ### Standalone
