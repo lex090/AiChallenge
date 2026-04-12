@@ -26,6 +26,7 @@ class ChatComponent(
     usageService: UsageQueryService,
     branchService: BranchService,
     sessionId: AgentSessionId,
+    onTurnRecorded: () -> Unit,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {
@@ -36,6 +37,7 @@ class ChatComponent(
             sessionService = sessionService,
             usageService = usageService,
             branchService = branchService,
+            onTurnRecorded = onTurnRecorded,
         ).create()
     }
 

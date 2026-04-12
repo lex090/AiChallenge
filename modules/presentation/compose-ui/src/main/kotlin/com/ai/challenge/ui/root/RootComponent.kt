@@ -96,6 +96,11 @@ class RootComponent(
     fun selectSession(sessionId: AgentSessionId) {
         sessionListStore.accept(SessionListStore.Intent.SelectSession(sessionId))
         navigation.replaceCurrent(Config.Chat(sessionId = sessionId.value))
+        refreshMemoryDebug()
+    }
+
+    fun refreshMemoryDebug() {
+        val sessionId = sessionListStore.stateFlow.value.activeSessionId ?: return
         _memoryDebugComponent.value?.loadForSession(sessionId = sessionId)
     }
 
@@ -180,6 +185,7 @@ class RootComponent(
                     usageService = usageService,
                     branchService = branchService,
                     sessionId = AgentSessionId(config.sessionId),
+                    onTurnRecorded = { refreshMemoryDebug() },
                 )
             )
         }
