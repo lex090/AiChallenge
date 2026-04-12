@@ -1,6 +1,6 @@
 package com.ai.challenge
 
-import com.ai.challenge.llm.OpenRouterService
+import com.ai.challenge.infrastructure.llm.OpenRouterService
 
 private val TEMPERATURES = listOf(0.0, 0.7, 1.2)
 
