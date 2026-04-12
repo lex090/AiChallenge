@@ -18,6 +18,7 @@ include(":modules:shared-kernel")
 
 // Conversation Bounded Context
 include(":modules:conversation:domain")
+include(":modules:conversation:data")
 
 // Layer 1: Data
 include(":modules:data:open-router-service")
