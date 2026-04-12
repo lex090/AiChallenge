@@ -20,6 +20,9 @@ include(":modules:shared-kernel")
 include(":modules:conversation:domain")
 include(":modules:conversation:data")
 
+// Context Management Bounded Context
+include(":modules:context-management:domain")
+
 // Layer 1: Data
 include(":modules:data:open-router-service")
 include(":modules:data:session-repository-exposed")
