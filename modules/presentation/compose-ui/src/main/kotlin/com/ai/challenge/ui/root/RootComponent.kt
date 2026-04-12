@@ -14,6 +14,8 @@ import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
+import com.ai.challenge.ui.debug.memory.MemoryDebugComponent
+import com.ai.challenge.ui.debug.memory.MemoryDebugStoreFactory
 import com.ai.challenge.ui.settings.SessionSettingsComponent
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -42,6 +44,7 @@ class RootComponent(
     private val createSessionUseCase: CreateSessionUseCase,
     private val deleteSessionUseCase: DeleteSessionUseCase,
     private val applicationInitService: ApplicationInitService,
+    private val memoryDebugStoreFactory: MemoryDebugStoreFactory,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
@@ -53,6 +56,9 @@ class RootComponent(
 
     private val _settingsComponent = MutableStateFlow<SessionSettingsComponent?>(null)
     val settingsComponent: StateFlow<SessionSettingsComponent?> = _settingsComponent.asStateFlow()
+
+    private val _memoryDebugComponent = MutableStateFlow<MemoryDebugComponent?>(null)
+    val memoryDebugComponent: StateFlow<MemoryDebugComponent?> = _memoryDebugComponent.asStateFlow()
 
     private val navigation = StackNavigation<Config>()
 
@@ -90,6 +96,7 @@ class RootComponent(
     fun selectSession(sessionId: AgentSessionId) {
         sessionListStore.accept(SessionListStore.Intent.SelectSession(sessionId))
         navigation.replaceCurrent(Config.Chat(sessionId = sessionId.value))
+        _memoryDebugComponent.value?.loadForSession(sessionId = sessionId)
     }
 
     fun createNewSession() {
@@ -102,6 +109,19 @@ class RootComponent(
                         selectSession(sessionId = session.id)
                     },
                 )
+        }
+    }
+
+    fun toggleMemoryDebug(sessionId: AgentSessionId) {
+        if (_memoryDebugComponent.value != null) {
+            _memoryDebugComponent.value = null
+        } else {
+            val component = MemoryDebugComponent(
+                componentContext = this,
+                storeFactory = memoryDebugStoreFactory,
+            )
+            component.loadForSession(sessionId = sessionId)
+            _memoryDebugComponent.value = component
         }
     }
 

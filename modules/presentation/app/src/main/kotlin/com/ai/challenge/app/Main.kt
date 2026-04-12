@@ -10,12 +10,18 @@ import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usecase.ApplicationInitService
 import com.ai.challenge.core.usecase.CreateSessionUseCase
+import com.ai.challenge.core.memory.usecase.AddSummaryUseCase
+import com.ai.challenge.core.memory.usecase.DeleteSummaryUseCase
+import com.ai.challenge.core.memory.usecase.GetMemoryUseCase
+import com.ai.challenge.core.memory.usecase.UpdateFactsUseCase
 import com.ai.challenge.core.usecase.DeleteSessionUseCase
 import com.ai.challenge.core.usecase.SendMessageUseCase
+import com.ai.challenge.ui.debug.memory.MemoryDebugStoreFactory
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
 import com.arkivanov.decompose.DefaultComponentContext
 import com.arkivanov.essenty.lifecycle.LifecycleRegistry
+import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import org.koin.core.context.startKoin
 import javax.swing.SwingUtilities
@@ -27,10 +33,21 @@ fun main() {
 
     val lifecycle = LifecycleRegistry()
 
+    val mainStoreFactory: StoreFactory = DefaultStoreFactory()
+
+    val memoryDebugStoreFactory = MemoryDebugStoreFactory(
+        storeFactory = mainStoreFactory,
+        getMemoryUseCase = koin.get<GetMemoryUseCase>(),
+        updateFactsUseCase = koin.get<UpdateFactsUseCase>(),
+        addSummaryUseCase = koin.get<AddSummaryUseCase>(),
+        deleteSummaryUseCase = koin.get<DeleteSummaryUseCase>(),
+    )
+
     val root = runOnUiThread {
         RootComponent(
             componentContext = DefaultComponentContext(lifecycle = lifecycle),
-            storeFactory = DefaultStoreFactory(),
+            storeFactory = mainStoreFactory,
+            memoryDebugStoreFactory = memoryDebugStoreFactory,
             sessionService = koin.get<SessionService>(),
             chatService = koin.get<ChatService>(),
             usageService = koin.get<UsageQueryService>(),
