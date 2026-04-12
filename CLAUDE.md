@@ -167,6 +167,12 @@ Package: `com.ai.challenge.infrastructure.llm`
 - Presentation layer calls application use cases (SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase), not domain services directly.
 - `CoroutineExecutor` requires `kotlinx-coroutines-swing` on Desktop for `Dispatchers.Main`.
 
+### Git: Never force-add ignored files
+
+- **NEVER use `git add -f`** to add files that are in `.gitignore`. If `git add` skips a file, it is ignored intentionally.
+- `docs/` is in `.gitignore` — do not track documentation files in git.
+- When committing, use explicit file paths (`git add path/to/file.kt`), not `git add -A` or `git add .`.
+
 ### Testing
 
 - Unit tests with `kotlin-test` and `kotlinx-coroutines-test`.
