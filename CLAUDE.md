@@ -69,6 +69,14 @@ No module may depend on a module above it.
 - **When adding/modifying domain entities, aggregates, VOs, repositories, services, or events** — you MUST read `architecture/ddd-audit-checklist.md` and validate the change against formal DDD rules before implementation.
 - Every design decision must cite a specific principle (Evans or Vernon), not subjective preference.
 
+### DDD Documentation (mandatory)
+
+- **Every new DDD building block** (Entity, Value Object, Aggregate, Domain Event, Repository, Domain Service, Port, Use Case) **MUST be documented** upon creation:
+  1. **KDoc на классе/интерфейсе** — краткое описание: что это за элемент, какую доменную концепцию моделирует, к какому агрегату принадлежит (если применимо).
+  2. **Инварианты** — задокументировать все бизнес-правила и инварианты, которые элемент защищает или гарантирует (в KDoc или отдельным комментарием перед валидацией).
+  3. **Обновление CLAUDE.md** — добавить новый элемент в описание соответствующего слоя (Layer 0–2) в секции «Architecture: Stratified Design», чтобы список моделей, сервисов и портов оставался актуальным.
+- Без выполнения всех трёх пунктов добавление нового DDD-элемента считается незавершённым.
+
 ### Dependencies
 
 - **All dependencies MUST go through Gradle Version Catalog** (`gradle/libs.versions.toml`). Never hardcode dependency coordinates directly in `build.gradle.kts` files.
