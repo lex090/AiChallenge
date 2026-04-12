@@ -1,8 +1,8 @@
 package com.ai.challenge.app.event
 
-import com.ai.challenge.core.event.DomainEvent
-import com.ai.challenge.core.event.DomainEventHandler
-import com.ai.challenge.core.event.DomainEventPublisher
+import com.ai.challenge.sharedkernel.event.DomainEvent
+import com.ai.challenge.sharedkernel.event.DomainEventHandler
+import com.ai.challenge.sharedkernel.event.DomainEventPublisher
 import kotlin.reflect.KClass
 
 /**
