@@ -24,6 +24,9 @@ include(":modules:conversation:data")
 include(":modules:context-management:domain")
 include(":modules:context-management:data")
 
+// Infrastructure
+include(":modules:infrastructure:open-router-service")
+
 // Layer 1: Data
 include(":modules:data:open-router-service")
 include(":modules:data:session-repository-exposed")
