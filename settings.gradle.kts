@@ -22,6 +22,7 @@ include(":modules:conversation:data")
 
 // Context Management Bounded Context
 include(":modules:context-management:domain")
+include(":modules:context-management:data")
 
 // Layer 1: Data
 include(":modules:data:open-router-service")
