@@ -1,8 +1,12 @@
 package com.ai.challenge.ui.debug.memory
 
+import arrow.core.getOrElse
+import com.ai.challenge.core.chat.SessionService
+import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.core.context.model.FactKey
+import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.fact.Fact
-import com.ai.challenge.core.memory.usecase.AddSummaryUseCase
-import com.ai.challenge.core.memory.usecase.DeleteSummaryUseCase
+import com.ai.challenge.core.fact.FactCategory
 import com.ai.challenge.core.memory.usecase.GetMemoryUseCase
 import com.ai.challenge.core.memory.usecase.UpdateFactsUseCase
 import com.ai.challenge.core.session.AgentSessionId
@@ -16,16 +20,14 @@ import kotlinx.coroutines.launch
 /**
  * Factory that creates [MemoryDebugStore] instances.
  *
- * Wires use cases for memory CRUD operations into the MVIKotlin store lifecycle.
- * Intended for the debug panel — allows inspecting and editing facts/summaries
- * attached to a session.
+ * Wires use cases for memory operations and SessionService for context-aware display.
+ * Facts support full CRUD with per-row save. Summaries are read-only.
  */
 class MemoryDebugStoreFactory(
     private val storeFactory: StoreFactory,
     private val getMemoryUseCase: GetMemoryUseCase,
     private val updateFactsUseCase: UpdateFactsUseCase,
-    private val addSummaryUseCase: AddSummaryUseCase,
-    private val deleteSummaryUseCase: DeleteSummaryUseCase,
+    private val sessionService: SessionService,
 ) {
 
     fun create(): MemoryDebugStore =
@@ -34,8 +36,10 @@ class MemoryDebugStoreFactory(
                 name = "MemoryDebugStore",
                 initialState = MemoryDebugStore.State(
                     sessionId = null,
+                    contextManagementType = null,
                     facts = emptyList(),
                     summaries = emptyList(),
+                    selectedCategories = FactCategory.entries.toSet(),
                     isLoading = false,
                     error = null,
                 ),
@@ -47,13 +51,13 @@ class MemoryDebugStoreFactory(
         data object Loading : Msg
         data class Loaded(
             val sessionId: AgentSessionId,
+            val contextManagementType: ContextManagementType?,
             val facts: List<Fact>,
             val summaries: List<Summary>,
         ) : Msg
         data class Error(val message: String) : Msg
         data class FactsUpdated(val facts: List<Fact>) : Msg
-        data class SummaryAdded(val summary: Summary) : Msg
-        data class SummaryDeleted(val summary: Summary) : Msg
+        data class CategoriesChanged(val selectedCategories: Set<FactCategory>) : Msg
     }
 
     private inner class ExecutorImpl :
@@ -62,52 +66,86 @@ class MemoryDebugStoreFactory(
         override fun executeIntent(intent: MemoryDebugStore.Intent) {
             when (intent) {
                 is MemoryDebugStore.Intent.LoadMemory -> loadMemory(sessionId = intent.sessionId)
-                is MemoryDebugStore.Intent.ReplaceFacts -> replaceFacts(facts = intent.facts)
-                is MemoryDebugStore.Intent.AddSummary -> addSummary(summary = intent.summary)
-                is MemoryDebugStore.Intent.DeleteSummary -> deleteSummary(summary = intent.summary)
+                is MemoryDebugStore.Intent.SaveFact -> saveFact(index = intent.index, fact = intent.fact)
+                is MemoryDebugStore.Intent.DeleteFact -> deleteFact(index = intent.index)
+                is MemoryDebugStore.Intent.AddFact -> addFact()
+                is MemoryDebugStore.Intent.ToggleCategory -> toggleCategory(category = intent.category)
+                is MemoryDebugStore.Intent.SelectAllCategories -> dispatch(
+                    message = Msg.CategoriesChanged(selectedCategories = FactCategory.entries.toSet()),
+                )
             }
         }
 
         private fun loadMemory(sessionId: AgentSessionId) {
             dispatch(message = Msg.Loading)
             scope.launch {
+                val session = sessionService.get(id = sessionId).getOrElse { null }
                 val snapshot = getMemoryUseCase.execute(sessionId = sessionId)
                 dispatch(
                     message = Msg.Loaded(
                         sessionId = sessionId,
+                        contextManagementType = session?.contextManagementType,
                         facts = snapshot.facts,
                         summaries = snapshot.summaries,
-                    )
+                    ),
                 )
             }
         }
 
-        private fun replaceFacts(facts: List<Fact>) {
+        private fun saveFact(index: Int, fact: Fact) {
             val sessionId = state().sessionId ?: return
+            val currentFacts = state().facts.toMutableList()
+            if (index in currentFacts.indices) {
+                currentFacts[index] = fact
+            } else {
+                currentFacts.add(element = fact)
+            }
             scope.launch {
-                updateFactsUseCase.execute(sessionId = sessionId, facts = facts).fold(
+                updateFactsUseCase.execute(sessionId = sessionId, facts = currentFacts).fold(
                     ifLeft = { dispatch(message = Msg.Error(message = it.message)) },
-                    ifRight = { dispatch(message = Msg.FactsUpdated(facts = facts)) },
+                    ifRight = { dispatch(message = Msg.FactsUpdated(facts = currentFacts)) },
                 )
             }
         }
 
-        private fun addSummary(summary: Summary) {
+        private fun deleteFact(index: Int) {
+            val sessionId = state().sessionId ?: return
+            val currentFacts = state().facts.toMutableList()
+            if (index !in currentFacts.indices) return
+            currentFacts.removeAt(index = index)
             scope.launch {
-                addSummaryUseCase.execute(summary = summary).fold(
+                updateFactsUseCase.execute(sessionId = sessionId, facts = currentFacts).fold(
                     ifLeft = { dispatch(message = Msg.Error(message = it.message)) },
-                    ifRight = { dispatch(message = Msg.SummaryAdded(summary = summary)) },
+                    ifRight = { dispatch(message = Msg.FactsUpdated(facts = currentFacts)) },
                 )
             }
         }
 
-        private fun deleteSummary(summary: Summary) {
+        private fun addFact() {
+            val sessionId = state().sessionId ?: return
+            val newFact = Fact(
+                sessionId = sessionId,
+                category = FactCategory.Goal,
+                key = FactKey(value = ""),
+                value = FactValue(value = ""),
+            )
+            val updatedFacts = state().facts + newFact
             scope.launch {
-                deleteSummaryUseCase.execute(summary = summary).fold(
+                updateFactsUseCase.execute(sessionId = sessionId, facts = updatedFacts).fold(
                     ifLeft = { dispatch(message = Msg.Error(message = it.message)) },
-                    ifRight = { dispatch(message = Msg.SummaryDeleted(summary = summary)) },
+                    ifRight = { dispatch(message = Msg.FactsUpdated(facts = updatedFacts)) },
                 )
             }
+        }
+
+        private fun toggleCategory(category: FactCategory) {
+            val current = state().selectedCategories
+            val updated = if (category in current) {
+                current - category
+            } else {
+                current + category
+            }
+            dispatch(message = Msg.CategoriesChanged(selectedCategories = updated))
         }
     }
 
@@ -117,6 +155,7 @@ class MemoryDebugStoreFactory(
                 is Msg.Loading -> copy(isLoading = true, error = null)
                 is Msg.Loaded -> copy(
                     sessionId = msg.sessionId,
+                    contextManagementType = msg.contextManagementType,
                     facts = msg.facts,
                     summaries = msg.summaries,
                     isLoading = false,
@@ -124,8 +163,7 @@ class MemoryDebugStoreFactory(
                 )
                 is Msg.Error -> copy(isLoading = false, error = msg.message)
                 is Msg.FactsUpdated -> copy(facts = msg.facts)
-                is Msg.SummaryAdded -> copy(summaries = summaries + msg.summary)
-                is Msg.SummaryDeleted -> copy(summaries = summaries.filter { it != msg.summary })
+                is Msg.CategoriesChanged -> copy(selectedCategories = msg.selectedCategories)
             }
     }
 }
