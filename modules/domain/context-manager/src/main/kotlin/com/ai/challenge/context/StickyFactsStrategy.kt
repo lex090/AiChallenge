@@ -9,13 +9,15 @@ import com.ai.challenge.core.context.MessageRole
 import com.ai.challenge.core.context.PreparedContext
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.fact.FactRepository
+import com.ai.challenge.core.memory.MemoryScope
+import com.ai.challenge.core.memory.MemoryService
+import com.ai.challenge.core.memory.MemoryType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.turn.Turn
 
 class StickyFactsStrategy(
     private val repository: AgentSessionRepository,
-    private val factRepository: FactRepository,
+    private val memoryService: MemoryService,
     private val factExtractor: FactExtractor,
 ) : ContextStrategy {
 
@@ -27,7 +29,10 @@ class StickyFactsStrategy(
     ): PreparedContext {
         val stickyConfig = config as ContextStrategyConfig.StickyFacts
 
-        val currentFacts = factRepository.getBySession(sessionId = sessionId)
+        val factProvider = memoryService.provider(type = MemoryType.Facts)
+        val scope = MemoryScope.Session(sessionId = sessionId)
+
+        val currentFacts = factProvider.get(scope = scope)
         val history = repository.getTurnsByBranch(branchId = branchId)
         val lastAssistantResponse = history.lastOrNull()?.assistantMessage
 
@@ -38,9 +43,9 @@ class StickyFactsStrategy(
             lastAssistantResponse = lastAssistantResponse,
         )
         if (updatedFacts.isEmpty()) {
-            factRepository.deleteBySession(sessionId = sessionId)
+            factProvider.clear(scope = scope)
         } else {
-            factRepository.save(sessionId = sessionId, facts = updatedFacts)
+            factProvider.replace(scope = scope, facts = updatedFacts)
         }
 
         val retained = if (history.size > stickyConfig.retainLastTurns) {
