@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.sessionlist.store
 
 import arrow.core.Either
-import com.ai.challenge.core.chat.model.SessionTitle
+import com.ai.challenge.conversation.model.SessionTitle
 import com.ai.challenge.ui.chat.store.FakeServices
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
 import kotlinx.coroutines.Dispatchers

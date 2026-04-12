@@ -47,10 +47,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.core.branch.Branch
-import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.conversation.model.Branch
+import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.conversation.model.UsageRecord
 import com.ai.challenge.ui.model.UiMessage
 
 @Composable

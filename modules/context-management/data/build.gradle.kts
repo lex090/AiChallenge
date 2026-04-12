@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-group = "com.ai.challenge"
+group = "com.ai.challenge.context-management"
 version = "1.0-SNAPSHOT"
 
 repositories {

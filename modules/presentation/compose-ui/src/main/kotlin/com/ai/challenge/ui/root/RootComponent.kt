@@ -1,16 +1,16 @@
 package com.ai.challenge.ui.root
 
 import arrow.core.getOrElse
-import com.ai.challenge.core.chat.BranchService
-import com.ai.challenge.core.chat.ChatService
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.chat.model.SessionTitle
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.usage.UsageQueryService
-import com.ai.challenge.core.usecase.ApplicationInitService
-import com.ai.challenge.core.usecase.CreateSessionUseCase
-import com.ai.challenge.core.usecase.DeleteSessionUseCase
-import com.ai.challenge.core.usecase.SendMessageUseCase
+import com.ai.challenge.conversation.service.BranchService
+import com.ai.challenge.conversation.service.ChatService
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.conversation.model.SessionTitle
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.conversation.service.UsageQueryService
+import com.ai.challenge.conversation.usecase.ApplicationInitService
+import com.ai.challenge.conversation.usecase.CreateSessionUseCase
+import com.ai.challenge.conversation.usecase.DeleteSessionUseCase
+import com.ai.challenge.conversation.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory

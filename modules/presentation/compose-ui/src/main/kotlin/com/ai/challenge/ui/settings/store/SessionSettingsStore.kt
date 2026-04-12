@@ -1,7 +1,7 @@
 package com.ai.challenge.ui.settings.store
 
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.contextmanagement.model.ContextManagementType
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
 
 interface SessionSettingsStore : Store<SessionSettingsStore.Intent, SessionSettingsStore.State, Nothing> {

@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.debug.memory
 
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.mvikotlin.extensions.coroutines.stateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi

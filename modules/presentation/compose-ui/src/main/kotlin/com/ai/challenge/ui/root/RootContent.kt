@@ -38,7 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
 import com.ai.challenge.ui.debug.memory.MemoryDebugPanel
 import com.ai.challenge.ui.sessionlist.store.SessionListStore

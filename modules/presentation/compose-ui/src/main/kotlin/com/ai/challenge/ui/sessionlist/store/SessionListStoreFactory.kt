@@ -1,9 +1,9 @@
 package com.ai.challenge.ui.sessionlist.store
 
 import arrow.core.getOrElse
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.chat.model.SessionTitle
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.conversation.model.SessionTitle
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor

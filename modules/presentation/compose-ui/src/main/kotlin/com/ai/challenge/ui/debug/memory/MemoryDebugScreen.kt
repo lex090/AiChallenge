@@ -45,13 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.context.model.FactKey
-import com.ai.challenge.core.context.model.FactValue
-import com.ai.challenge.core.fact.Fact
-import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.contextmanagement.model.ContextManagementType
+import com.ai.challenge.contextmanagement.model.Fact
+import com.ai.challenge.contextmanagement.model.FactCategory
+import com.ai.challenge.contextmanagement.model.FactKey
+import com.ai.challenge.contextmanagement.model.FactValue
+import com.ai.challenge.contextmanagement.model.Summary
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 
 private val PANEL_WIDTH = 400.dp
 

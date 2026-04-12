@@ -1,10 +1,10 @@
 package com.ai.challenge.ui.debug.memory
 
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.fact.Fact
-import com.ai.challenge.core.fact.FactCategory
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.summary.Summary
+import com.ai.challenge.contextmanagement.model.ContextManagementType
+import com.ai.challenge.contextmanagement.model.Fact
+import com.ai.challenge.contextmanagement.model.FactCategory
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.contextmanagement.model.Summary
 import com.arkivanov.mvikotlin.core.store.Store
 
 /**

@@ -1,29 +1,29 @@
 package com.ai.challenge.ui.chat.store
 
 import arrow.core.Either
-import com.ai.challenge.core.branch.Branch
-import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.chat.BranchService
-import com.ai.challenge.core.chat.ChatService
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.branch.TurnSequence
-import com.ai.challenge.core.chat.model.MessageContent
-import com.ai.challenge.core.chat.model.SessionTitle
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.error.DomainError
-import com.ai.challenge.core.event.DomainEvent
-import com.ai.challenge.core.event.DomainEventPublisher
-import com.ai.challenge.core.session.AgentSession
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.shared.CreatedAt
-import com.ai.challenge.core.shared.UpdatedAt
-import com.ai.challenge.core.turn.Turn
-import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageQueryService
-import com.ai.challenge.core.usage.model.Cost
-import com.ai.challenge.core.usage.model.TokenCount
-import com.ai.challenge.core.usage.model.UsageRecord
-import com.ai.challenge.core.usecase.SendMessageUseCase
+import com.ai.challenge.conversation.model.AgentSession
+import com.ai.challenge.conversation.model.Branch
+import com.ai.challenge.conversation.model.Cost
+import com.ai.challenge.conversation.model.SessionTitle
+import com.ai.challenge.conversation.model.TokenCount
+import com.ai.challenge.conversation.model.TurnSequence
+import com.ai.challenge.conversation.model.Turn
+import com.ai.challenge.conversation.model.UsageRecord
+import com.ai.challenge.conversation.service.BranchService
+import com.ai.challenge.conversation.service.ChatService
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.conversation.service.UsageQueryService
+import com.ai.challenge.conversation.usecase.SendMessageUseCase
+import com.ai.challenge.sharedkernel.error.DomainError
+import com.ai.challenge.sharedkernel.event.DomainEvent
+import com.ai.challenge.sharedkernel.event.DomainEventPublisher
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.sharedkernel.vo.ContextModeId
+import com.ai.challenge.sharedkernel.vo.CreatedAt
+import com.ai.challenge.sharedkernel.vo.MessageContent
+import com.ai.challenge.sharedkernel.vo.UpdatedAt
 import com.ai.challenge.ui.model.UiMessage
 import kotlin.time.Clock
 import com.arkivanov.mvikotlin.main.store.DefaultStoreFactory
@@ -403,7 +403,7 @@ open class FakeServices(
         val session = AgentSession(
             id = id,
             title = title,
-            contextManagementType = ContextManagementType.None,
+            contextModeId = ContextModeId(value = "none"),
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )
@@ -434,10 +434,10 @@ open class FakeServices(
         return Either.Right(value = updated)
     }
 
-    override suspend fun updateContextManagementType(id: AgentSessionId, type: ContextManagementType): Either<DomainError, AgentSession> {
+    override suspend fun updateContextModeId(id: AgentSessionId, contextModeId: ContextModeId): Either<DomainError, AgentSession> {
         val session = sessions[id]
             ?: return Either.Left(value = DomainError.SessionNotFound(id = id))
-        val updated = session.withContextManagementType(type = type)
+        val updated = session.withContextModeId(contextModeId = contextModeId)
         sessions[id] = updated
         return Either.Right(value = updated)
     }
