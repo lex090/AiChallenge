@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
@@ -41,7 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
-import com.ai.challenge.ui.debug.memory.MemoryDebugScreen
+import com.ai.challenge.ui.debug.memory.MemoryDebugPanel
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.settings.SessionSettingsPanel
 import com.arkivanov.decompose.extensions.compose.stack.Children
@@ -143,9 +142,10 @@ fun RootContent(component: RootComponent) {
                 }
 
                 lastMemoryDebugComponent.value?.let { debugComponent ->
-                    AnimatedVisibility(visible = memoryDebugComponent != null) {
-                        MemoryDebugScreen(component = debugComponent)
-                    }
+                    MemoryDebugPanel(
+                        component = debugComponent,
+                        visible = memoryDebugComponent != null,
+                    )
                 }
             }
         }

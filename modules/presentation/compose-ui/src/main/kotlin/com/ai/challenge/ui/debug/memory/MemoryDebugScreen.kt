@@ -1,10 +1,12 @@
 package com.ai.challenge.ui.debug.memory
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,21 +22,54 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.summary.Summary
 
+private val PANEL_WIDTH = 350.dp
+
 @Composable
-fun MemoryDebugScreen(component: MemoryDebugComponent) {
+fun MemoryDebugPanel(
+    component: MemoryDebugComponent,
+    visible: Boolean,
+) {
+    val animatedWidth by animateDpAsState(
+        targetValue = if (visible) PANEL_WIDTH else 0.dp,
+        animationSpec = tween(durationMillis = 300),
+    )
+
+    if (animatedWidth > 0.dp) {
+        Row(
+            modifier = Modifier
+                .width(width = animatedWidth)
+                .fillMaxHeight()
+                .clipToBounds(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .width(width = PANEL_WIDTH)
+                    .fillMaxHeight(),
+            ) {
+                VerticalDivider()
+                MemoryDebugContent(component = component)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoryDebugContent(component: MemoryDebugComponent) {
     val state by component.state.collectAsState()
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(all = 16.dp),
+        modifier = Modifier.width(width = PANEL_WIDTH).fillMaxHeight().padding(all = 16.dp),
     ) {
         Text(text = "Memory Debug", style = MaterialTheme.typography.headlineSmall)
 
@@ -53,7 +88,7 @@ fun MemoryDebugScreen(component: MemoryDebugComponent) {
             return@Column
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(weight = 1f)) {
             item {
                 Text(text = "Facts (${state.facts.size})", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(height = 8.dp))
