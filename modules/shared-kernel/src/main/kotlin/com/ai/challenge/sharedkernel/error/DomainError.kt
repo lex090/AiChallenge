@@ -3,6 +3,7 @@ package com.ai.challenge.sharedkernel.error
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
 import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.sharedkernel.vo.ContextModeId
 
 /**
  * Value Object -- sealed hierarchy of domain errors.
@@ -45,5 +46,9 @@ sealed interface DomainError {
 
     data class BranchNotOwnedBySession(val branchId: BranchId, val sessionId: AgentSessionId) : DomainError {
         override val message: String get() = "Branch ${branchId.value} does not belong to session ${sessionId.value}"
+    }
+
+    data class UnknownContextMode(val contextModeId: ContextModeId) : DomainError {
+        override val message: String get() = "Unknown context mode: ${contextModeId.value}"
     }
 }

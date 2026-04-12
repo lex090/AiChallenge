@@ -18,7 +18,7 @@ import com.ai.challenge.sharedkernel.vo.TurnSnapshot
  * implemented in conversation/data, consumed by context-management/domain.
  */
 interface TurnQueryPort {
-    suspend fun findBySessionAndBranch(
+    suspend fun getTurnSnapshots(
         sessionId: AgentSessionId,
         branchId: BranchId,
     ): List<TurnSnapshot>

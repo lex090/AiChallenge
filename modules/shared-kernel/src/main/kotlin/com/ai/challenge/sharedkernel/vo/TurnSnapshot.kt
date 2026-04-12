@@ -1,6 +1,5 @@
 package com.ai.challenge.sharedkernel.vo
 
-import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.TurnId
 
 /**
@@ -11,17 +10,16 @@ import com.ai.challenge.sharedkernel.identity.TurnId
  * or creating a dependency on Conversation's aggregate internals.
  *
  * Contains only the fields that Context Management needs:
- * identity, session reference, message content, and creation timestamp.
- * Excludes usage metrics (UsageRecord) which are Conversation-internal.
+ * identity and message content.
+ * Excludes usage metrics, session reference, and timestamps
+ * which are Conversation-internal.
  *
  * Invariants:
  * - Immutable projection -- never modified after creation.
  * - [userMessage] and [assistantMessage] are never blank.
  */
 data class TurnSnapshot(
-    val id: TurnId,
-    val sessionId: AgentSessionId,
+    val turnId: TurnId,
     val userMessage: MessageContent,
     val assistantMessage: MessageContent,
-    val createdAt: CreatedAt,
 )
