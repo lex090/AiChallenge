@@ -1,6 +1,6 @@
 package com.ai.challenge
 
-import com.ai.challenge.llm.OpenRouterService
+import com.ai.challenge.infrastructure.llm.OpenRouterService
 
 private const val PROBLEM = """
 Пять друзей — Алексей, Борис, Вера, Галина и Дмитрий — живут в пятиэтажном доме, каждый на своём этаже (с 1-го по 5-й).

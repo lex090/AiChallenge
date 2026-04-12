@@ -1,18 +1,18 @@
 package com.ai.challenge.ui.chat.store
 
 import arrow.core.getOrElse
-import com.ai.challenge.core.branch.Branch
-import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.chat.BranchService
-import com.ai.challenge.core.chat.ChatService
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.chat.model.MessageContent
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageQueryService
-import com.ai.challenge.core.usage.model.UsageRecord
-import com.ai.challenge.core.usecase.SendMessageUseCase
+import com.ai.challenge.contextmanagement.model.ContextManagementType
+import com.ai.challenge.conversation.model.Branch
+import com.ai.challenge.conversation.model.UsageRecord
+import com.ai.challenge.conversation.service.BranchService
+import com.ai.challenge.conversation.service.ChatService
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.conversation.service.UsageQueryService
+import com.ai.challenge.conversation.usecase.SendMessageUseCase
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.sharedkernel.vo.MessageContent
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
@@ -26,6 +26,7 @@ class ChatStoreFactory(
     private val sessionService: SessionService,
     private val usageService: UsageQueryService,
     private val branchService: BranchService,
+    private val onTurnRecorded: () -> Unit,
 ) {
     fun create(): ChatStore =
         object : ChatStore,
@@ -37,6 +38,7 @@ class ChatStoreFactory(
                     sessionService = sessionService,
                     usageService = usageService,
                     branchService = branchService,
+                    onTurnRecorded = onTurnRecorded,
                 ) },
                 reducer = ReducerImpl,
             ) {}
@@ -79,6 +81,7 @@ class ChatStoreFactory(
         private val sessionService: SessionService,
         private val usageService: UsageQueryService,
         private val branchService: BranchService,
+        private val onTurnRecorded: () -> Unit,
     ) : CoroutineExecutor<ChatStore.Intent, Nothing, ChatStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: ChatStore.Intent) {
@@ -95,7 +98,9 @@ class ChatStoreFactory(
         private fun handleLoadSession(sessionId: AgentSessionId) {
             scope.launch {
                 val session = sessionService.get(id = sessionId).getOrElse { null }
-                val isBranching = session?.contextManagementType is ContextManagementType.Branching
+                val isBranching = session?.let {
+                    ContextManagementType.fromModeId(contextModeId = it.contextModeId)
+                } is ContextManagementType.Branching
 
                 val branches = branchService.getAll(sessionId = sessionId).getOrElse { emptyList() }
 
@@ -144,6 +149,7 @@ class ChatStoreFactory(
                                     usage = turn.usage,
                                 )
                             )
+                            onTurnRecorded()
                         },
                     )
                 dispatch(Msg.LoadingComplete)
@@ -154,7 +160,9 @@ class ChatStoreFactory(
             val sessionId = state().sessionId ?: return
             scope.launch {
                 val session = sessionService.get(id = sessionId).getOrElse { null }
-                val isBranching = session?.contextManagementType is ContextManagementType.Branching
+                val isBranching = session?.let {
+                    ContextManagementType.fromModeId(contextModeId = it.contextModeId)
+                } is ContextManagementType.Branching
                 val branches = branchService.getAll(sessionId = sessionId).getOrElse { emptyList() }
                 dispatch(Msg.BranchesLoaded(
                     branches = branches,

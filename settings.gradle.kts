@@ -12,20 +12,21 @@ plugins {
 
 rootProject.name = "AiChallenge"
 
-// Layer 0: Foundation
-include(":modules:core")
+// Shared Kernel
+include(":modules:shared-kernel")
 
-// Layer 1: Data
-include(":modules:data:open-router-service")
-include(":modules:data:session-repository-exposed")
-include(":modules:data:summary-repository-exposed")
-include(":modules:data:fact-repository-exposed")
+// Conversation Bounded Context
+include(":modules:conversation:domain")
+include(":modules:conversation:data")
 
-// Layer 2: Domain
-include(":modules:domain:ai-agent")
-include(":modules:domain:context-manager")
+// Context Management Bounded Context
+include(":modules:context-management:domain")
+include(":modules:context-management:data")
 
-// Layer 3: Presentation
+// Infrastructure
+include(":modules:infrastructure:open-router-service")
+
+// Presentation
 include(":modules:presentation:compose-ui")
 include(":modules:presentation:app")
 

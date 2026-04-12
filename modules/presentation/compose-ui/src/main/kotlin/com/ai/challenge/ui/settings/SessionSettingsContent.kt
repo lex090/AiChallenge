@@ -24,7 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
-import com.ai.challenge.core.context.ContextManagementType
+import com.ai.challenge.contextmanagement.model.ContextManagementType
 
 private val PANEL_WIDTH = 280.dp
 

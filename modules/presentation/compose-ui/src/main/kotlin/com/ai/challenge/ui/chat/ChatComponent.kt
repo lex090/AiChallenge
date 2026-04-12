@@ -1,13 +1,13 @@
 package com.ai.challenge.ui.chat
 
-import com.ai.challenge.core.chat.BranchService
-import com.ai.challenge.core.chat.ChatService
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.UsageQueryService
-import com.ai.challenge.core.usecase.SendMessageUseCase
+import com.ai.challenge.conversation.service.BranchService
+import com.ai.challenge.conversation.service.ChatService
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.conversation.service.UsageQueryService
+import com.ai.challenge.conversation.usecase.SendMessageUseCase
 import com.ai.challenge.ui.chat.store.ChatStore
 import com.ai.challenge.ui.chat.store.ChatStoreFactory
 import com.arkivanov.decompose.ComponentContext
@@ -26,6 +26,7 @@ class ChatComponent(
     usageService: UsageQueryService,
     branchService: BranchService,
     sessionId: AgentSessionId,
+    onTurnRecorded: () -> Unit,
 ) : ComponentContext by componentContext {
 
     private val store = instanceKeeper.getStore {
@@ -36,6 +37,7 @@ class ChatComponent(
             sessionService = sessionService,
             usageService = usageService,
             branchService = branchService,
+            onTurnRecorded = onTurnRecorded,
         ).create()
     }
 

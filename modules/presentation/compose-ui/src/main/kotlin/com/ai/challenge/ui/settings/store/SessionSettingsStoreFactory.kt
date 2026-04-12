@@ -1,8 +1,8 @@
 package com.ai.challenge.ui.settings.store
 
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.contextmanagement.model.ContextManagementType
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
@@ -54,7 +54,10 @@ class SessionSettingsStoreFactory(
                 sessionService.get(id = sessionId)
                     .fold(
                         ifLeft = { dispatch(Msg.SettingsLoaded(sessionId = sessionId, type = ContextManagementType.None)) },
-                        ifRight = { session -> dispatch(Msg.SettingsLoaded(sessionId = sessionId, type = session.contextManagementType)) },
+                        ifRight = { session ->
+                            val type = ContextManagementType.fromModeId(contextModeId = session.contextModeId) ?: ContextManagementType.None
+                            dispatch(Msg.SettingsLoaded(sessionId = sessionId, type = type))
+                        },
                     )
                 dispatch(Msg.LoadingComplete)
             }
@@ -64,7 +67,7 @@ class SessionSettingsStoreFactory(
             val sessionId = state().sessionId ?: return
             dispatch(Msg.Loading)
             scope.launch {
-                sessionService.updateContextManagementType(id = sessionId, type = type)
+                sessionService.updateContextModeId(id = sessionId, contextModeId = type.modeId)
                     .fold(
                         ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
                         ifRight = { dispatch(Msg.TypeChanged(type = type)) },

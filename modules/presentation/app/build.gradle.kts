@@ -16,13 +16,12 @@ repositories {
 
 dependencies {
     implementation(project(":modules:presentation:compose-ui"))
-    implementation(project(":modules:domain:ai-agent"))
-    implementation(project(":modules:data:open-router-service"))
-    implementation(project(":modules:core"))
-    implementation(project(":modules:data:session-repository-exposed"))
-    implementation(project(":modules:domain:context-manager"))
-    implementation(project(":modules:data:summary-repository-exposed"))
-    implementation(project(":modules:data:fact-repository-exposed"))
+    implementation(project(":modules:shared-kernel"))
+    implementation(project(":modules:conversation:domain"))
+    implementation(project(":modules:conversation:data"))
+    implementation(project(":modules:context-management:domain"))
+    implementation(project(":modules:context-management:data"))
+    implementation(project(":modules:infrastructure:open-router-service"))
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)

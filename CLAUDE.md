@@ -4,48 +4,95 @@
 
 AI Agent Chat — multi-module Kotlin/JVM desktop application. AI agent abstraction with pluggable UI (currently Compose Desktop).
 
-## Architecture: Stratified Design
+## Architecture: Bounded Context Modules
 
-All modules live under `modules/`, organized by layer. Dependencies strictly top-to-bottom:
+Modules organized by DDD Bounded Context. Two BCs communicate through Shared Kernel (ports, events, IDs).
 
 ```
 modules/
-├── core/                          ← Layer 0: Foundation
-├── data/                          ← Layer 1: Data
-│   ├── open-router-service/
-│   ├── session-repository-exposed/
-│   ├── fact-repository-exposed/
-│   └── summary-repository-exposed/
-├── domain/                        ← Layer 2: Domain
-│   ├── ai-agent/
-│   └── context-manager/
-├── presentation/                  ← Layer 3: Presentation
+├── shared-kernel/                 ← Shared types between BCs
+├── conversation/                  ← Conversation BC (Core Domain)
+│   ├── domain/                    # Aggregate, services, use cases, impls
+│   └── data/                      # ExposedAgentSessionRepository, ExposedTurnQueryAdapter
+├── context-management/            ← Context Management BC (Supporting)
+│   ├── domain/                    # Models, strategies, memory service, use cases
+│   └── data/                      # Repositories, LLM adapters
+├── infrastructure/
+│   └── open-router-service/       ← LlmPort adapter (shared by both BCs)
+├── presentation/
 │   ├── compose-ui/                # Pure UI (components, stores, composables)
-│   └── app/                       # Bootstrap, DI, entry point
+│   └── app/                       # Bootstrap, Koin DI, entry point
 └── week1/                         ← Standalone
 ```
 
-### Layer 0 — Foundation (`modules/core`)
-- **core** — Domain models (AgentSession, Branch, Turn, TurnSequence, Fact, Summary, UsageRecord, ContextManagementType), ID types (AgentSessionId, BranchId, TurnId), repository interfaces (AgentSessionRepository, FactRepository, SummaryRepository), domain service interfaces (SessionService, BranchService, ChatService, UsageQueryService), ports (LlmPort, ContextManager), application use cases (SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService), domain events (DomainEventPublisher, DomainEventHandler), DomainError (Arrow Either)
+### Module Dependencies
 
-### Layer 1 — Data (`modules/data/*`)
-- **open-router-service** — OpenRouter HTTP client (LlmPort implementation), request/response models
-- **session-repository-exposed** — AgentSessionRepository implementation (Exposed + SQLite). Single access point to AgentSession aggregate (sessions, branches, turns)
-- **fact-repository-exposed** — FactRepository implementation (Exposed + SQLite)
-- **summary-repository-exposed** — SummaryRepository implementation (Exposed + SQLite)
+```
+shared-kernel              ← libs only (Arrow)
+conversation/domain        ← shared-kernel
+conversation/data          ← conversation/domain, shared-kernel, Exposed
+context-management/domain  ← shared-kernel (NOT conversation!)
+context-management/data    ← context-management/domain, shared-kernel, Exposed
+infrastructure/open-router-service ← shared-kernel, Ktor
+presentation/compose-ui    ← shared-kernel, conversation/domain, context-management/domain
+presentation/app           ← all modules (composition root)
+```
 
-### Layer 2 — Domain (`modules/domain/*`)
-- **ai-agent** — Domain service implementations (AiChatService, AiSessionService, AiBranchService, AiUsageQueryService)
-- **context-manager** — ContextPreparationService (ContextManager port implementation), 5 strategies (Passthrough, SlidingWindow, StickyFacts, SummarizeOnThreshold, Branching), LlmContextCompressor, LlmFactExtractor, SessionDeletedCleanupHandler (domain event handler)
+### Shared Kernel (`modules/shared-kernel`)
+Package: `com.ai.challenge.sharedkernel`
+- **Identity types** — AgentSessionId, BranchId, TurnId
+- **Shared VOs** — MessageContent, CreatedAt, UpdatedAt, ContextModeId (opaque strategy ID), TurnSnapshot (read-only Turn projection), PreparedContext, ContextMessage, MessageRole, LlmResponse, LlmUsage, ResponseFormat
+- **Ports** — LlmPort, ContextManagerPort, TurnQueryPort (CM reads turns), ContextModeValidatorPort
+- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted), DomainEventPublisher, DomainEventHandler
+- **Errors** — DomainError (sealed hierarchy with Arrow Either)
 
-### Layer 3 — Presentation (`modules/presentation/*`)
-- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through Agent interface.
-- **app** — Application entry point, Koin DI configuration, bootstrap. Composition root that wires all layers together.
+### Conversation BC — Domain (`modules/conversation/domain`)
+Package: `com.ai.challenge.conversation`
+- **Aggregate** — AgentSession (root, stores `contextModeId: ContextModeId`), Branch, Turn, TurnSequence
+- **VOs** — SessionTitle, UsageRecord, TokenCount, Cost
+- **Services** — ChatService, SessionService, BranchService, UsageQueryService
+- **Repository** — AgentSessionRepository
+- **Use Cases** — SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService
+- **Implementations** — AiChatService, AiSessionService, AiBranchService, AiUsageQueryService
+
+### Conversation BC — Data (`modules/conversation/data`)
+Package: `com.ai.challenge.conversation.data`
+- ExposedAgentSessionRepository (Exposed + SQLite)
+- ExposedTurnQueryAdapter (implements TurnQueryPort, maps Turn → TurnSnapshot)
+
+### Context Management BC — Domain (`modules/context-management/domain`)
+Package: `com.ai.challenge.contextmanagement`
+- **Models** — Fact, FactCategory, FactKey, FactValue, Summary, SummaryContent, TurnIndex, ContextManagementType (with ContextModeId mapping), ContextStrategyConfig
+- **Repositories** — FactRepository, SummaryRepository
+- **Memory** — MemoryService, MemoryProvider, FactMemoryProvider, SummaryMemoryProvider, MemoryType, MemoryScope, MemorySnapshot
+- **Strategies** — ContextStrategy, PassthroughStrategy, SlidingWindowStrategy, SummarizeOnThresholdStrategy, StickyFactsStrategy, BranchingContextManager, ContextPreparationAdapter (implements ContextManagerPort), ContextCompressorPort, FactExtractorPort, ContextModeValidatorAdapter, TurnSnapshotMapper
+- **Use Cases** — GetMemoryUseCase, UpdateFactsUseCase, AddSummaryUseCase, DeleteSummaryUseCase
+- **Implementations** — DefaultMemoryService, DefaultFactMemoryProvider, DefaultSummaryMemoryProvider, SessionDeletedCleanupHandler
+
+### Context Management BC — Data (`modules/context-management/data`)
+Package: `com.ai.challenge.contextmanagement.data`
+- ExposedFactRepository, ExposedSummaryRepository (Exposed + SQLite, memory.db)
+- LlmContextCompressorAdapter, LlmFactExtractorAdapter (LLM adapters)
+
+### Infrastructure (`modules/infrastructure/open-router-service`)
+Package: `com.ai.challenge.infrastructure.llm`
+- OpenRouterService, OpenRouterAdapter (LlmPort implementation)
+
+### Presentation (`modules/presentation/*`)
+- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through use case interfaces. Includes Memory debug panel.
+- **app** — Application entry point, Koin DI configuration, InProcessDomainEventPublisher. Composition root that wires all layers together.
+
+### Cross-Context Communication
+- **Synchronous:** CM reads turns via `TurnQueryPort` → `ExposedTurnQueryAdapter` (returns `TurnSnapshot`, never `Turn`)
+- **Asynchronous:** Conversation publishes `DomainEvent.SessionDeleted` → CM's `SessionDeletedCleanupHandler`
+- **Validation:** Application use cases validate `ContextModeId` via `ContextModeValidatorPort` → `ContextModeValidatorAdapter`
+
+### Naming Convention: Port/Adapter
+- All port interfaces suffixed with `Port` (LlmPort, TurnQueryPort, ContextManagerPort, ContextModeValidatorPort, ContextCompressorPort, FactExtractorPort)
+- All adapter implementations suffixed with `Adapter` (OpenRouterAdapter, ExposedTurnQueryAdapter, ContextPreparationAdapter, ContextModeValidatorAdapter, LlmContextCompressorAdapter, LlmFactExtractorAdapter)
 
 ### Standalone
 - **week1** — Demo tasks (not part of the main app)
-
-No module may depend on a module above it.
 
 ## Tech Stack
 
@@ -68,6 +115,14 @@ No module may depend on a module above it.
 
 - **When adding/modifying domain entities, aggregates, VOs, repositories, services, or events** — you MUST read `architecture/ddd-audit-checklist.md` and validate the change against formal DDD rules before implementation.
 - Every design decision must cite a specific principle (Evans or Vernon), not subjective preference.
+
+### DDD Documentation (mandatory)
+
+- **Every new DDD building block** (Entity, Value Object, Aggregate, Domain Event, Repository, Domain Service, Port, Use Case) **MUST be documented** upon creation:
+  1. **KDoc на классе/интерфейсе** — краткое описание: что это за элемент, какую доменную концепцию моделирует, к какому агрегату принадлежит (если применимо).
+  2. **Инварианты** — задокументировать все бизнес-правила и инварианты, которые элемент защищает или гарантирует (в KDoc или отдельным комментарием перед валидацией).
+  3. **Обновление CLAUDE.md** — добавить новый элемент в описание соответствующего Bounded Context в секции «Architecture: Bounded Context Modules», чтобы список моделей, сервисов и портов оставался актуальным.
+- Без выполнения всех трёх пунктов добавление нового DDD-элемента считается незавершённым.
 
 ### Dependencies
 

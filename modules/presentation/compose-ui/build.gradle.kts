@@ -14,7 +14,9 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":modules:core"))
+    implementation(project(":modules:shared-kernel"))
+    implementation(project(":modules:conversation:domain"))
+    implementation(project(":modules:context-management:domain"))
 
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)

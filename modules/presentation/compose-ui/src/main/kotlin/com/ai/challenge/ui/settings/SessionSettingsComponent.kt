@@ -1,8 +1,8 @@
 package com.ai.challenge.ui.settings
 
-import com.ai.challenge.core.chat.SessionService
-import com.ai.challenge.core.context.ContextManagementType
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.conversation.service.SessionService
+import com.ai.challenge.contextmanagement.model.ContextManagementType
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.ui.settings.store.SessionSettingsStore
 import com.ai.challenge.ui.settings.store.SessionSettingsStoreFactory
 import com.arkivanov.decompose.ComponentContext

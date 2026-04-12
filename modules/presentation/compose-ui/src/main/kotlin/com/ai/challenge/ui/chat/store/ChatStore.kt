@@ -1,12 +1,12 @@
 package com.ai.challenge.ui.chat.store
 
-import com.ai.challenge.core.branch.Branch
-import com.ai.challenge.core.branch.BranchId
-import com.ai.challenge.core.session.AgentSessionId
-import com.ai.challenge.core.turn.TurnId
-import com.ai.challenge.core.usage.model.Cost
-import com.ai.challenge.core.usage.model.TokenCount
-import com.ai.challenge.core.usage.model.UsageRecord
+import com.ai.challenge.conversation.model.Branch
+import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.conversation.model.Cost
+import com.ai.challenge.conversation.model.TokenCount
+import com.ai.challenge.conversation.model.UsageRecord
 import com.ai.challenge.ui.model.UiMessage
 import com.arkivanov.mvikotlin.core.store.Store
 import java.math.BigDecimal

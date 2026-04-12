@@ -1,6 +1,6 @@
 package com.ai.challenge.ui.sessionlist.store
 
-import com.ai.challenge.core.session.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.arkivanov.mvikotlin.core.store.Store
 import kotlin.time.Instant
 

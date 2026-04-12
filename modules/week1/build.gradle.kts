@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":modules:data:open-router-service"))
+    implementation(project(":modules:infrastructure:open-router-service"))
     testImplementation(kotlin("test"))
 }
 
