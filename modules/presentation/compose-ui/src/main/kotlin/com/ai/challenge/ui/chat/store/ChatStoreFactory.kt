@@ -26,6 +26,7 @@ class ChatStoreFactory(
     private val sessionService: SessionService,
     private val usageService: UsageQueryService,
     private val branchService: BranchService,
+    private val onTurnRecorded: () -> Unit,
 ) {
     fun create(): ChatStore =
         object : ChatStore,
@@ -37,6 +38,7 @@ class ChatStoreFactory(
                     sessionService = sessionService,
                     usageService = usageService,
                     branchService = branchService,
+                    onTurnRecorded = onTurnRecorded,
                 ) },
                 reducer = ReducerImpl,
             ) {}
@@ -79,6 +81,7 @@ class ChatStoreFactory(
         private val sessionService: SessionService,
         private val usageService: UsageQueryService,
         private val branchService: BranchService,
+        private val onTurnRecorded: () -> Unit,
     ) : CoroutineExecutor<ChatStore.Intent, Nothing, ChatStore.State, Msg, Nothing>() {
 
         override fun executeIntent(intent: ChatStore.Intent) {
@@ -144,6 +147,7 @@ class ChatStoreFactory(
                                     usage = turn.usage,
                                 )
                             )
+                            onTurnRecorded()
                         },
                     )
                 dispatch(Msg.LoadingComplete)

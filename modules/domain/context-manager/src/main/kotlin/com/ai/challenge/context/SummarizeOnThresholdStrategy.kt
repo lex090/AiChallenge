@@ -11,15 +11,17 @@ import com.ai.challenge.core.context.model.SummaryContent
 import com.ai.challenge.core.context.model.TurnIndex
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.shared.CreatedAt
+import com.ai.challenge.core.memory.MemoryScope
+import com.ai.challenge.core.memory.MemoryService
+import com.ai.challenge.core.memory.MemoryType
 import com.ai.challenge.core.summary.Summary
-import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.turn.Turn
 import kotlin.time.Clock
 
 class SummarizeOnThresholdStrategy(
     private val repository: AgentSessionRepository,
     private val compressor: ContextCompressor,
-    private val summaryRepository: SummaryRepository,
+    private val memoryService: MemoryService,
 ) : ContextStrategy {
 
     override suspend fun prepare(
@@ -35,7 +37,9 @@ class SummarizeOnThresholdStrategy(
             return withoutCompression(history = history, newMessage = newMessage)
         }
 
-        val lastSummary = summaryRepository.getBySession(sessionId = sessionId).maxByOrNull { it.toTurnIndex.value }
+        val summaryProvider = memoryService.provider(type = MemoryType.Summaries)
+        val scope = MemoryScope.Session(sessionId = sessionId)
+        val lastSummary = summaryProvider.get(scope = scope).maxByOrNull { it.toTurnIndex.value }
 
         if (lastSummary != null) {
             val turnsSinceLastSummary = history.size - lastSummary.toTurnIndex.value
@@ -70,7 +74,10 @@ class SummarizeOnThresholdStrategy(
         summaryContent: SummaryContent,
         toTurnIndex: Int,
     ) {
-        summaryRepository.save(
+        val summaryProvider = memoryService.provider(type = MemoryType.Summaries)
+        val scope = MemoryScope.Session(sessionId = sessionId)
+        summaryProvider.append(
+            scope = scope,
             summary = Summary(
                 sessionId = sessionId,
                 content = summaryContent,

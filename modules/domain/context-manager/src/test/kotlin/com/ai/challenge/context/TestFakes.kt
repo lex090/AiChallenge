@@ -17,9 +17,13 @@ import com.ai.challenge.core.usage.model.Cost
 import com.ai.challenge.core.usage.model.TokenCount
 import com.ai.challenge.core.usage.model.UsageRecord
 import com.ai.challenge.core.fact.Fact
-import com.ai.challenge.core.fact.FactRepository
+import com.ai.challenge.core.memory.FactMemoryProvider
+import com.ai.challenge.core.memory.MemoryProvider
+import com.ai.challenge.core.memory.MemoryScope
+import com.ai.challenge.core.memory.MemoryService
+import com.ai.challenge.core.memory.MemoryType
+import com.ai.challenge.core.memory.SummaryMemoryProvider
 import com.ai.challenge.core.summary.Summary
-import com.ai.challenge.core.summary.SummaryRepository
 import java.math.BigDecimal
 import kotlin.time.Clock
 
@@ -130,32 +134,64 @@ internal fun createTestTurn(
     )
 }
 
-internal class InMemoryFactRepository : FactRepository {
+internal class InMemoryFactMemoryProvider : FactMemoryProvider {
     private val store = mutableMapOf<AgentSessionId, List<Fact>>()
 
-    override suspend fun save(sessionId: AgentSessionId, facts: List<Fact>) {
-        store[sessionId] = facts
+    override suspend fun get(scope: MemoryScope): List<Fact> = when (scope) {
+        is MemoryScope.Session -> store[scope.sessionId] ?: emptyList()
     }
 
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Fact> =
-        store[sessionId] ?: emptyList()
+    override suspend fun replace(scope: MemoryScope, facts: List<Fact>) {
+        when (scope) {
+            is MemoryScope.Session -> store[scope.sessionId] = facts
+        }
+    }
 
-    override suspend fun deleteBySession(sessionId: AgentSessionId) {
-        store.remove(key = sessionId)
+    override suspend fun clear(scope: MemoryScope) {
+        when (scope) {
+            is MemoryScope.Session -> store.remove(key = scope.sessionId)
+        }
     }
 }
 
-internal class InMemorySummaryRepository : SummaryRepository {
+internal class InMemorySummaryMemoryProvider : SummaryMemoryProvider {
     private val store = mutableListOf<Summary>()
 
-    override suspend fun save(summary: Summary) {
+    override suspend fun get(scope: MemoryScope): List<Summary> = when (scope) {
+        is MemoryScope.Session -> store.filter { it.sessionId == scope.sessionId }
+    }
+
+    override suspend fun append(scope: MemoryScope, summary: Summary) {
         store.add(element = summary)
     }
 
-    override suspend fun getBySession(sessionId: AgentSessionId): List<Summary> =
-        store.filter { it.sessionId == sessionId }
+    override suspend fun delete(scope: MemoryScope, summary: Summary) {
+        store.removeAll { it == summary }
+    }
 
-    override suspend fun deleteBySession(sessionId: AgentSessionId) {
-        store.removeAll { it.sessionId == sessionId }
+    override suspend fun clear(scope: MemoryScope) {
+        when (scope) {
+            is MemoryScope.Session -> store.removeAll { it.sessionId == scope.sessionId }
+        }
+    }
+}
+
+internal class InMemoryMemoryService(
+    private val factProvider: InMemoryFactMemoryProvider = InMemoryFactMemoryProvider(),
+    private val summaryProvider: InMemorySummaryMemoryProvider = InMemorySummaryMemoryProvider(),
+) : MemoryService {
+    private val providers: Map<MemoryType<*>, MemoryProvider<*>> = mapOf(
+        MemoryType.Facts to factProvider,
+        MemoryType.Summaries to summaryProvider,
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <P : MemoryProvider<*>> provider(type: MemoryType<P>): P =
+        providers[type] as P
+
+    override suspend fun clearScope(scope: MemoryScope) {
+        for (provider in providers.values) {
+            provider.clear(scope = scope)
+        }
     }
 }

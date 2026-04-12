@@ -21,8 +21,8 @@ dependencies {
     implementation(project(":modules:core"))
     implementation(project(":modules:data:session-repository-exposed"))
     implementation(project(":modules:domain:context-manager"))
-    implementation(project(":modules:data:summary-repository-exposed"))
-    implementation(project(":modules:data:fact-repository-exposed"))
+    implementation(project(":modules:data:memory-repository-exposed"))
+    implementation(project(":modules:domain:memory-service"))
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)

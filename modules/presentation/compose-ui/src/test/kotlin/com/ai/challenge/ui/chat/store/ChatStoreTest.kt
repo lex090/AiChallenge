@@ -66,6 +66,7 @@ class ChatStoreTest {
             sessionService = sessionService,
             usageService = usageService,
             branchService = branchService,
+            onTurnRecorded = {},
         ).create()
 
     private fun createStoreWithFake(fake: FakeServices): ChatStore {

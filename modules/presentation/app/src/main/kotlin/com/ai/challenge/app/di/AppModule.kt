@@ -21,9 +21,16 @@ import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.context.ContextManagementType
 import com.ai.challenge.core.context.ContextManager
 import com.ai.challenge.core.context.ContextStrategyConfig
-import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.chat.AgentSessionRepository
+import com.ai.challenge.core.fact.FactRepository
 import com.ai.challenge.core.llm.LlmPort
+import com.ai.challenge.core.memory.FactMemoryProvider
+import com.ai.challenge.core.memory.MemoryService
+import com.ai.challenge.core.memory.SummaryMemoryProvider
+import com.ai.challenge.core.memory.usecase.AddSummaryUseCase
+import com.ai.challenge.core.memory.usecase.DeleteSummaryUseCase
+import com.ai.challenge.core.memory.usecase.GetMemoryUseCase
+import com.ai.challenge.core.memory.usecase.UpdateFactsUseCase
 import com.ai.challenge.core.summary.SummaryRepository
 import com.ai.challenge.core.event.DomainEvent
 import com.ai.challenge.core.event.DomainEventPublisher
@@ -33,15 +40,21 @@ import com.ai.challenge.core.usecase.CreateSessionUseCase
 import com.ai.challenge.core.usecase.DeleteSessionUseCase
 import com.ai.challenge.core.usecase.SendMessageUseCase
 import com.ai.challenge.app.event.InProcessDomainEventPublisher
-import com.ai.challenge.context.SessionDeletedCleanupHandler
-import com.ai.challenge.fact.repository.ExposedFactRepository
-import com.ai.challenge.fact.repository.createFactDatabase
 import com.ai.challenge.llm.OpenRouterAdapter
 import com.ai.challenge.llm.OpenRouterService
+import com.ai.challenge.memory.repository.ExposedFactRepository
+import com.ai.challenge.memory.repository.ExposedSummaryRepository
+import com.ai.challenge.memory.repository.createMemoryDatabase
+import com.ai.challenge.memory.service.DefaultMemoryService
+import com.ai.challenge.memory.service.handler.SessionDeletedCleanupHandler
+import com.ai.challenge.memory.service.provider.DefaultFactMemoryProvider
+import com.ai.challenge.memory.service.provider.DefaultSummaryMemoryProvider
+import com.ai.challenge.memory.service.usecase.DefaultAddSummaryUseCase
+import com.ai.challenge.memory.service.usecase.DefaultDeleteSummaryUseCase
+import com.ai.challenge.memory.service.usecase.DefaultGetMemoryUseCase
+import com.ai.challenge.memory.service.usecase.DefaultUpdateFactsUseCase
 import com.ai.challenge.session.repository.ExposedAgentSessionRepository
 import com.ai.challenge.session.repository.createSessionDatabase
-import com.ai.challenge.summary.repository.ExposedSummaryRepository
-import com.ai.challenge.summary.repository.createSummaryDatabase
 import org.koin.dsl.module
 
 val appModule = module {
@@ -59,10 +72,22 @@ val appModule = module {
         )
     }
 
-    // Repositories (3 instead of 9)
+    // Repositories
     single<AgentSessionRepository> { ExposedAgentSessionRepository(database = createSessionDatabase()) }
-    single<FactRepository> { ExposedFactRepository(database = createFactDatabase()) }
-    single<SummaryRepository> { ExposedSummaryRepository(database = createSummaryDatabase()) }
+
+    // Memory Layer
+    single { createMemoryDatabase() }
+    single<FactRepository> { ExposedFactRepository(database = get()) }
+    single<SummaryRepository> { ExposedSummaryRepository(database = get()) }
+    single<FactMemoryProvider> { DefaultFactMemoryProvider(factRepository = get()) }
+    single<SummaryMemoryProvider> { DefaultSummaryMemoryProvider(summaryRepository = get()) }
+    single<MemoryService> { DefaultMemoryService(factMemoryProvider = get(), summaryMemoryProvider = get()) }
+
+    // Memory Use Cases
+    single<GetMemoryUseCase> { DefaultGetMemoryUseCase(memoryService = get()) }
+    single<UpdateFactsUseCase> { DefaultUpdateFactsUseCase(memoryService = get()) }
+    single<AddSummaryUseCase> { DefaultAddSummaryUseCase(memoryService = get()) }
+    single<DeleteSummaryUseCase> { DefaultDeleteSummaryUseCase(memoryService = get()) }
 
     // Context management
     single<ContextCompressor> { LlmContextCompressor(llmPort = get()) }
@@ -75,13 +100,13 @@ val appModule = module {
         SummarizeOnThresholdStrategy(
             repository = get(),
             compressor = get(),
-            summaryRepository = get(),
+            memoryService = get(),
         )
     }
     single {
         StickyFactsStrategy(
             repository = get(),
-            factRepository = get(),
+            memoryService = get(),
             factExtractor = get(),
         )
     }
@@ -115,19 +140,14 @@ val appModule = module {
         )
     }
 
-    // Domain services (4 instead of 1 god object)
+    // Domain services
     single<ChatService> { AiChatService(llmPort = get(), repository = get(), contextManager = get()) }
     single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageQueryService> { AiUsageQueryService(repository = get()) }
 
     // Domain Events
-    single {
-        SessionDeletedCleanupHandler(
-            factRepository = get(),
-            summaryRepository = get(),
-        )
-    }
+    single { SessionDeletedCleanupHandler(memoryService = get()) }
 
     single<DomainEventPublisher> {
         InProcessDomainEventPublisher(

@@ -11,6 +11,8 @@ import com.ai.challenge.core.context.model.FactValue
 import com.ai.challenge.core.context.model.SummaryContent
 import com.ai.challenge.core.fact.Fact
 import com.ai.challenge.core.fact.FactCategory
+import com.ai.challenge.core.memory.MemoryScope
+import com.ai.challenge.core.memory.MemoryType
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.core.summary.Summary
 import com.ai.challenge.core.turn.Turn
@@ -30,18 +32,16 @@ class ContextPreparationServiceTest {
         (1..count).map { createTestTurn(sessionId = sessionId, userMessage = "msg$it", assistantMessage = "resp$it") }
 
     private lateinit var fakeCompressor: FakeContextCompressor
-    private lateinit var fakeSummaryRepo: InMemorySummaryRepository
+    private lateinit var fakeMemoryService: InMemoryMemoryService
     private lateinit var fakeRepo: InMemoryAgentSessionRepository
     private lateinit var fakeFactExtractor: FakeFactExtractor
-    private lateinit var fakeFactRepo: InMemoryFactRepository
 
     @BeforeTest
     fun setup() {
         fakeCompressor = FakeContextCompressor()
-        fakeSummaryRepo = InMemorySummaryRepository()
+        fakeMemoryService = InMemoryMemoryService()
         fakeRepo = InMemoryAgentSessionRepository()
         fakeFactExtractor = FakeFactExtractor()
-        fakeFactRepo = InMemoryFactRepository()
     }
 
     private fun setupSession(type: ContextManagementType) {
@@ -56,12 +56,12 @@ class ContextPreparationServiceTest {
                 ContextManagementType.SummarizeOnThreshold to SummarizeOnThresholdStrategy(
                     repository = fakeRepo,
                     compressor = fakeCompressor,
-                    summaryRepository = fakeSummaryRepo,
+                    memoryService = fakeMemoryService,
                 ) as ContextStrategy,
                 ContextManagementType.SlidingWindow to SlidingWindowStrategy(repository = fakeRepo) as ContextStrategy,
                 ContextManagementType.StickyFacts to StickyFactsStrategy(
                     repository = fakeRepo,
-                    factRepository = fakeFactRepo,
+                    memoryService = fakeMemoryService,
                     factExtractor = fakeFactExtractor,
                 ) as ContextStrategy,
                 ContextManagementType.Branching to BranchingContextManager(repository = fakeRepo) as ContextStrategy,
@@ -297,7 +297,8 @@ class ContextPreparationServiceTest {
 
         manager.prepareContext(sessionId = sessionId, branchId = mainBranchId, newMessage = MessageContent(value = "Use SQLite"))
 
-        val savedFacts = fakeFactRepo.getBySession(sessionId = sessionId)
+        val scope = MemoryScope.Session(sessionId = sessionId)
+        val savedFacts = fakeMemoryService.provider(type = MemoryType.Facts).get(scope = scope)
         assertEquals(1, savedFacts.size)
         assertEquals(FactValue(value = "SQLite"), savedFacts[0].value)
     }

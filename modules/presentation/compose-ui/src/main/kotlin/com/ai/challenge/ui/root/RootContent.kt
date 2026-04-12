@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.core.session.AgentSessionId
 import com.ai.challenge.ui.chat.ChatContent
+import com.ai.challenge.ui.debug.memory.MemoryDebugPanel
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.settings.SessionSettingsPanel
 import com.arkivanov.decompose.extensions.compose.stack.Children
@@ -53,6 +55,12 @@ fun RootContent(component: RootComponent) {
     val lastSettingsComponent = remember { mutableStateOf(settingsComponent) }
     if (settingsComponent != null) {
         lastSettingsComponent.value = settingsComponent
+    }
+
+    val memoryDebugComponent by component.memoryDebugComponent.collectAsState()
+    val lastMemoryDebugComponent = remember { mutableStateOf(memoryDebugComponent) }
+    if (memoryDebugComponent != null) {
+        lastMemoryDebugComponent.value = memoryDebugComponent
     }
 
     val currentSettings = settingsComponent
@@ -104,6 +112,14 @@ fun RootContent(component: RootComponent) {
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Session settings")
                 }
+                IconButton(
+                    onClick = {
+                        sessionListState.activeSessionId?.let { component.toggleMemoryDebug(sessionId = it) }
+                    },
+                    enabled = sessionListState.activeSessionId != null,
+                ) {
+                    Icon(Icons.Default.BugReport, contentDescription = "Memory debug")
+                }
             }
 
             HorizontalDivider()
@@ -122,6 +138,13 @@ fun RootContent(component: RootComponent) {
                     SessionSettingsPanel(
                         component = settings,
                         visible = settingsComponent != null,
+                    )
+                }
+
+                lastMemoryDebugComponent.value?.let { debugComponent ->
+                    MemoryDebugPanel(
+                        component = debugComponent,
+                        visible = memoryDebugComponent != null,
                     )
                 }
             }
