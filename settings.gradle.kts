@@ -14,6 +14,7 @@ rootProject.name = "AiChallenge"
 
 // Layer 0: Foundation
 include(":modules:core")
+include(":modules:shared-kernel")
 
 // Layer 1: Data
 include(":modules:data:open-router-service")
