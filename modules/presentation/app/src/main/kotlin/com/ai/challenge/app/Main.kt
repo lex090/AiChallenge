@@ -10,8 +10,6 @@ import com.ai.challenge.core.chat.SessionService
 import com.ai.challenge.core.usage.UsageQueryService
 import com.ai.challenge.core.usecase.ApplicationInitService
 import com.ai.challenge.core.usecase.CreateSessionUseCase
-import com.ai.challenge.core.memory.usecase.AddSummaryUseCase
-import com.ai.challenge.core.memory.usecase.DeleteSummaryUseCase
 import com.ai.challenge.core.memory.usecase.GetMemoryUseCase
 import com.ai.challenge.core.memory.usecase.UpdateFactsUseCase
 import com.ai.challenge.core.usecase.DeleteSessionUseCase
@@ -39,8 +37,7 @@ fun main() {
         storeFactory = mainStoreFactory,
         getMemoryUseCase = koin.get<GetMemoryUseCase>(),
         updateFactsUseCase = koin.get<UpdateFactsUseCase>(),
-        addSummaryUseCase = koin.get<AddSummaryUseCase>(),
-        deleteSummaryUseCase = koin.get<DeleteSummaryUseCase>(),
+        sessionService = koin.get<SessionService>(),
     )
 
     val root = runOnUiThread {
