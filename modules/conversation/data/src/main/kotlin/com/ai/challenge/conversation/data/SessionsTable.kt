@@ -12,6 +12,7 @@ object SessionsTable : Table("sessions") {
     val id = varchar("id", 36)
     val title = varchar("title", 255)
     val contextManagementType = varchar("context_management_type", 50)
+    val projectId = varchar("project_id", 36).nullable()
     val createdAt = long("created_at")
     val updatedAt = long("updated_at")
 
