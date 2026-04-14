@@ -69,7 +69,7 @@ class SessionListStoreFactory(
                                 when {
                                     currentState.showFreeSessions -> session.projectId == null
                                     currentState.filterProjectId != null -> session.projectId == currentState.filterProjectId
-                                    else -> true
+                                    else -> false
                                 }
                             }
                             val sessions = filtered.map { session ->

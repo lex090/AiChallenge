@@ -38,13 +38,13 @@ class SessionListStoreTest {
     }
 
     @Test
-    fun `LoadSessions populates session list`() = runTest {
+    fun `LoadSessions populates session list when filtering free sessions`() = runTest {
         val fake = FakeServices()
         (fake.create(title = SessionTitle(value = "Chat 1"), projectId = null) as Either.Right).value
         (fake.create(title = SessionTitle(value = "Chat 2"), projectId = null) as Either.Right).value
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         assertEquals(2, store.state.sessions.size)
@@ -72,7 +72,7 @@ class SessionListStoreTest {
         val id = session.id
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         store.accept(SessionListStore.Intent.DeleteSession(id))
@@ -92,7 +92,7 @@ class SessionListStoreTest {
         val id2 = session2.id
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         store.accept(SessionListStore.Intent.SelectSession(id1))
@@ -112,7 +112,7 @@ class SessionListStoreTest {
         val id = session.id
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         store.accept(SessionListStore.Intent.SelectSession(id))

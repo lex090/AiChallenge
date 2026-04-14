@@ -160,62 +160,74 @@ private fun SessionPanel(
     onDeleteSession: (AgentSessionId) -> Unit,
     onOpenProjectSettings: () -> Unit,
 ) {
+    val hasContext = projectListState.activeProjectId != null || projectListState.showFreeSessions
+
     Column(
         modifier = Modifier
             .width(200.dp)
             .fillMaxHeight()
             .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val headerText = if (projectListState.activeProjectId != null) {
-                val activeProject = projectListState.projects.find { it.id == projectListState.activeProjectId }
-                activeProject?.name ?: "Project"
-            } else if (projectListState.showFreeSessions) {
-                "Free Sessions"
-            } else {
-                "All Sessions"
-            }
-
+        if (!hasContext) {
+            Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = headerText,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                text = "Select a project or free sessions",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(alignment = Alignment.CenterHorizontally),
             )
+            Spacer(modifier = Modifier.weight(1f))
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val headerText = if (projectListState.activeProjectId != null) {
+                    val activeProject =
+                        projectListState.projects.find { it.id == projectListState.activeProjectId }
+                    activeProject?.name ?: "Project"
+                } else {
+                    "Free Sessions"
+                }
 
-            if (projectListState.activeProjectId != null) {
-                IconButton(onClick = onOpenProjectSettings) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Project settings",
-                    )
+                Text(
+                    text = headerText,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                if (projectListState.activeProjectId != null) {
+                    IconButton(onClick = onOpenProjectSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Project settings",
+                        )
+                    }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-        TextButton(onClick = onNewSession) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = null)
-            Text(text = "New session", modifier = Modifier.padding(start = 8.dp))
-        }
+            TextButton(onClick = onNewSession) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                Text(text = "New session", modifier = Modifier.padding(start = 8.dp))
+            }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(items = sessionListState.sessions, key = { it.id.value }) { session ->
-                SessionRow(
-                    session = session,
-                    isActive = session.id == sessionListState.activeSessionId,
-                    onSelect = { onSelectSession(session.id) },
-                    onDelete = { onDeleteSession(session.id) },
-                )
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(items = sessionListState.sessions, key = { it.id.value }) { session ->
+                    SessionRow(
+                        session = session,
+                        isActive = session.id == sessionListState.activeSessionId,
+                        onSelect = { onSelectSession(session.id) },
+                        onDelete = { onDeleteSession(session.id) },
+                    )
+                }
             }
         }
     }
