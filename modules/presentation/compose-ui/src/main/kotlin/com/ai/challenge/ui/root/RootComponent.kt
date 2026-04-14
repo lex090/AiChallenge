@@ -3,19 +3,29 @@ package com.ai.challenge.ui.root
 import arrow.core.getOrElse
 import com.ai.challenge.conversation.service.BranchService
 import com.ai.challenge.conversation.service.ChatService
+import com.ai.challenge.conversation.service.ProjectService
 import com.ai.challenge.conversation.service.SessionService
-import com.ai.challenge.conversation.model.SessionTitle
-import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.conversation.service.UsageQueryService
+import com.ai.challenge.conversation.model.SessionTitle
 import com.ai.challenge.conversation.usecase.ApplicationInitService
+import com.ai.challenge.conversation.usecase.CreateProjectUseCase
 import com.ai.challenge.conversation.usecase.CreateSessionUseCase
+import com.ai.challenge.conversation.usecase.DeleteProjectUseCase
 import com.ai.challenge.conversation.usecase.DeleteSessionUseCase
+import com.ai.challenge.conversation.usecase.ListProjectsUseCase
 import com.ai.challenge.conversation.usecase.SendMessageUseCase
+import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
+import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.ui.chat.ChatComponent
-import com.ai.challenge.ui.sessionlist.store.SessionListStore
-import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
 import com.ai.challenge.ui.debug.memory.MemoryDebugComponent
 import com.ai.challenge.ui.debug.memory.MemoryDebugStoreFactory
+import com.ai.challenge.ui.project.store.ProjectListStore
+import com.ai.challenge.ui.project.store.ProjectListStoreFactory
+import com.ai.challenge.ui.project.store.ProjectSettingsStore
+import com.ai.challenge.ui.project.store.ProjectSettingsStoreFactory
+import com.ai.challenge.ui.sessionlist.store.SessionListStore
+import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
 import com.ai.challenge.ui.settings.SessionSettingsComponent
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -25,11 +35,15 @@ import com.arkivanov.decompose.router.stack.replaceCurrent
 import com.arkivanov.decompose.value.Value
 import com.arkivanov.mvikotlin.core.instancekeeper.getStore
 import com.arkivanov.mvikotlin.core.store.StoreFactory
+import com.arkivanov.mvikotlin.extensions.coroutines.labels
 import com.arkivanov.mvikotlin.extensions.coroutines.stateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
@@ -40,9 +54,14 @@ class RootComponent(
     private val chatService: ChatService,
     private val usageService: UsageQueryService,
     private val branchService: BranchService,
+    private val projectService: ProjectService,
     private val sendMessageUseCase: SendMessageUseCase,
     private val createSessionUseCase: CreateSessionUseCase,
     private val deleteSessionUseCase: DeleteSessionUseCase,
+    private val createProjectUseCase: CreateProjectUseCase,
+    private val updateProjectUseCase: UpdateProjectUseCase,
+    private val deleteProjectUseCase: DeleteProjectUseCase,
+    private val listProjectsUseCase: ListProjectsUseCase,
     private val applicationInitService: ApplicationInitService,
     private val memoryDebugStoreFactory: MemoryDebugStoreFactory,
 ) : ComponentContext by componentContext {
@@ -54,11 +73,21 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     val sessionListState: StateFlow<SessionListStore.State> = sessionListStore.stateFlow
 
+    private val projectListStore = instanceKeeper.getStore {
+        ProjectListStoreFactory(storeFactory = storeFactory, projectService = projectService).create()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val projectListState: StateFlow<ProjectListStore.State> = projectListStore.stateFlow
+
     private val _settingsComponent = MutableStateFlow<SessionSettingsComponent?>(null)
     val settingsComponent: StateFlow<SessionSettingsComponent?> = _settingsComponent.asStateFlow()
 
     private val _memoryDebugComponent = MutableStateFlow<MemoryDebugComponent?>(null)
     val memoryDebugComponent: StateFlow<MemoryDebugComponent?> = _memoryDebugComponent.asStateFlow()
+
+    private val _projectSettingsStore = MutableStateFlow<ProjectSettingsStore?>(null)
+    val projectSettingsStore: StateFlow<ProjectSettingsStore?> = _projectSettingsStore.asStateFlow()
 
     private val navigation = StackNavigation<Config>()
 
@@ -70,6 +99,8 @@ class RootComponent(
             handleBackButton = false,
             childFactory = ::createChild,
         )
+
+    private val componentScope = CoroutineScope(Dispatchers.Main)
 
     init {
         runBlocking {
@@ -90,15 +121,30 @@ class RootComponent(
                     },
                 )
             sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+            projectListStore.accept(ProjectListStore.Intent.LoadProjects)
+        }
+
+        componentScope.launch {
+            @OptIn(ExperimentalCoroutinesApi::class)
+            projectListStore.labels.collect { label ->
+                when (label) {
+                    is ProjectListStore.Label.ProjectSelected ->
+                        sessionListStore.accept(SessionListStore.Intent.FilterByProject(projectId = label.projectId))
+                    is ProjectListStore.Label.FreeSessionsSelected ->
+                        sessionListStore.accept(SessionListStore.Intent.FilterByProject(projectId = null))
+                }
+            }
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun selectSession(sessionId: AgentSessionId) {
-        sessionListStore.accept(SessionListStore.Intent.SelectSession(sessionId))
+        sessionListStore.accept(SessionListStore.Intent.SelectSession(id = sessionId))
         navigation.replaceCurrent(Config.Chat(sessionId = sessionId.value))
         refreshMemoryDebug()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun refreshMemoryDebug() {
         val sessionId = sessionListStore.stateFlow.value.activeSessionId ?: return
         _memoryDebugComponent.value?.loadForSession(sessionId = sessionId)
@@ -106,15 +152,54 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            createSessionUseCase.execute(title = SessionTitle(value = ""), projectId = null)
-                .fold(
-                    ifLeft = { error -> println("Failed to create session: ${error.message}") },
-                    ifRight = { session ->
-                        sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-                        selectSession(sessionId = session.id)
-                    },
-                )
+            createSessionUseCase.execute(
+                title = SessionTitle(value = ""),
+                projectId = projectListState.value.activeProjectId,
+            ).fold(
+                ifLeft = { error -> println("Failed to create session: ${error.message}") },
+                ifRight = { session ->
+                    sessionListStore.accept(SessionListStore.Intent.LoadSessions)
+                    selectSession(sessionId = session.id)
+                },
+            )
         }
+    }
+
+    fun selectProject(projectId: ProjectId) {
+        projectListStore.accept(ProjectListStore.Intent.SelectProject(id = projectId))
+    }
+
+    fun selectFreeSessions() {
+        projectListStore.accept(ProjectListStore.Intent.SelectFreeSessions)
+    }
+
+    fun openProjectSettings(projectId: ProjectId) {
+        val store = ProjectSettingsStoreFactory(
+            storeFactory = storeFactory,
+            projectService = projectService,
+            createProjectUseCase = createProjectUseCase,
+            updateProjectUseCase = updateProjectUseCase,
+            deleteProjectUseCase = deleteProjectUseCase,
+        ).create()
+        store.accept(ProjectSettingsStore.Intent.Load(projectId = projectId))
+        _projectSettingsStore.value = store
+    }
+
+    fun openNewProjectSettings() {
+        val store = ProjectSettingsStoreFactory(
+            storeFactory = storeFactory,
+            projectService = projectService,
+            createProjectUseCase = createProjectUseCase,
+            updateProjectUseCase = updateProjectUseCase,
+            deleteProjectUseCase = deleteProjectUseCase,
+        ).create()
+        store.accept(ProjectSettingsStore.Intent.LoadNew)
+        _projectSettingsStore.value = store
+    }
+
+    fun closeProjectSettings() {
+        _projectSettingsStore.value = null
+        projectListStore.accept(ProjectListStore.Intent.LoadProjects)
     }
 
     fun toggleMemoryDebug(sessionId: AgentSessionId) {

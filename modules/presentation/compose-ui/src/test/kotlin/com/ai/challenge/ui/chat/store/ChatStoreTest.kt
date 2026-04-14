@@ -78,7 +78,7 @@ class ChatStoreTest {
         val sendMessageUseCase = SendMessageUseCase(
             chatService = fake,
             sessionService = fake,
-            projectService = fake,
+            projectService = FakeProjectService(),
             eventPublisher = NoOpDomainEventPublisher(),
         )
         return createStore(
@@ -371,12 +371,29 @@ private class NoOpDomainEventPublisher : DomainEventPublisher {
     override suspend fun publish(event: DomainEvent) {}
 }
 
+private class FakeProjectService : ProjectService {
+    override suspend fun create(name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun get(id: ProjectId): Either<DomainError, Project> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun delete(id: ProjectId): Either<DomainError, Unit> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun list(): Either<DomainError, List<Project>> =
+        Either.Right(value = emptyList())
+
+    override suspend fun update(id: ProjectId, name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+}
+
 open class FakeServices(
     private val sendTurnId: TurnId = TurnId.generate(),
     private val sendAssistantMessage: String = "",
     private val sendUsage: UsageRecord = emptyUsage(),
     private val sendError: DomainError? = null,
-) : ChatService, SessionService, ProjectService, UsageQueryService, BranchService {
+) : ChatService, SessionService, UsageQueryService, BranchService {
 
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
@@ -491,23 +508,6 @@ open class FakeServices(
         val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.createdAt.value }
         return Either.Right(value = all)
     }
-
-    // -- ProjectService --
-
-    override suspend fun create(name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-
-    override suspend fun get(id: ProjectId): Either<DomainError, Project> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-
-    override suspend fun delete(id: ProjectId): Either<DomainError, Unit> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-
-    override suspend fun list(): Either<DomainError, List<Project>> =
-        Either.Right(value = emptyList())
-
-    override suspend fun update(id: ProjectId, name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
 
     // -- Direct helpers for tests --
 
