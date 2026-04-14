@@ -16,7 +16,7 @@ class SessionListStoreFactory(
 ) {
     fun create(): SessionListStore =
         object : SessionListStore,
-            Store<SessionListStore.Intent, SessionListStore.State, Nothing> by storeFactory.create(
+            Store<SessionListStore.Intent, SessionListStore.State, SessionListStore.Label> by storeFactory.create(
                 name = "SessionListStore",
                 initialState = SessionListStore.State(
                     sessions = emptyList(),
@@ -40,7 +40,7 @@ class SessionListStoreFactory(
 
     private class ExecutorImpl(
         private val sessionService: SessionService,
-    ) : CoroutineExecutor<SessionListStore.Intent, Nothing, SessionListStore.State, Msg, Nothing>() {
+    ) : CoroutineExecutor<SessionListStore.Intent, Nothing, SessionListStore.State, Msg, SessionListStore.Label>() {
 
         override fun executeIntent(intent: SessionListStore.Intent) {
             when (intent) {
@@ -80,7 +80,16 @@ class SessionListStoreFactory(
                                     projectId = session.projectId,
                                 )
                             }
-                            dispatch(Msg.SessionsLoaded(sessions = sessions, activeSessionId = currentState.activeSessionId))
+                            val currentActiveInList = sessions.any { it.id == currentState.activeSessionId }
+                            val newActiveId = if (currentActiveInList) {
+                                currentState.activeSessionId
+                            } else {
+                                sessions.firstOrNull()?.id
+                            }
+                            dispatch(Msg.SessionsLoaded(sessions = sessions, activeSessionId = newActiveId))
+                            if (newActiveId != currentState.activeSessionId) {
+                                publish(SessionListStore.Label.ActiveSessionChanged(sessionId = newActiveId))
+                            }
                         },
                     )
             }

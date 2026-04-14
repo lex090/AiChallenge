@@ -38,12 +38,19 @@ fun ProjectSettingsPanel(
     store: ProjectSettingsStore,
     visible: Boolean,
     onClose: () -> Unit,
+    onDeleted: () -> Unit,
 ) {
     val state by store.stateFlow.collectAsState()
 
-    LaunchedEffect(state.isSaved, state.isDeleted) {
-        if (state.isSaved || state.isDeleted) {
+    LaunchedEffect(state.isSaved) {
+        if (state.isSaved) {
             onClose()
+        }
+    }
+
+    LaunchedEffect(state.isDeleted) {
+        if (state.isDeleted) {
+            onDeleted()
         }
     }
 

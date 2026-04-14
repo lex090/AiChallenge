@@ -5,7 +5,11 @@ import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.arkivanov.mvikotlin.core.store.Store
 import kotlin.time.Instant
 
-interface SessionListStore : Store<SessionListStore.Intent, SessionListStore.State, Nothing> {
+interface SessionListStore : Store<SessionListStore.Intent, SessionListStore.State, SessionListStore.Label> {
+
+    sealed interface Label {
+        data class ActiveSessionChanged(val sessionId: AgentSessionId?) : Label
+    }
 
     sealed interface Intent {
         data object LoadSessions : Intent

@@ -9,6 +9,7 @@ interface ProjectListStore : Store<ProjectListStore.Intent, ProjectListStore.Sta
         data object LoadProjects : Intent
         data class SelectProject(val id: ProjectId) : Intent
         data object SelectFreeSessions : Intent
+        data object DeselectAll : Intent
         data class DeleteProject(val id: ProjectId) : Intent
     }
 

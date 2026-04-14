@@ -29,6 +29,7 @@ class ProjectListStoreFactory(
         data class ProjectsLoaded(val projects: List<ProjectListStore.ProjectItem>) : Msg
         data class ProjectSelected(val id: ProjectId) : Msg
         data object FreeSessionsSelected : Msg
+        data object Deselected : Msg
         data class Error(val text: String) : Msg
     }
 
@@ -41,6 +42,7 @@ class ProjectListStoreFactory(
                 is ProjectListStore.Intent.LoadProjects -> handleLoadProjects()
                 is ProjectListStore.Intent.SelectProject -> handleSelectProject(id = intent.id)
                 is ProjectListStore.Intent.SelectFreeSessions -> handleSelectFreeSessions()
+                is ProjectListStore.Intent.DeselectAll -> handleDeselectAll()
                 is ProjectListStore.Intent.DeleteProject -> handleDeleteProject(id = intent.id)
             }
         }
@@ -74,6 +76,10 @@ class ProjectListStoreFactory(
             publish(ProjectListStore.Label.FreeSessionsSelected)
         }
 
+        private fun handleDeselectAll() {
+            dispatch(Msg.Deselected)
+        }
+
         private fun handleDeleteProject(id: ProjectId) {
             scope.launch {
                 projectService.delete(id = id)
@@ -100,6 +106,11 @@ class ProjectListStoreFactory(
                 is Msg.FreeSessionsSelected -> copy(
                     activeProjectId = null,
                     showFreeSessions = true,
+                    errorText = null,
+                )
+                is Msg.Deselected -> copy(
+                    activeProjectId = null,
+                    showFreeSessions = false,
                     errorText = null,
                 )
                 is Msg.Error -> copy(errorText = msg.text)

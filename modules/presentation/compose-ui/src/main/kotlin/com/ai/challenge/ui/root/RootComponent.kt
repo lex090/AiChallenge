@@ -135,6 +135,22 @@ class RootComponent(
                 }
             }
         }
+
+        componentScope.launch {
+            @OptIn(ExperimentalCoroutinesApi::class)
+            sessionListStore.labels.collect { label ->
+                when (label) {
+                    is SessionListStore.Label.ActiveSessionChanged -> {
+                        val sessionId = label.sessionId
+                        if (sessionId != null) {
+                            selectSession(sessionId = sessionId)
+                        } else {
+                            navigation.replaceCurrent(Config.Chat(sessionId = ""))
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -210,6 +226,12 @@ class RootComponent(
         projectListStore.accept(ProjectListStore.Intent.LoadProjects)
     }
 
+    fun onProjectDeleted() {
+        _projectSettingsStore.value = null
+        projectListStore.accept(ProjectListStore.Intent.DeselectAll)
+        projectListStore.accept(ProjectListStore.Intent.LoadProjects)
+    }
+
     fun toggleMemoryDebug(sessionId: AgentSessionId) {
         if (_memoryDebugComponent.value != null) {
             _memoryDebugComponent.value = null
@@ -251,16 +273,6 @@ class RootComponent(
                     ifLeft = { error -> println("Failed to delete session: ${error.message}") },
                     ifRight = {
                         sessionListStore.accept(SessionListStore.Intent.LoadSessions)
-
-                        val remaining = sessionService.list().getOrElse { emptyList() }
-                        if (remaining.isEmpty()) {
-                            createNewSession()
-                        } else {
-                            val currentActive = sessionListStore.stateFlow.value.activeSessionId
-                            if (currentActive == sessionId) {
-                                selectSession(sessionId = remaining.first().id)
-                            }
-                        }
                     },
                 )
         }

@@ -75,6 +75,8 @@ fun RootContent(component: RootComponent) {
         }
     }
 
+    val hasContext = projectListState.activeProjectId != null || projectListState.showFreeSessions
+
     Row(modifier = Modifier.fillMaxSize()) {
         ProjectRail(
             state = projectListState,
@@ -85,67 +87,98 @@ fun RootContent(component: RootComponent) {
 
         VerticalDivider()
 
-        SessionPanel(
-            sessionListState = sessionListState,
-            projectListState = projectListState,
-            onNewSession = { component.createNewSession() },
-            onSelectSession = { sessionId -> component.selectSession(sessionId = sessionId) },
-            onDeleteSession = { sessionId -> component.deleteSession(sessionId = sessionId) },
-            onOpenProjectSettings = {
-                val activeProjectId = projectListState.activeProjectId
-                if (activeProjectId != null) {
-                    component.openProjectSettings(projectId = activeProjectId)
-                }
-            },
-        )
-
-        VerticalDivider()
-
-        Column(modifier = Modifier.weight(1f)) {
-            TopBar(
+        if (hasContext) {
+            SessionPanel(
                 sessionListState = sessionListState,
                 projectListState = projectListState,
-                onToggleSettings = {
-                    sessionListState.activeSessionId?.let { component.toggleSessionSettings(sessionId = it) }
-                },
-                onToggleMemoryDebug = {
-                    sessionListState.activeSessionId?.let { component.toggleMemoryDebug(sessionId = it) }
+                onNewSession = { component.createNewSession() },
+                onSelectSession = { sessionId -> component.selectSession(sessionId = sessionId) },
+                onDeleteSession = { sessionId -> component.deleteSession(sessionId = sessionId) },
+                onOpenProjectSettings = {
+                    val activeProjectId = projectListState.activeProjectId
+                    if (activeProjectId != null) {
+                        component.openProjectSettings(projectId = activeProjectId)
+                    }
                 },
             )
 
-            HorizontalDivider()
+            VerticalDivider()
+        }
 
-            Row(modifier = Modifier.weight(1f)) {
-                Children(
-                    stack = component.childStack,
-                    modifier = Modifier.weight(1f),
-                ) { child ->
-                    when (val instance = child.instance) {
-                        is RootComponent.Child.Chat -> ChatContent(instance.component)
+        Row(modifier = Modifier.weight(1f)) {
+            if (!hasContext) {
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = "Select a project or free sessions",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (sessionListState.activeSessionId == null) {
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = "Create a session to start chatting",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                Column(modifier = Modifier.weight(1f)) {
+                    TopBar(
+                        sessionListState = sessionListState,
+                        projectListState = projectListState,
+                        onToggleSettings = {
+                            sessionListState.activeSessionId?.let { component.toggleSessionSettings(sessionId = it) }
+                        },
+                        onToggleMemoryDebug = {
+                            sessionListState.activeSessionId?.let { component.toggleMemoryDebug(sessionId = it) }
+                        },
+                    )
+
+                    HorizontalDivider()
+
+                    Row(modifier = Modifier.weight(1f)) {
+                        Children(
+                            stack = component.childStack,
+                            modifier = Modifier.weight(1f),
+                        ) { child ->
+                            when (val instance = child.instance) {
+                                is RootComponent.Child.Chat -> ChatContent(instance.component)
+                            }
+                        }
+
+                        lastSettingsComponent.value?.let { settings ->
+                            SessionSettingsPanel(
+                                component = settings,
+                                visible = settingsComponent != null,
+                            )
+                        }
+
+                        lastMemoryDebugComponent.value?.let { debugComponent ->
+                            MemoryDebugPanel(
+                                component = debugComponent,
+                                visible = memoryDebugComponent != null,
+                            )
+                        }
                     }
                 }
+            }
 
-                lastSettingsComponent.value?.let { settings ->
-                    SessionSettingsPanel(
-                        component = settings,
-                        visible = settingsComponent != null,
-                    )
-                }
-
-                lastMemoryDebugComponent.value?.let { debugComponent ->
-                    MemoryDebugPanel(
-                        component = debugComponent,
-                        visible = memoryDebugComponent != null,
-                    )
-                }
-
-                lastProjectSettingsStore.value?.let { store ->
-                    ProjectSettingsPanel(
-                        store = store,
-                        visible = projectSettingsStore != null,
-                        onClose = { component.closeProjectSettings() },
-                    )
-                }
+            lastProjectSettingsStore.value?.let { store ->
+                ProjectSettingsPanel(
+                    store = store,
+                    visible = projectSettingsStore != null,
+                    onClose = { component.closeProjectSettings() },
+                    onDeleted = { component.onProjectDeleted() },
+                )
             }
         }
     }
@@ -160,74 +193,61 @@ private fun SessionPanel(
     onDeleteSession: (AgentSessionId) -> Unit,
     onOpenProjectSettings: () -> Unit,
 ) {
-    val hasContext = projectListState.activeProjectId != null || projectListState.showFreeSessions
-
     Column(
         modifier = Modifier
             .width(200.dp)
             .fillMaxHeight()
             .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
-        if (!hasContext) {
-            Spacer(modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val headerText = if (projectListState.activeProjectId != null) {
+                val activeProject =
+                    projectListState.projects.find { it.id == projectListState.activeProjectId }
+                activeProject?.name ?: "Project"
+            } else {
+                "Free Sessions"
+            }
+
             Text(
-                text = "Select a project or free sessions",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(alignment = Alignment.CenterHorizontally),
+                text = headerText,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.weight(1f))
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val headerText = if (projectListState.activeProjectId != null) {
-                    val activeProject =
-                        projectListState.projects.find { it.id == projectListState.activeProjectId }
-                    activeProject?.name ?: "Project"
-                } else {
-                    "Free Sessions"
-                }
 
-                Text(
-                    text = headerText,
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                if (projectListState.activeProjectId != null) {
-                    IconButton(onClick = onOpenProjectSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Project settings",
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            TextButton(onClick = onNewSession) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                Text(text = "New session", modifier = Modifier.padding(start = 8.dp))
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(items = sessionListState.sessions, key = { it.id.value }) { session ->
-                    SessionRow(
-                        session = session,
-                        isActive = session.id == sessionListState.activeSessionId,
-                        onSelect = { onSelectSession(session.id) },
-                        onDelete = { onDeleteSession(session.id) },
+            if (projectListState.activeProjectId != null) {
+                IconButton(onClick = onOpenProjectSettings) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Project settings",
                     )
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        TextButton(onClick = onNewSession) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = null)
+            Text(text = "New session", modifier = Modifier.padding(start = 8.dp))
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(items = sessionListState.sessions, key = { it.id.value }) { session ->
+                SessionRow(
+                    session = session,
+                    isActive = session.id == sessionListState.activeSessionId,
+                    onSelect = { onSelectSession(session.id) },
+                    onDelete = { onDeleteSession(session.id) },
+                )
             }
         }
     }
