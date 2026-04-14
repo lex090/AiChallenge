@@ -174,6 +174,10 @@ class RootComponent(
     }
 
     fun openProjectSettings(projectId: ProjectId) {
+        if (_projectSettingsStore.value != null) {
+            closeProjectSettings()
+            return
+        }
         val store = ProjectSettingsStoreFactory(
             storeFactory = storeFactory,
             projectService = projectService,
@@ -186,6 +190,10 @@ class RootComponent(
     }
 
     fun openNewProjectSettings() {
+        if (_projectSettingsStore.value != null) {
+            closeProjectSettings()
+            return
+        }
         val store = ProjectSettingsStoreFactory(
             storeFactory = storeFactory,
             projectService = projectService,
