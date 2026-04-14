@@ -2,6 +2,7 @@ package com.ai.challenge.sharedkernel.error
 
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.identity.TurnId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 
@@ -50,5 +51,9 @@ sealed interface DomainError {
 
     data class UnknownContextMode(val contextModeId: ContextModeId) : DomainError {
         override val message: String get() = "Unknown context mode: ${contextModeId.value}"
+    }
+
+    data class ProjectNotFound(val id: ProjectId) : DomainError {
+        override val message: String get() = "Project not found: ${id.value}"
     }
 }

@@ -2,6 +2,7 @@ package com.ai.challenge.sharedkernel.event
 
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.vo.TurnSnapshot
 
 /**
@@ -59,4 +60,19 @@ sealed interface DomainEvent {
     data class SessionDeleted(
         override val sessionId: AgentSessionId,
     ) : DomainEvent
+
+    /**
+     * Domain Event -- a Project was deleted.
+     *
+     * Published from DeleteProjectUseCase after project deletion.
+     * All sessions belonging to the project become free (projectId = null).
+     *
+     * Subscribers: none currently (extensibility point).
+     */
+    data class ProjectDeleted(
+        val projectId: ProjectId,
+    ) : DomainEvent {
+        override val sessionId: AgentSessionId
+            get() = AgentSessionId(value = "")
+    }
 }
