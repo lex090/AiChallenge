@@ -59,6 +59,15 @@ import com.ai.challenge.contextmanagement.usecase.impl.DefaultUpdateFactsUseCase
 import com.ai.challenge.conversation.data.ExposedAgentSessionRepository
 import com.ai.challenge.conversation.data.ExposedTurnQueryAdapter
 import com.ai.challenge.conversation.data.createSessionDatabase
+import com.ai.challenge.conversation.impl.AiProjectService
+import com.ai.challenge.conversation.repository.ProjectRepository
+import com.ai.challenge.conversation.service.ProjectService
+import com.ai.challenge.conversation.data.ExposedProjectRepository
+import com.ai.challenge.conversation.usecase.CreateProjectUseCase
+import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
+import com.ai.challenge.conversation.usecase.DeleteProjectUseCase
+import com.ai.challenge.conversation.usecase.ListProjectsUseCase
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
@@ -77,7 +86,10 @@ val appModule = module {
     }
 
     // Repositories
-    single<AgentSessionRepository> { ExposedAgentSessionRepository(database = createSessionDatabase()) }
+    // Session database (shared by AgentSession and Project repositories)
+    single(qualifier = named("sessionDb")) { createSessionDatabase() }
+    single<AgentSessionRepository> { ExposedAgentSessionRepository(database = get(qualifier = named("sessionDb"))) }
+    single<ProjectRepository> { ExposedProjectRepository(database = get(qualifier = named("sessionDb"))) }
 
     // Turn Query Port
     single<TurnQueryPort> { ExposedTurnQueryAdapter(repository = get()) }
@@ -154,6 +166,7 @@ val appModule = module {
     single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageQueryService> { AiUsageQueryService(repository = get()) }
+    single<ProjectService> { AiProjectService(projectRepository = get(), sessionRepository = get()) }
 
     // Domain Events
     single { SessionDeletedCleanupHandler(memoryService = get()) }
@@ -193,4 +206,8 @@ val appModule = module {
             sessionService = get(),
         )
     }
+    single { CreateProjectUseCase(projectService = get()) }
+    single { UpdateProjectUseCase(projectService = get()) }
+    single { DeleteProjectUseCase(projectService = get(), eventPublisher = get()) }
+    single { ListProjectsUseCase(projectService = get()) }
 }

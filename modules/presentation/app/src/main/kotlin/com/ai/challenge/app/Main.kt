@@ -14,6 +14,11 @@ import com.ai.challenge.contextmanagement.usecase.GetMemoryUseCase
 import com.ai.challenge.contextmanagement.usecase.UpdateFactsUseCase
 import com.ai.challenge.conversation.usecase.DeleteSessionUseCase
 import com.ai.challenge.conversation.usecase.SendMessageUseCase
+import com.ai.challenge.conversation.service.ProjectService
+import com.ai.challenge.conversation.usecase.CreateProjectUseCase
+import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
+import com.ai.challenge.conversation.usecase.DeleteProjectUseCase
+import com.ai.challenge.conversation.usecase.ListProjectsUseCase
 import com.ai.challenge.ui.debug.memory.MemoryDebugStoreFactory
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
@@ -49,9 +54,14 @@ fun main() {
             chatService = koin.get<ChatService>(),
             usageService = koin.get<UsageQueryService>(),
             branchService = koin.get<BranchService>(),
+            projectService = koin.get<ProjectService>(),
             sendMessageUseCase = koin.get<SendMessageUseCase>(),
             createSessionUseCase = koin.get<CreateSessionUseCase>(),
             deleteSessionUseCase = koin.get<DeleteSessionUseCase>(),
+            createProjectUseCase = koin.get<CreateProjectUseCase>(),
+            updateProjectUseCase = koin.get<UpdateProjectUseCase>(),
+            deleteProjectUseCase = koin.get<DeleteProjectUseCase>(),
+            listProjectsUseCase = koin.get<ListProjectsUseCase>(),
             applicationInitService = koin.get<ApplicationInitService>(),
         )
     }
