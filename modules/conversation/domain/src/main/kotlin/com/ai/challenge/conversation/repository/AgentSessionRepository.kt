@@ -5,6 +5,7 @@ import com.ai.challenge.conversation.model.Branch
 import com.ai.challenge.conversation.model.Turn
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.identity.TurnId
 
 /**
@@ -37,4 +38,6 @@ interface AgentSessionRepository {
     suspend fun appendTurn(branchId: BranchId, turn: Turn): Turn
     suspend fun getTurnsByBranch(branchId: BranchId): List<Turn>
     suspend fun getTurn(turnId: TurnId): Turn?
+
+    suspend fun clearProjectId(projectId: ProjectId)
 }
