@@ -50,6 +50,7 @@ class AiChatService(
                 branchId = branchId,
                 newMessage = message,
                 contextModeId = session.contextModeId,
+                projectInstructions = null,
             )
         }) { e: Exception ->
             raise(DomainError.NetworkError(message = e.message ?: "Context preparation failed"))

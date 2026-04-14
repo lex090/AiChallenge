@@ -214,6 +214,7 @@ class ExposedAgentSessionRepository(
         id = AgentSessionId(value = this[SessionsTable.id]),
         title = SessionTitle(value = this[SessionsTable.title]),
         contextModeId = ContextModeId(value = this[SessionsTable.contextManagementType]),
+        projectId = null,
         createdAt = CreatedAt(value = Instant.fromEpochMilliseconds(this[SessionsTable.createdAt])),
         updatedAt = UpdatedAt(value = Instant.fromEpochMilliseconds(this[SessionsTable.updatedAt])),
     )
