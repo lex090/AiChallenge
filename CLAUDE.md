@@ -40,24 +40,26 @@ presentation/app           ← all modules (composition root)
 
 ### Shared Kernel (`modules/shared-kernel`)
 Package: `com.ai.challenge.sharedkernel`
-- **Identity types** — AgentSessionId, BranchId, TurnId
-- **Shared VOs** — MessageContent, CreatedAt, UpdatedAt, ContextModeId (opaque strategy ID), TurnSnapshot (read-only Turn projection), PreparedContext, ContextMessage, MessageRole, LlmResponse, LlmUsage, ResponseFormat
+- **Identity types** — AgentSessionId, BranchId, TurnId, ProjectId
+- **Shared VOs** — MessageContent, CreatedAt, UpdatedAt, ContextModeId (opaque strategy ID), SystemInstructions (project LLM instructions), TurnSnapshot (read-only Turn projection), PreparedContext, ContextMessage, MessageRole, LlmResponse, LlmUsage, ResponseFormat
 - **Ports** — LlmPort, ContextManagerPort, TurnQueryPort (CM reads turns), ContextModeValidatorPort
-- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted), DomainEventPublisher, DomainEventHandler
+- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted, ProjectDeleted), DomainEventPublisher, DomainEventHandler
 - **Errors** — DomainError (sealed hierarchy with Arrow Either)
 
 ### Conversation BC — Domain (`modules/conversation/domain`)
 Package: `com.ai.challenge.conversation`
-- **Aggregate** — AgentSession (root, stores `contextModeId: ContextModeId`), Branch, Turn, TurnSequence
-- **VOs** — SessionTitle, UsageRecord, TokenCount, Cost
-- **Services** — ChatService, SessionService, BranchService, UsageQueryService
-- **Repository** — AgentSessionRepository
-- **Use Cases** — SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService
-- **Implementations** — AiChatService, AiSessionService, AiBranchService, AiUsageQueryService
+- **Aggregate** — AgentSession (root, stores `contextModeId: ContextModeId`, `projectId: ProjectId?`), Branch, Turn, TurnSequence
+- **Aggregate** — Project (root, stores `name: ProjectName`, `systemInstructions: SystemInstructions`)
+- **VOs** — SessionTitle, ProjectName, UsageRecord, TokenCount, Cost
+- **Services** — ChatService, SessionService, BranchService, UsageQueryService, ProjectService
+- **Repositories** — AgentSessionRepository, ProjectRepository
+- **Use Cases** — SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService, CreateProjectUseCase, UpdateProjectUseCase, DeleteProjectUseCase, ListProjectsUseCase
+- **Implementations** — AiChatService, AiSessionService, AiBranchService, AiUsageQueryService, AiProjectService
 
 ### Conversation BC — Data (`modules/conversation/data`)
 Package: `com.ai.challenge.conversation.data`
 - ExposedAgentSessionRepository (Exposed + SQLite)
+- ExposedProjectRepository (Exposed + SQLite)
 - ExposedTurnQueryAdapter (implements TurnQueryPort, maps Turn → TurnSnapshot)
 
 ### Context Management BC — Domain (`modules/context-management/domain`)
@@ -79,7 +81,7 @@ Package: `com.ai.challenge.infrastructure.llm`
 - OpenRouterService, OpenRouterAdapter (LlmPort implementation)
 
 ### Presentation (`modules/presentation/*`)
-- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through use case interfaces. Includes Memory debug panel.
+- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through use case interfaces. Includes Memory debug panel and Project management (ProjectRail, ProjectSettingsPanel, ProjectListStore, ProjectSettingsStore).
 - **app** — Application entry point, Koin DI configuration, InProcessDomainEventPublisher. Composition root that wires all layers together.
 
 ### Cross-Context Communication
