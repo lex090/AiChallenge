@@ -24,7 +24,7 @@ class ApplicationInitService(
     suspend fun ensureAtLeastOneSession(): Either<DomainError, AgentSession?> = either {
         val sessions = sessionService.list().bind()
         if (sessions.isEmpty()) {
-            createSessionUseCase.execute(title = SessionTitle(value = "")).bind()
+            createSessionUseCase.execute(title = SessionTitle(value = ""), projectId = null).bind()
         } else {
             null
         }

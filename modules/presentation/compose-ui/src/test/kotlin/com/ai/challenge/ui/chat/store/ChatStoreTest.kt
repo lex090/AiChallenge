@@ -13,8 +13,13 @@ import com.ai.challenge.conversation.service.BranchService
 import com.ai.challenge.conversation.service.ChatService
 import com.ai.challenge.conversation.service.SessionService
 import com.ai.challenge.conversation.service.UsageQueryService
+import com.ai.challenge.conversation.service.ProjectService
+import com.ai.challenge.conversation.model.Project
+import com.ai.challenge.conversation.model.ProjectName
 import com.ai.challenge.conversation.usecase.SendMessageUseCase
 import com.ai.challenge.sharedkernel.error.DomainError
+import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.vo.SystemInstructions
 import com.ai.challenge.sharedkernel.event.DomainEvent
 import com.ai.challenge.sharedkernel.event.DomainEventPublisher
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
@@ -73,6 +78,7 @@ class ChatStoreTest {
         val sendMessageUseCase = SendMessageUseCase(
             chatService = fake,
             sessionService = fake,
+            projectService = fake,
             eventPublisher = NoOpDomainEventPublisher(),
         )
         return createStore(
@@ -99,7 +105,7 @@ class ChatStoreTest {
     @Test
     fun `LoadSession sets sessionId and loads history as UiMessages`() = runTest {
         val fake = FakeServices()
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
         val turnId = TurnId.generate()
         fake.appendTurnDirect(
@@ -131,7 +137,7 @@ class ChatStoreTest {
     fun `SendMessage adds user message and agent response`() = runTest {
         val turnId = TurnId.generate()
         val fake = FakeServices(sendTurnId = turnId, sendAssistantMessage = "Hello from agent!")
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -153,7 +159,7 @@ class ChatStoreTest {
     @Test
     fun `SendMessage adds error message on agent failure`() = runTest {
         val fake = FakeServices(sendError = DomainError.NetworkError(message = "Timeout"))
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -185,7 +191,7 @@ class ChatStoreTest {
             upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
         )
         val fake = FakeServices(sendTurnId = turnId, sendAssistantMessage = "Hi!", sendUsage = usage)
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -228,7 +234,7 @@ class ChatStoreTest {
 
         var callCount = 0
         val fake = object : FakeServices() {
-            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
+            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectInstructions: SystemInstructions?): Either<DomainError, Turn> {
                 callCount++
                 val turnId = if (callCount == 1) turnId1 else turnId2
                 val usage = if (callCount == 1) usage1 else usage2
@@ -246,7 +252,7 @@ class ChatStoreTest {
                 return Either.Right(value = turn)
             }
         }
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -265,7 +271,7 @@ class ChatStoreTest {
     @Test
     fun `LoadSession loads usage data from service`() = runTest {
         val fake = FakeServices()
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
 
         val turnId1 = TurnId.generate()
@@ -331,7 +337,7 @@ class ChatStoreTest {
     @Test
     fun `SendMessage auto-titles session on first message`() = runTest {
         val fake = FakeServices(sendAssistantMessage = "response")
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -370,7 +376,7 @@ open class FakeServices(
     private val sendAssistantMessage: String = "",
     private val sendUsage: UsageRecord = emptyUsage(),
     private val sendError: DomainError? = null,
-) : ChatService, SessionService, UsageQueryService, BranchService {
+) : ChatService, SessionService, ProjectService, UsageQueryService, BranchService {
 
     private val sessions = ConcurrentHashMap<AgentSessionId, AgentSession>()
     private val turns = ConcurrentHashMap<TurnId, Pair<AgentSessionId, Turn>>()
@@ -379,7 +385,7 @@ open class FakeServices(
 
     // -- ChatService --
 
-    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
+    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectInstructions: SystemInstructions?): Either<DomainError, Turn> {
         if (sendError != null) return Either.Left(value = sendError)
         val turn = Turn(
             id = sendTurnId,
@@ -396,7 +402,7 @@ open class FakeServices(
 
     // -- SessionService --
 
-    override suspend fun create(title: SessionTitle): Either<DomainError, AgentSession> {
+    override suspend fun create(title: SessionTitle, projectId: ProjectId?): Either<DomainError, AgentSession> {
         val id = AgentSessionId.generate()
         val mainBranchId = BranchId.generate()
         val now = Clock.System.now()
@@ -485,6 +491,23 @@ open class FakeServices(
         val all = turns.values.filter { it.first == sessionId }.map { it.second }.sortedBy { it.createdAt.value }
         return Either.Right(value = all)
     }
+
+    // -- ProjectService --
+
+    override suspend fun create(name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun get(id: ProjectId): Either<DomainError, Project> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun delete(id: ProjectId): Either<DomainError, Unit> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
+
+    override suspend fun list(): Either<DomainError, List<Project>> =
+        Either.Right(value = emptyList())
+
+    override suspend fun update(id: ProjectId, name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
+        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
 
     // -- Direct helpers for tests --
 

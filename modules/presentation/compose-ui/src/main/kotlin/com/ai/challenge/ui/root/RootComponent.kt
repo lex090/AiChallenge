@@ -106,7 +106,7 @@ class RootComponent(
 
     fun createNewSession() {
         runBlocking {
-            createSessionUseCase.execute(title = SessionTitle(value = ""))
+            createSessionUseCase.execute(title = SessionTitle(value = ""), projectId = null)
                 .fold(
                     ifLeft = { error -> println("Failed to create session: ${error.message}") },
                     ifRight = { session ->

@@ -171,6 +171,7 @@ val appModule = module {
         SendMessageUseCase(
             chatService = get(),
             sessionService = get(),
+            projectService = get(),
             eventPublisher = get(),
         )
     }
