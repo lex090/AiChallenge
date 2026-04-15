@@ -25,7 +25,14 @@ fun createMemoryDatabase(): Database {
         },
     )
     transaction(db) {
-        SchemaUtils.createMissingTablesAndColumns(FactsTable, SummariesTable, ProjectInstructionsTable)
+        SchemaUtils.createMissingTablesAndColumns(
+            FactsTable,
+            SummariesTable,
+            ProjectInstructionsTable,
+            UserPreferencesMemoryTable,
+            UserNotesTable,
+            UserFactsTable,
+        )
     }
     return db
 }

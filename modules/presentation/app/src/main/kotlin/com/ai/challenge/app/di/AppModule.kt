@@ -62,9 +62,9 @@ import com.ai.challenge.contextmanagement.memory.impl.DefaultUserPreferencesMemo
 import com.ai.challenge.contextmanagement.memory.impl.ProjectDeletedCleanupHandler
 import com.ai.challenge.contextmanagement.memory.impl.ProjectInstructionsChangedHandler
 import com.ai.challenge.contextmanagement.memory.impl.SessionDeletedCleanupHandler
-import com.ai.challenge.contextmanagement.data.InMemoryUserFactRepository
-import com.ai.challenge.contextmanagement.data.InMemoryUserNoteRepository
-import com.ai.challenge.contextmanagement.data.InMemoryUserPreferencesMemoryRepository
+import com.ai.challenge.contextmanagement.data.ExposedUserFactRepository
+import com.ai.challenge.contextmanagement.data.ExposedUserNoteRepository
+import com.ai.challenge.contextmanagement.data.ExposedUserPreferencesMemoryRepository
 import com.ai.challenge.contextmanagement.repository.ProjectInstructionsRepository
 import com.ai.challenge.contextmanagement.repository.UserFactRepository
 import com.ai.challenge.contextmanagement.repository.UserNoteRepository
@@ -123,10 +123,9 @@ val appModule = module {
     single<SummaryMemoryProvider> { DefaultSummaryMemoryProvider(summaryRepository = get()) }
     single<ProjectInstructionsRepository> { ExposedProjectInstructionsRepository(database = get()) }
     single<ProjectInstructionsMemoryProvider> { DefaultProjectInstructionsMemoryProvider(projectInstructionsRepository = get()) }
-    // Stub in-memory repositories (replaced by Exposed implementations in Task 12)
-    single<UserPreferencesMemoryRepository> { InMemoryUserPreferencesMemoryRepository() }
-    single<UserFactRepository> { InMemoryUserFactRepository() }
-    single<UserNoteRepository> { InMemoryUserNoteRepository() }
+    single<UserPreferencesMemoryRepository> { ExposedUserPreferencesMemoryRepository(database = get()) }
+    single<UserFactRepository> { ExposedUserFactRepository(database = get()) }
+    single<UserNoteRepository> { ExposedUserNoteRepository(database = get()) }
     single<UserPreferencesMemoryProvider> { DefaultUserPreferencesMemoryProvider(userPreferencesMemoryRepository = get()) }
     single<UserFactMemoryProvider> { DefaultUserFactMemoryProvider(userFactRepository = get()) }
     single<UserNoteMemoryProvider> { DefaultUserNoteMemoryProvider(userNoteRepository = get()) }
