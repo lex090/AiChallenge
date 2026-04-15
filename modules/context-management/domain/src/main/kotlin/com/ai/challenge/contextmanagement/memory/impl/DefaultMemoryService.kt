@@ -7,6 +7,9 @@ import com.ai.challenge.contextmanagement.memory.MemoryService
 import com.ai.challenge.contextmanagement.memory.MemoryType
 import com.ai.challenge.contextmanagement.memory.ProjectInstructionsMemoryProvider
 import com.ai.challenge.contextmanagement.memory.SummaryMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserFactMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserNoteMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserPreferencesMemoryProvider
 
 /**
  * Default [MemoryService] implementation with registry pattern.
@@ -22,12 +25,18 @@ class DefaultMemoryService(
     private val factMemoryProvider: FactMemoryProvider,
     private val summaryMemoryProvider: SummaryMemoryProvider,
     private val projectInstructionsMemoryProvider: ProjectInstructionsMemoryProvider,
+    private val userPreferencesMemoryProvider: UserPreferencesMemoryProvider,
+    private val userNoteMemoryProvider: UserNoteMemoryProvider,
+    private val userFactMemoryProvider: UserFactMemoryProvider,
 ) : MemoryService {
 
     private val providers: Map<MemoryType<*>, MemoryProvider<*>> = mapOf(
         MemoryType.Facts to factMemoryProvider,
         MemoryType.Summaries to summaryMemoryProvider,
         MemoryType.ProjectInstructions to projectInstructionsMemoryProvider,
+        MemoryType.UserPreferences to userPreferencesMemoryProvider,
+        MemoryType.UserNotes to userNoteMemoryProvider,
+        MemoryType.UserFacts to userFactMemoryProvider,
     )
 
     @Suppress("UNCHECKED_CAST")
