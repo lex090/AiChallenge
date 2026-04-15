@@ -14,12 +14,12 @@ import com.ai.challenge.sharedkernel.vo.TurnSnapshot
  * (Conversation -> Context Management) without creating
  * direct dependencies.
  *
- * All events contain [sessionId] as correlation identifier,
- * allowing Context Management context to identify affected data.
+ * Each event variant carries only the identifiers relevant to that event.
+ * Session-scoped events carry [AgentSessionId]; project-scoped events
+ * carry [ProjectId]. There is no forced common field because future
+ * event types (e.g. user-scoped) may not involve sessions at all.
  */
 sealed interface DomainEvent {
-
-    val sessionId: AgentSessionId
 
     /**
      * Domain Event -- a new Turn was recorded in a session.
@@ -33,7 +33,7 @@ sealed interface DomainEvent {
      *   or summary update depending on active strategy.
      */
     data class TurnRecorded(
-        override val sessionId: AgentSessionId,
+        val sessionId: AgentSessionId,
         val turnSnapshot: TurnSnapshot,
         val branchId: BranchId,
     ) : DomainEvent
@@ -46,7 +46,7 @@ sealed interface DomainEvent {
      * Subscribers: none currently (extensibility point).
      */
     data class SessionCreated(
-        override val sessionId: AgentSessionId,
+        val sessionId: AgentSessionId,
     ) : DomainEvent
 
     /**
@@ -59,7 +59,7 @@ sealed interface DomainEvent {
      *   orphaned Facts and Summaries for this session.
      */
     data class SessionDeleted(
-        override val sessionId: AgentSessionId,
+        val sessionId: AgentSessionId,
     ) : DomainEvent
 
     /**
@@ -68,14 +68,12 @@ sealed interface DomainEvent {
      * Published from DeleteProjectUseCase after project deletion.
      * All sessions belonging to the project become free (projectId = null).
      *
-     * Subscribers: none currently (extensibility point).
+     * Subscribers:
+     * - Context Management: ProjectDeletedCleanupHandler cleans up project memory.
      */
     data class ProjectDeleted(
         val projectId: ProjectId,
-    ) : DomainEvent {
-        override val sessionId: AgentSessionId
-            get() = AgentSessionId(value = "")
-    }
+    ) : DomainEvent
 
     /**
      * Domain Event -- project instructions were created or updated.
@@ -90,8 +88,5 @@ sealed interface DomainEvent {
     data class ProjectInstructionsChanged(
         val projectId: ProjectId,
         val instructions: SystemInstructions,
-    ) : DomainEvent {
-        override val sessionId: AgentSessionId
-            get() = AgentSessionId(value = "")
-    }
+    ) : DomainEvent
 }
