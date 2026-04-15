@@ -90,17 +90,15 @@ fun RootContent(component: RootComponent) {
         }
     }
 
-    val activeUser = userListState.activeUserId?.let { activeId ->
-        userListState.users.find { it.id == activeId }
-    }
-
     val hasContext = projectListState.activeProjectId != null || projectListState.showFreeSessions
 
     Row(modifier = Modifier.fillMaxSize()) {
         ProjectRail(
             state = projectListState,
-            activeUser = activeUser,
-            onUserClick = { component.onUserClick() },
+            userListState = userListState,
+            onNewUser = { component.openNewUserSettings() },
+            onSelectUser = { userId -> component.selectUser(userId = userId) },
+            onUserClick = { userId -> component.openUserSettings(userId = userId) },
             onNewProject = { component.openNewProjectSettings() },
             onSelectProject = { projectId -> component.selectProject(projectId = projectId) },
             onSelectFreeSessions = { component.selectFreeSessions() },

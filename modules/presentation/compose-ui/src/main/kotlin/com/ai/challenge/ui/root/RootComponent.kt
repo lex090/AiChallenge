@@ -289,6 +289,10 @@ class RootComponent(
         userListStore.accept(UserListStore.Intent.LoadUsers)
     }
 
+    fun selectUser(userId: UserId) {
+        userListStore.accept(UserListStore.Intent.SelectUser(id = userId))
+    }
+
     fun onUserClick() {
         val activeUserId = userListState.value.activeUserId
         if (activeUserId != null) {

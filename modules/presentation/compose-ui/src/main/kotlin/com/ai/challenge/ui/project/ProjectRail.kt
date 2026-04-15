@@ -30,14 +30,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.ui.project.store.ProjectListStore
 import com.ai.challenge.ui.user.store.UserListStore
 
 @Composable
 fun ProjectRail(
     state: ProjectListStore.State,
-    activeUser: UserListStore.UserItem?,
-    onUserClick: () -> Unit,
+    userListState: UserListStore.State,
+    onNewUser: () -> Unit,
+    onSelectUser: (UserId) -> Unit,
+    onUserClick: (UserId) -> Unit,
     onNewProject: () -> Unit,
     onSelectProject: (ProjectId) -> Unit,
     onSelectFreeSessions: () -> Unit,
@@ -49,40 +52,44 @@ fun ProjectRail(
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val isUserActive = activeUser != null
-        Surface(
-            modifier = Modifier
-                .size(40.dp)
-                .clickable { onUserClick() },
-            shape = RoundedCornerShape(size = 8.dp),
-            color = if (isUserActive) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant,
-            border = if (isUserActive) BorderStroke(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-            ) else null,
+        IconButton(onClick = onNewUser) {
+            Icon(
+                imageVector = Icons.Outlined.Person,
+                contentDescription = "New user",
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier.weight(weight = 1f, fill = false),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (activeUser != null) {
-                    Text(
-                        text = activeUser.initial.toString(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Outlined.Person,
-                        contentDescription = "User",
-                    )
+            items(items = userListState.users, key = { it.id.value }) { user ->
+                val isActive = user.id == userListState.activeUserId
+                Surface(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable { onSelectUser(user.id) },
+                    shape = RoundedCornerShape(size = 8.dp),
+                    color = if (isActive) MaterialTheme.colorScheme.tertiaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                    border = if (isActive) BorderStroke(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    ) else null,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = user.initial.toString(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
-
         HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-
-        Spacer(modifier = Modifier.height(4.dp))
 
         IconButton(onClick = onNewProject) {
             Icon(
