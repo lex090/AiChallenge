@@ -49,6 +49,7 @@ class ExposedAgentSessionRepositoryTest {
             title = SessionTitle(value = title),
             contextModeId = ContextModeId(value = "none"),
             projectId = null,
+            userId = null,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )

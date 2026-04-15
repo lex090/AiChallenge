@@ -97,7 +97,7 @@ class SessionListStoreFactory(
 
         private fun handleCreateSession() {
             scope.launch {
-                sessionService.create(title = SessionTitle(value = ""), projectId = state().filterProjectId)
+                sessionService.create(title = SessionTitle(value = ""), projectId = state().filterProjectId, userId = null)
                     .fold(
                         ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
                         ifRight = { session ->

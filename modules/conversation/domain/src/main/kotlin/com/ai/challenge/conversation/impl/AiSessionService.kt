@@ -12,6 +12,7 @@ import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
 import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 import com.ai.challenge.sharedkernel.vo.CreatedAt
 import com.ai.challenge.sharedkernel.vo.UpdatedAt
@@ -28,13 +29,14 @@ class AiSessionService(
     private val repository: AgentSessionRepository,
 ) : SessionService {
 
-    override suspend fun create(title: SessionTitle, projectId: ProjectId?): Either<DomainError, AgentSession> = either {
+    override suspend fun create(title: SessionTitle, projectId: ProjectId?, userId: UserId?): Either<DomainError, AgentSession> = either {
         val now = Clock.System.now()
         val session = AgentSession(
             id = AgentSessionId.generate(),
             title = title,
             contextModeId = ContextModeId(value = "none"),
             projectId = projectId,
+            userId = userId,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )

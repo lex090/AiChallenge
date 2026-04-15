@@ -6,6 +6,7 @@ import arrow.core.raise.ensure
 import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 import com.ai.challenge.sharedkernel.vo.CreatedAt
 import com.ai.challenge.sharedkernel.vo.UpdatedAt
@@ -26,6 +27,7 @@ import kotlin.time.Clock
  * - [contextModeId] references a valid context mode (validated externally via [ContextModeValidatorPort])
  * - Main [Branch] cannot be deleted
  * - [title] is auto-generated from first message if empty
+ * - [userId] is null when the session is not assigned to any user
  *
  * Child entities: [Branch], [Turn]
  */
@@ -34,6 +36,7 @@ data class AgentSession(
     val title: SessionTitle,
     val contextModeId: ContextModeId,
     val projectId: ProjectId?,
+    val userId: UserId?,
     val createdAt: CreatedAt,
     val updatedAt: UpdatedAt,
 ) {
@@ -45,6 +48,9 @@ data class AgentSession(
 
     fun withProjectId(projectId: ProjectId?): AgentSession =
         copy(projectId = projectId, updatedAt = UpdatedAt(value = Clock.System.now()))
+
+    fun withUserId(userId: UserId?): AgentSession =
+        copy(userId = userId, updatedAt = UpdatedAt(value = Clock.System.now()))
 
     fun ensureBranchDeletable(branch: Branch): Either<DomainError, Unit> = either {
         ensure(!branch.isMain) {

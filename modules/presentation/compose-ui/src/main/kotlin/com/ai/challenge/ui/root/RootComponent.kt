@@ -171,6 +171,7 @@ class RootComponent(
             createSessionUseCase.execute(
                 title = SessionTitle(value = ""),
                 projectId = projectListState.value.activeProjectId,
+                userId = null,
             ).fold(
                 ifLeft = { error -> println("Failed to create session: ${error.message}") },
                 ifRight = { session ->
