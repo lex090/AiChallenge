@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,10 +31,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.ui.project.store.ProjectListStore
+import com.ai.challenge.ui.user.store.UserListStore
 
 @Composable
 fun ProjectRail(
     state: ProjectListStore.State,
+    activeUser: UserListStore.UserItem?,
+    onUserClick: () -> Unit,
     onNewProject: () -> Unit,
     onSelectProject: (ProjectId) -> Unit,
     onSelectFreeSessions: () -> Unit,
@@ -45,6 +49,41 @@ fun ProjectRail(
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val isUserActive = activeUser != null
+        Surface(
+            modifier = Modifier
+                .size(40.dp)
+                .clickable { onUserClick() },
+            shape = RoundedCornerShape(size = 8.dp),
+            color = if (isUserActive) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant,
+            border = if (isUserActive) BorderStroke(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+            ) else null,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                if (activeUser != null) {
+                    Text(
+                        text = activeUser.initial.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.Person,
+                        contentDescription = "User",
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         IconButton(onClick = onNewProject) {
             Icon(
                 imageVector = Icons.Default.Add,

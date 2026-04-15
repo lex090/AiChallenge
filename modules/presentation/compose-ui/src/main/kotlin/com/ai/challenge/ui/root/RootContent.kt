@@ -80,6 +80,8 @@ fun RootContent(component: RootComponent) {
     Row(modifier = Modifier.fillMaxSize()) {
         ProjectRail(
             state = projectListState,
+            activeUser = null,
+            onUserClick = {},
             onNewProject = { component.openNewProjectSettings() },
             onSelectProject = { projectId -> component.selectProject(projectId = projectId) },
             onSelectFreeSessions = { component.selectFreeSessions() },
