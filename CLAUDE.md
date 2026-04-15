@@ -43,7 +43,7 @@ Package: `com.ai.challenge.sharedkernel`
 - **Identity types** — AgentSessionId, BranchId, TurnId, ProjectId
 - **Shared VOs** — MessageContent, CreatedAt, UpdatedAt, ContextModeId (opaque strategy ID), SystemInstructions (project LLM instructions), TurnSnapshot (read-only Turn projection), PreparedContext, ContextMessage, MessageRole, LlmResponse, LlmUsage, ResponseFormat
 - **Ports** — LlmPort, ContextManagerPort, TurnQueryPort (CM reads turns), ContextModeValidatorPort
-- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted, ProjectDeleted), DomainEventPublisher, DomainEventHandler
+- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted, ProjectDeleted, ProjectInstructionsChanged), DomainEventPublisher, DomainEventHandler
 - **Errors** — DomainError (sealed hierarchy with Arrow Either)
 
 ### Conversation BC — Domain (`modules/conversation/domain`)
@@ -64,16 +64,16 @@ Package: `com.ai.challenge.conversation.data`
 
 ### Context Management BC — Domain (`modules/context-management/domain`)
 Package: `com.ai.challenge.contextmanagement`
-- **Models** — Fact, FactCategory, FactKey, FactValue, Summary, SummaryContent, TurnIndex, ContextManagementType (with ContextModeId mapping), ContextStrategyConfig
-- **Repositories** — FactRepository, SummaryRepository
-- **Memory** — MemoryService, MemoryProvider, FactMemoryProvider, SummaryMemoryProvider, MemoryType, MemoryScope, MemorySnapshot
+- **Models** — Fact, FactCategory, FactKey, FactValue, Summary, SummaryContent, TurnIndex, ContextManagementType (with ContextModeId mapping), ContextStrategyConfig, ProjectInstructions, InstructionsContent
+- **Repositories** — FactRepository, SummaryRepository, ProjectInstructionsRepository
+- **Memory** — MemoryService, MemoryProvider, FactMemoryProvider, SummaryMemoryProvider, ProjectInstructionsMemoryProvider, MemoryType (Facts, Summaries, ProjectInstructions), MemoryScope (Session, Project), MemorySnapshot
 - **Strategies** — ContextStrategy, PassthroughStrategy, SlidingWindowStrategy, SummarizeOnThresholdStrategy, StickyFactsStrategy, BranchingContextManager, ContextPreparationAdapter (implements ContextManagerPort), ContextCompressorPort, FactExtractorPort, ContextModeValidatorAdapter, TurnSnapshotMapper
 - **Use Cases** — GetMemoryUseCase, UpdateFactsUseCase, AddSummaryUseCase, DeleteSummaryUseCase
-- **Implementations** — DefaultMemoryService, DefaultFactMemoryProvider, DefaultSummaryMemoryProvider, SessionDeletedCleanupHandler
+- **Implementations** — DefaultMemoryService, DefaultFactMemoryProvider, DefaultSummaryMemoryProvider, DefaultProjectInstructionsMemoryProvider, SessionDeletedCleanupHandler, ProjectInstructionsChangedHandler, ProjectDeletedCleanupHandler
 
 ### Context Management BC — Data (`modules/context-management/data`)
 Package: `com.ai.challenge.contextmanagement.data`
-- ExposedFactRepository, ExposedSummaryRepository (Exposed + SQLite, memory.db)
+- ExposedFactRepository, ExposedSummaryRepository, ExposedProjectInstructionsRepository (Exposed + SQLite, memory.db)
 - LlmContextCompressorAdapter, LlmFactExtractorAdapter (LLM adapters)
 
 ### Infrastructure (`modules/infrastructure/open-router-service`)
@@ -86,7 +86,7 @@ Package: `com.ai.challenge.infrastructure.llm`
 
 ### Cross-Context Communication
 - **Synchronous:** CM reads turns via `TurnQueryPort` → `ExposedTurnQueryAdapter` (returns `TurnSnapshot`, never `Turn`)
-- **Asynchronous:** Conversation publishes `DomainEvent.SessionDeleted` → CM's `SessionDeletedCleanupHandler`
+- **Asynchronous:** Conversation publishes `DomainEvent.SessionDeleted` → CM's `SessionDeletedCleanupHandler`; `DomainEvent.ProjectInstructionsChanged` → CM's `ProjectInstructionsChangedHandler` (upserts instructions in project-scoped memory); `DomainEvent.ProjectDeleted` → CM's `ProjectDeletedCleanupHandler` (cleans up project memory)
 - **Validation:** Application use cases validate `ContextModeId` via `ContextModeValidatorPort` → `ContextModeValidatorAdapter`
 
 ### Naming Convention: Port/Adapter
