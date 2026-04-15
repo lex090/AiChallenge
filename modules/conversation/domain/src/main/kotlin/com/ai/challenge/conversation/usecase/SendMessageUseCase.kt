@@ -42,6 +42,7 @@ class SendMessageUseCase(
             branchId = branchId,
             message = message,
             projectId = session.projectId,
+            userId = session.userId,
         ).bind()
 
         val turnSnapshot = TurnSnapshot(

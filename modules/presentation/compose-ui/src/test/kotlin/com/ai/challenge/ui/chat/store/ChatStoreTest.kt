@@ -230,7 +230,7 @@ class ChatStoreTest {
 
         var callCount = 0
         val fake = object : FakeServices() {
-            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?): Either<DomainError, Turn> {
+            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?, userId: UserId?): Either<DomainError, Turn> {
                 callCount++
                 val turnId = if (callCount == 1) turnId1 else turnId2
                 val usage = if (callCount == 1) usage1 else usage2
@@ -381,7 +381,7 @@ open class FakeServices(
 
     // -- ChatService --
 
-    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?): Either<DomainError, Turn> {
+    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?, userId: UserId?): Either<DomainError, Turn> {
         if (sendError != null) return Either.Left(value = sendError)
         val turn = Turn(
             id = sendTurnId,
