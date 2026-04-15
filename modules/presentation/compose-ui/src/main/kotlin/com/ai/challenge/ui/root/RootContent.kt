@@ -43,12 +43,15 @@ import com.ai.challenge.ui.project.ProjectSettingsPanel
 import com.ai.challenge.ui.project.store.ProjectListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.settings.SessionSettingsPanel
+import com.ai.challenge.ui.user.UserMemoryPanel
+import com.ai.challenge.ui.user.UserSettingsPanel
 import com.arkivanov.decompose.extensions.compose.stack.Children
 
 @Composable
 fun RootContent(component: RootComponent) {
     val sessionListState by component.sessionListState.collectAsState()
     val projectListState by component.projectListState.collectAsState()
+    val userListState by component.userListState.collectAsState()
     val settingsComponent by component.settingsComponent.collectAsState()
     val lastSettingsComponent = remember { mutableStateOf(settingsComponent) }
     if (settingsComponent != null) {
@@ -67,6 +70,18 @@ fun RootContent(component: RootComponent) {
         lastProjectSettingsStore.value = projectSettingsStore
     }
 
+    val userSettingsStore by component.userSettingsStore.collectAsState()
+    val lastUserSettingsStore = remember { mutableStateOf(userSettingsStore) }
+    if (userSettingsStore != null) {
+        lastUserSettingsStore.value = userSettingsStore
+    }
+
+    val userMemoryComponent by component.userMemoryComponent.collectAsState()
+    val lastUserMemoryComponent = remember { mutableStateOf(userMemoryComponent) }
+    if (userMemoryComponent != null) {
+        lastUserMemoryComponent.value = userMemoryComponent
+    }
+
     val currentSettings = settingsComponent
     if (currentSettings != null) {
         val settingsState by currentSettings.state.collectAsState()
@@ -75,13 +90,17 @@ fun RootContent(component: RootComponent) {
         }
     }
 
+    val activeUser = userListState.activeUserId?.let { activeId ->
+        userListState.users.find { it.id == activeId }
+    }
+
     val hasContext = projectListState.activeProjectId != null || projectListState.showFreeSessions
 
     Row(modifier = Modifier.fillMaxSize()) {
         ProjectRail(
             state = projectListState,
-            activeUser = null,
-            onUserClick = {},
+            activeUser = activeUser,
+            onUserClick = { component.onUserClick() },
             onNewProject = { component.openNewProjectSettings() },
             onSelectProject = { projectId -> component.selectProject(projectId = projectId) },
             onSelectFreeSessions = { component.selectFreeSessions() },
@@ -170,6 +189,13 @@ fun RootContent(component: RootComponent) {
                                 visible = memoryDebugComponent != null,
                             )
                         }
+
+                        lastUserMemoryComponent.value?.let { userMemory ->
+                            UserMemoryPanel(
+                                component = userMemory,
+                                visible = userMemoryComponent != null,
+                            )
+                        }
                     }
                 }
             }
@@ -180,6 +206,15 @@ fun RootContent(component: RootComponent) {
                     visible = projectSettingsStore != null,
                     onClose = { component.closeProjectSettings() },
                     onDeleted = { component.onProjectDeleted() },
+                )
+            }
+
+            lastUserSettingsStore.value?.let { store ->
+                UserSettingsPanel(
+                    store = store,
+                    visible = userSettingsStore != null,
+                    onClose = { component.closeUserSettings() },
+                    onDeleted = { component.onUserDeleted() },
                 )
             }
         }

@@ -17,6 +17,7 @@ import com.ai.challenge.conversation.usecase.SendMessageUseCase
 import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.ui.chat.ChatComponent
 import com.ai.challenge.ui.debug.memory.MemoryDebugComponent
 import com.ai.challenge.ui.debug.memory.MemoryDebugStoreFactory
@@ -27,6 +28,12 @@ import com.ai.challenge.ui.project.store.ProjectSettingsStoreFactory
 import com.ai.challenge.ui.sessionlist.store.SessionListStore
 import com.ai.challenge.ui.sessionlist.store.SessionListStoreFactory
 import com.ai.challenge.ui.settings.SessionSettingsComponent
+import com.ai.challenge.ui.user.UserMemoryComponent
+import com.ai.challenge.ui.user.store.UserListStore
+import com.ai.challenge.ui.user.store.UserListStoreFactory
+import com.ai.challenge.ui.user.store.UserSettingsStore
+import com.ai.challenge.ui.user.store.UserSettingsStoreFactory
+import com.ai.challenge.ui.user.store.UserMemoryStoreFactory
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.router.stack.ChildStack
 import com.arkivanov.decompose.router.stack.StackNavigation
@@ -64,6 +71,9 @@ class RootComponent(
     private val listProjectsUseCase: ListProjectsUseCase,
     private val applicationInitService: ApplicationInitService,
     private val memoryDebugStoreFactory: MemoryDebugStoreFactory,
+    private val userListStoreFactory: UserListStoreFactory,
+    private val userSettingsStoreFactory: UserSettingsStoreFactory,
+    private val userMemoryStoreFactory: UserMemoryStoreFactory,
 ) : ComponentContext by componentContext {
 
     private val sessionListStore = instanceKeeper.getStore {
@@ -80,6 +90,13 @@ class RootComponent(
     @OptIn(ExperimentalCoroutinesApi::class)
     val projectListState: StateFlow<ProjectListStore.State> = projectListStore.stateFlow
 
+    private val userListStore = instanceKeeper.getStore {
+        userListStoreFactory.create()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val userListState: StateFlow<UserListStore.State> = userListStore.stateFlow
+
     private val _settingsComponent = MutableStateFlow<SessionSettingsComponent?>(null)
     val settingsComponent: StateFlow<SessionSettingsComponent?> = _settingsComponent.asStateFlow()
 
@@ -88,6 +105,12 @@ class RootComponent(
 
     private val _projectSettingsStore = MutableStateFlow<ProjectSettingsStore?>(null)
     val projectSettingsStore: StateFlow<ProjectSettingsStore?> = _projectSettingsStore.asStateFlow()
+
+    private val _userSettingsStore = MutableStateFlow<UserSettingsStore?>(null)
+    val userSettingsStore: StateFlow<UserSettingsStore?> = _userSettingsStore.asStateFlow()
+
+    private val _userMemoryComponent = MutableStateFlow<UserMemoryComponent?>(null)
+    val userMemoryComponent: StateFlow<UserMemoryComponent?> = _userMemoryComponent.asStateFlow()
 
     private val navigation = StackNavigation<Config>()
 
@@ -122,6 +145,7 @@ class RootComponent(
                 )
             sessionListStore.accept(SessionListStore.Intent.LoadSessions)
             projectListStore.accept(ProjectListStore.Intent.LoadProjects)
+            userListStore.accept(UserListStore.Intent.LoadUsers)
         }
 
         componentScope.launch {
@@ -171,7 +195,7 @@ class RootComponent(
             createSessionUseCase.execute(
                 title = SessionTitle(value = ""),
                 projectId = projectListState.value.activeProjectId,
-                userId = null,
+                userId = userListState.value.activeUserId,
             ).fold(
                 ifLeft = { error -> println("Failed to create session: ${error.message}") },
                 ifRight = { session ->
@@ -231,6 +255,61 @@ class RootComponent(
         _projectSettingsStore.value = null
         projectListStore.accept(ProjectListStore.Intent.DeselectAll)
         projectListStore.accept(ProjectListStore.Intent.LoadProjects)
+    }
+
+    fun openUserSettings(userId: UserId) {
+        if (_userSettingsStore.value != null) {
+            closeUserSettings()
+            return
+        }
+        val store = userSettingsStoreFactory.create()
+        store.accept(UserSettingsStore.Intent.Load(userId = userId))
+        _userSettingsStore.value = store
+    }
+
+    fun openNewUserSettings() {
+        if (_userSettingsStore.value != null) {
+            closeUserSettings()
+            return
+        }
+        val store = userSettingsStoreFactory.create()
+        store.accept(UserSettingsStore.Intent.LoadNew)
+        _userSettingsStore.value = store
+    }
+
+    fun closeUserSettings() {
+        _userSettingsStore.value = null
+        userListStore.accept(UserListStore.Intent.LoadUsers)
+    }
+
+    fun onUserDeleted() {
+        _userSettingsStore.value = null
+        _userMemoryComponent.value = null
+        userListStore.accept(UserListStore.Intent.DeselectAll)
+        userListStore.accept(UserListStore.Intent.LoadUsers)
+    }
+
+    fun onUserClick() {
+        val activeUserId = userListState.value.activeUserId
+        if (activeUserId != null) {
+            openUserSettings(userId = activeUserId)
+        } else {
+            openNewUserSettings()
+        }
+    }
+
+    fun toggleUserMemory() {
+        val activeUserId = userListState.value.activeUserId ?: return
+        if (_userMemoryComponent.value != null) {
+            _userMemoryComponent.value = null
+        } else {
+            val component = UserMemoryComponent(
+                componentContext = this,
+                storeFactory = userMemoryStoreFactory,
+            )
+            component.loadForUser(userId = activeUserId)
+            _userMemoryComponent.value = component
+        }
     }
 
     fun toggleMemoryDebug(sessionId: AgentSessionId) {
