@@ -12,13 +12,13 @@ import com.ai.challenge.conversation.service.ChatService
 import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.identity.TurnId
 import com.ai.challenge.sharedkernel.port.ContextManagerPort
 import com.ai.challenge.sharedkernel.port.LlmPort
 import com.ai.challenge.sharedkernel.vo.CreatedAt
 import com.ai.challenge.sharedkernel.vo.MessageContent
 import com.ai.challenge.sharedkernel.vo.ResponseFormat
-import com.ai.challenge.sharedkernel.vo.SystemInstructions
 import java.math.BigDecimal
 import kotlin.time.Clock
 
@@ -41,7 +41,7 @@ class AiChatService(
         sessionId: AgentSessionId,
         branchId: BranchId,
         message: MessageContent,
-        projectInstructions: SystemInstructions?,
+        projectId: ProjectId?,
     ): Either<DomainError, Turn> = either {
         val session = repository.get(id = sessionId)
             ?: raise(DomainError.SessionNotFound(id = sessionId))
@@ -52,7 +52,7 @@ class AiChatService(
                 branchId = branchId,
                 newMessage = message,
                 contextModeId = session.contextModeId,
-                projectInstructions = projectInstructions,
+                projectId = projectId,
             )
         }) { e: Exception ->
             raise(DomainError.NetworkError(message = e.message ?: "Context preparation failed"))

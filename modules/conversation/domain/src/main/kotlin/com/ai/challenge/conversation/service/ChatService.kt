@@ -5,8 +5,8 @@ import com.ai.challenge.conversation.model.Turn
 import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.vo.MessageContent
-import com.ai.challenge.sharedkernel.vo.SystemInstructions
 
 /**
  * Domain Service -- sending messages to AI agent.
@@ -21,6 +21,6 @@ interface ChatService {
         sessionId: AgentSessionId,
         branchId: BranchId,
         message: MessageContent,
-        projectInstructions: SystemInstructions?,
+        projectId: ProjectId?,
     ): Either<DomainError, Turn>
 }
