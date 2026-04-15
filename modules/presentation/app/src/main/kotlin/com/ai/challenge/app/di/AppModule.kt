@@ -85,6 +85,21 @@ import com.ai.challenge.conversation.usecase.CreateProjectUseCase
 import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
 import com.ai.challenge.conversation.usecase.DeleteProjectUseCase
 import com.ai.challenge.conversation.usecase.ListProjectsUseCase
+import com.ai.challenge.conversation.data.ExposedUserRepository
+import com.ai.challenge.conversation.data.SessionQueryAdapter
+import com.ai.challenge.conversation.data.UserQueryAdapter
+import com.ai.challenge.conversation.impl.AiUserService
+import com.ai.challenge.conversation.repository.UserRepository
+import com.ai.challenge.conversation.service.UserService
+import com.ai.challenge.conversation.usecase.CreateUserUseCase
+import com.ai.challenge.conversation.usecase.UpdateUserUseCase
+import com.ai.challenge.conversation.usecase.DeleteUserUseCase
+import com.ai.challenge.conversation.usecase.ListUsersUseCase
+import com.ai.challenge.contextmanagement.memory.impl.UserUpdatedHandler
+import com.ai.challenge.contextmanagement.memory.impl.UserDeletedCleanupHandler
+import com.ai.challenge.contextmanagement.memory.impl.UserFactExtractionHandler
+import com.ai.challenge.sharedkernel.port.SessionQueryPort
+import com.ai.challenge.sharedkernel.port.UserQueryPort
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -108,12 +123,17 @@ val appModule = module {
     single(qualifier = named("sessionDb")) { createSessionDatabase() }
     single<AgentSessionRepository> { ExposedAgentSessionRepository(database = get(qualifier = named("sessionDb"))) }
     single<ProjectRepository> { ExposedProjectRepository(database = get(qualifier = named("sessionDb"))) }
+    single<UserRepository> { ExposedUserRepository(database = get(qualifier = named("sessionDb"))) }
 
     // Turn Query Port
     single<TurnQueryPort> { ExposedTurnQueryAdapter(repository = get()) }
 
     // Context Mode Validator Port
     single<ContextModeValidatorPort> { ContextModeValidatorAdapter() }
+
+    // Session and User Query Ports
+    single<SessionQueryPort> { SessionQueryAdapter(repository = get()) }
+    single<UserQueryPort> { UserQueryAdapter(userRepository = get()) }
 
     // Memory Layer
     single { createMemoryDatabase() }
@@ -203,11 +223,15 @@ val appModule = module {
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageQueryService> { AiUsageQueryService(repository = get()) }
     single<ProjectService> { AiProjectService(projectRepository = get(), sessionRepository = get()) }
+    single<UserService> { AiUserService(userRepository = get()) }
 
     // Domain Events
     single { SessionDeletedCleanupHandler(memoryService = get()) }
     single { ProjectInstructionsChangedHandler(memoryService = get()) }
     single { ProjectDeletedCleanupHandler(memoryService = get()) }
+    single { UserUpdatedHandler(memoryService = get(), userQueryPort = get()) }
+    single { UserDeletedCleanupHandler(memoryService = get()) }
+    single { UserFactExtractionHandler(memoryService = get(), sessionQueryPort = get(), factExtractor = get()) }
 
     single<DomainEventPublisher> {
         InProcessDomainEventPublisher(
@@ -215,6 +239,9 @@ val appModule = module {
                 DomainEvent.SessionDeleted::class to listOf(get<SessionDeletedCleanupHandler>()),
                 DomainEvent.ProjectInstructionsChanged::class to listOf(get<ProjectInstructionsChangedHandler>()),
                 DomainEvent.ProjectDeleted::class to listOf(get<ProjectDeletedCleanupHandler>()),
+                DomainEvent.UserUpdated::class to listOf(get<UserUpdatedHandler>()),
+                DomainEvent.UserDeleted::class to listOf(get<UserDeletedCleanupHandler>()),
+                DomainEvent.TurnRecorded::class to listOf(get<UserFactExtractionHandler>()),
             ),
         )
     }
@@ -249,4 +276,8 @@ val appModule = module {
     single { UpdateProjectUseCase(projectService = get(), eventPublisher = get()) }
     single { DeleteProjectUseCase(projectService = get(), eventPublisher = get()) }
     single { ListProjectsUseCase(projectService = get()) }
+    single { CreateUserUseCase(userService = get(), eventPublisher = get()) }
+    single { UpdateUserUseCase(userService = get(), eventPublisher = get()) }
+    single { DeleteUserUseCase(userService = get(), eventPublisher = get()) }
+    single { ListUsersUseCase(userService = get()) }
 }
