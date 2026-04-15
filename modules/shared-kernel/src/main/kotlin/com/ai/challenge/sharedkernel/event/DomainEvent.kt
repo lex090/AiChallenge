@@ -3,6 +3,7 @@ package com.ai.challenge.sharedkernel.event
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
 import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.vo.SystemInstructions
 import com.ai.challenge.sharedkernel.vo.TurnSnapshot
 
 /**
@@ -71,6 +72,24 @@ sealed interface DomainEvent {
      */
     data class ProjectDeleted(
         val projectId: ProjectId,
+    ) : DomainEvent {
+        override val sessionId: AgentSessionId
+            get() = AgentSessionId(value = "")
+    }
+
+    /**
+     * Domain Event -- project instructions were created or updated.
+     *
+     * Published from CreateProjectUseCase and UpdateProjectUseCase
+     * after successful project save.
+     *
+     * Subscribers:
+     * - Context Management: ProjectInstructionsChangedHandler upserts
+     *   instructions in project-scoped memory.
+     */
+    data class ProjectInstructionsChanged(
+        val projectId: ProjectId,
+        val instructions: SystemInstructions,
     ) : DomainEvent {
         override val sessionId: AgentSessionId
             get() = AgentSessionId(value = "")
