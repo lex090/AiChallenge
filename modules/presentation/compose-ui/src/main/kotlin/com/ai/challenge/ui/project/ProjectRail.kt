@@ -69,7 +69,13 @@ fun ProjectRail(
                 Surface(
                     modifier = Modifier
                         .size(40.dp)
-                        .clickable { onSelectUser(user.id) },
+                        .clickable {
+                        if (isActive) {
+                            onUserClick(user.id)
+                        } else {
+                            onSelectUser(user.id)
+                        }
+                    },
                     shape = RoundedCornerShape(size = 8.dp),
                     color = if (isActive) MaterialTheme.colorScheme.tertiaryContainer
                     else MaterialTheme.colorScheme.surfaceVariant,
