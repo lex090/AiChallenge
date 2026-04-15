@@ -27,6 +27,7 @@ import com.ai.challenge.sharedkernel.port.LlmPort
 import com.ai.challenge.sharedkernel.port.TurnQueryPort
 import com.ai.challenge.contextmanagement.memory.FactMemoryProvider
 import com.ai.challenge.contextmanagement.memory.MemoryService
+import com.ai.challenge.contextmanagement.memory.ProjectInstructionsMemoryProvider
 import com.ai.challenge.contextmanagement.memory.SummaryMemoryProvider
 import com.ai.challenge.contextmanagement.usecase.AddSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.DeleteSummaryUseCase
@@ -49,9 +50,14 @@ import com.ai.challenge.contextmanagement.data.createMemoryDatabase
 import com.ai.challenge.contextmanagement.data.LlmContextCompressorAdapter
 import com.ai.challenge.contextmanagement.data.LlmFactExtractorAdapter
 import com.ai.challenge.contextmanagement.memory.impl.DefaultMemoryService
+import com.ai.challenge.contextmanagement.memory.impl.DefaultProjectInstructionsMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.ProjectDeletedCleanupHandler
+import com.ai.challenge.contextmanagement.memory.impl.ProjectInstructionsChangedHandler
 import com.ai.challenge.contextmanagement.memory.impl.SessionDeletedCleanupHandler
 import com.ai.challenge.contextmanagement.memory.impl.DefaultFactMemoryProvider
 import com.ai.challenge.contextmanagement.memory.impl.DefaultSummaryMemoryProvider
+import com.ai.challenge.contextmanagement.repository.ProjectInstructionsRepository
+import com.ai.challenge.contextmanagement.data.ExposedProjectInstructionsRepository
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultAddSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultDeleteSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultGetMemoryUseCase
@@ -103,7 +109,15 @@ val appModule = module {
     single<SummaryRepository> { ExposedSummaryRepository(database = get()) }
     single<FactMemoryProvider> { DefaultFactMemoryProvider(factRepository = get()) }
     single<SummaryMemoryProvider> { DefaultSummaryMemoryProvider(summaryRepository = get()) }
-    single<MemoryService> { DefaultMemoryService(factMemoryProvider = get(), summaryMemoryProvider = get()) }
+    single<ProjectInstructionsRepository> { ExposedProjectInstructionsRepository(database = get()) }
+    single<ProjectInstructionsMemoryProvider> { DefaultProjectInstructionsMemoryProvider(projectInstructionsRepository = get()) }
+    single<MemoryService> {
+        DefaultMemoryService(
+            factMemoryProvider = get(),
+            summaryMemoryProvider = get(),
+            projectInstructionsMemoryProvider = get(),
+        )
+    }
 
     // Memory Use Cases
     single<GetMemoryUseCase> { DefaultGetMemoryUseCase(memoryService = get()) }
@@ -171,11 +185,15 @@ val appModule = module {
 
     // Domain Events
     single { SessionDeletedCleanupHandler(memoryService = get()) }
+    single { ProjectInstructionsChangedHandler(memoryService = get()) }
+    single { ProjectDeletedCleanupHandler(memoryService = get()) }
 
     single<DomainEventPublisher> {
         InProcessDomainEventPublisher(
             handlers = mapOf(
                 DomainEvent.SessionDeleted::class to listOf(get<SessionDeletedCleanupHandler>()),
+                DomainEvent.ProjectInstructionsChanged::class to listOf(get<ProjectInstructionsChangedHandler>()),
+                DomainEvent.ProjectDeleted::class to listOf(get<ProjectDeletedCleanupHandler>()),
             ),
         )
     }
@@ -185,7 +203,6 @@ val appModule = module {
         SendMessageUseCase(
             chatService = get(),
             sessionService = get(),
-            projectService = get(),
             eventPublisher = get(),
         )
     }
@@ -207,8 +224,8 @@ val appModule = module {
             sessionService = get(),
         )
     }
-    single { CreateProjectUseCase(projectService = get()) }
-    single { UpdateProjectUseCase(projectService = get()) }
+    single { CreateProjectUseCase(projectService = get(), eventPublisher = get()) }
+    single { UpdateProjectUseCase(projectService = get(), eventPublisher = get()) }
     single { DeleteProjectUseCase(projectService = get(), eventPublisher = get()) }
     single { ListProjectsUseCase(projectService = get()) }
 }
