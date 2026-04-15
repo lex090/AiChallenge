@@ -6,20 +6,31 @@ import com.ai.challenge.conversation.model.Project
 import com.ai.challenge.conversation.model.ProjectName
 import com.ai.challenge.conversation.service.ProjectService
 import com.ai.challenge.sharedkernel.error.DomainError
+import com.ai.challenge.sharedkernel.event.DomainEvent
+import com.ai.challenge.sharedkernel.event.DomainEventPublisher
 import com.ai.challenge.sharedkernel.vo.SystemInstructions
 
 /**
  * Application Service -- create project use case.
  *
- * Orchestrates project creation via [ProjectService].
+ * Orchestrates project creation via [ProjectService] and publishes
+ * [DomainEvent.ProjectInstructionsChanged] for CM memory sync.
  */
 class CreateProjectUseCase(
     private val projectService: ProjectService,
+    private val eventPublisher: DomainEventPublisher,
 ) {
     suspend fun execute(
         name: ProjectName,
         systemInstructions: SystemInstructions,
     ): Either<DomainError, Project> = either {
-        projectService.create(name = name, systemInstructions = systemInstructions).bind()
+        val project = projectService.create(name = name, systemInstructions = systemInstructions).bind()
+        eventPublisher.publish(
+            event = DomainEvent.ProjectInstructionsChanged(
+                projectId = project.id,
+                instructions = project.systemInstructions,
+            ),
+        )
+        project
     }
 }
