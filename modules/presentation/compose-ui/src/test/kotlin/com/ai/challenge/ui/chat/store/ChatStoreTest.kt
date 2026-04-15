@@ -13,13 +13,9 @@ import com.ai.challenge.conversation.service.BranchService
 import com.ai.challenge.conversation.service.ChatService
 import com.ai.challenge.conversation.service.SessionService
 import com.ai.challenge.conversation.service.UsageQueryService
-import com.ai.challenge.conversation.service.ProjectService
-import com.ai.challenge.conversation.model.Project
-import com.ai.challenge.conversation.model.ProjectName
 import com.ai.challenge.conversation.usecase.SendMessageUseCase
 import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.identity.ProjectId
-import com.ai.challenge.sharedkernel.vo.SystemInstructions
 import com.ai.challenge.sharedkernel.event.DomainEvent
 import com.ai.challenge.sharedkernel.event.DomainEventPublisher
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
@@ -78,7 +74,6 @@ class ChatStoreTest {
         val sendMessageUseCase = SendMessageUseCase(
             chatService = fake,
             sessionService = fake,
-            projectService = FakeProjectService(),
             eventPublisher = NoOpDomainEventPublisher(),
         )
         return createStore(
@@ -234,7 +229,7 @@ class ChatStoreTest {
 
         var callCount = 0
         val fake = object : FakeServices() {
-            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectInstructions: SystemInstructions?): Either<DomainError, Turn> {
+            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?): Either<DomainError, Turn> {
                 callCount++
                 val turnId = if (callCount == 1) turnId1 else turnId2
                 val usage = if (callCount == 1) usage1 else usage2
@@ -371,23 +366,6 @@ private class NoOpDomainEventPublisher : DomainEventPublisher {
     override suspend fun publish(event: DomainEvent) {}
 }
 
-private class FakeProjectService : ProjectService {
-    override suspend fun create(name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-
-    override suspend fun get(id: ProjectId): Either<DomainError, Project> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-
-    override suspend fun delete(id: ProjectId): Either<DomainError, Unit> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-
-    override suspend fun list(): Either<DomainError, List<Project>> =
-        Either.Right(value = emptyList())
-
-    override suspend fun update(id: ProjectId, name: ProjectName, systemInstructions: SystemInstructions): Either<DomainError, Project> =
-        Either.Left(value = DomainError.ApiError(message = "Not implemented"))
-}
-
 open class FakeServices(
     private val sendTurnId: TurnId = TurnId.generate(),
     private val sendAssistantMessage: String = "",
@@ -402,7 +380,7 @@ open class FakeServices(
 
     // -- ChatService --
 
-    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectInstructions: SystemInstructions?): Either<DomainError, Turn> {
+    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?): Either<DomainError, Turn> {
         if (sendError != null) return Either.Left(value = sendError)
         val turn = Turn(
             id = sendTurnId,
