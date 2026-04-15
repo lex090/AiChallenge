@@ -158,6 +158,7 @@ val appModule = module {
                 ) as ContextStrategyConfig,
                 ContextManagementType.Branching to ContextStrategyConfig.Branching as ContextStrategyConfig,
             ),
+            memoryService = get(),
         )
     }
 
