@@ -5,6 +5,7 @@ import com.ai.challenge.contextmanagement.memory.MemoryProvider
 import com.ai.challenge.contextmanagement.memory.MemoryScope
 import com.ai.challenge.contextmanagement.memory.MemoryService
 import com.ai.challenge.contextmanagement.memory.MemoryType
+import com.ai.challenge.contextmanagement.memory.ProjectInstructionsMemoryProvider
 import com.ai.challenge.contextmanagement.memory.SummaryMemoryProvider
 
 /**
@@ -20,11 +21,13 @@ import com.ai.challenge.contextmanagement.memory.SummaryMemoryProvider
 class DefaultMemoryService(
     private val factMemoryProvider: FactMemoryProvider,
     private val summaryMemoryProvider: SummaryMemoryProvider,
+    private val projectInstructionsMemoryProvider: ProjectInstructionsMemoryProvider,
 ) : MemoryService {
 
     private val providers: Map<MemoryType<*>, MemoryProvider<*>> = mapOf(
         MemoryType.Facts to factMemoryProvider,
         MemoryType.Summaries to summaryMemoryProvider,
+        MemoryType.ProjectInstructions to projectInstructionsMemoryProvider,
     )
 
     @Suppress("UNCHECKED_CAST")
