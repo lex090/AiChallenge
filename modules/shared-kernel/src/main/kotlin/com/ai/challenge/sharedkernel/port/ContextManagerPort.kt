@@ -2,10 +2,10 @@ package com.ai.challenge.sharedkernel.port
 
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 import com.ai.challenge.sharedkernel.vo.MessageContent
 import com.ai.challenge.sharedkernel.vo.PreparedContext
-import com.ai.challenge.sharedkernel.vo.SystemInstructions
 
 /**
  * Port -- context preparation for Conversation bounded context.
@@ -25,6 +25,6 @@ interface ContextManagerPort {
         branchId: BranchId,
         newMessage: MessageContent,
         contextModeId: ContextModeId,
-        projectInstructions: SystemInstructions?,
+        projectId: ProjectId?,
     ): PreparedContext
 }
