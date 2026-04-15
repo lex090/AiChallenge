@@ -29,11 +29,13 @@ class DefaultProjectInstructionsMemoryProvider(
         when (scope) {
             is MemoryScope.Project -> projectInstructionsRepository.deleteByProject(projectId = scope.projectId)
             is MemoryScope.Session -> Unit
+            is MemoryScope.User -> Unit
         }
     }
 
     private fun MemoryScope.toProjectId(): ProjectId = when (this) {
         is MemoryScope.Project -> projectId
         is MemoryScope.Session -> error("ProjectInstructionsMemoryProvider does not support Session scope")
+        is MemoryScope.User -> error("ProjectInstructionsMemoryProvider does not support User scope")
     }
 }
