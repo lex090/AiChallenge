@@ -29,6 +29,9 @@ import com.ai.challenge.contextmanagement.memory.FactMemoryProvider
 import com.ai.challenge.contextmanagement.memory.MemoryService
 import com.ai.challenge.contextmanagement.memory.ProjectInstructionsMemoryProvider
 import com.ai.challenge.contextmanagement.memory.SummaryMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserFactMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserNoteMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserPreferencesMemoryProvider
 import com.ai.challenge.contextmanagement.usecase.AddSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.DeleteSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.GetMemoryUseCase
@@ -49,14 +52,23 @@ import com.ai.challenge.contextmanagement.data.ExposedSummaryRepository
 import com.ai.challenge.contextmanagement.data.createMemoryDatabase
 import com.ai.challenge.contextmanagement.data.LlmContextCompressorAdapter
 import com.ai.challenge.contextmanagement.data.LlmFactExtractorAdapter
+import com.ai.challenge.contextmanagement.memory.impl.DefaultFactMemoryProvider
 import com.ai.challenge.contextmanagement.memory.impl.DefaultMemoryService
 import com.ai.challenge.contextmanagement.memory.impl.DefaultProjectInstructionsMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultSummaryMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultUserFactMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultUserNoteMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultUserPreferencesMemoryProvider
 import com.ai.challenge.contextmanagement.memory.impl.ProjectDeletedCleanupHandler
 import com.ai.challenge.contextmanagement.memory.impl.ProjectInstructionsChangedHandler
 import com.ai.challenge.contextmanagement.memory.impl.SessionDeletedCleanupHandler
-import com.ai.challenge.contextmanagement.memory.impl.DefaultFactMemoryProvider
-import com.ai.challenge.contextmanagement.memory.impl.DefaultSummaryMemoryProvider
+import com.ai.challenge.contextmanagement.data.InMemoryUserFactRepository
+import com.ai.challenge.contextmanagement.data.InMemoryUserNoteRepository
+import com.ai.challenge.contextmanagement.data.InMemoryUserPreferencesMemoryRepository
 import com.ai.challenge.contextmanagement.repository.ProjectInstructionsRepository
+import com.ai.challenge.contextmanagement.repository.UserFactRepository
+import com.ai.challenge.contextmanagement.repository.UserNoteRepository
+import com.ai.challenge.contextmanagement.repository.UserPreferencesMemoryRepository
 import com.ai.challenge.contextmanagement.data.ExposedProjectInstructionsRepository
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultAddSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultDeleteSummaryUseCase
@@ -111,11 +123,21 @@ val appModule = module {
     single<SummaryMemoryProvider> { DefaultSummaryMemoryProvider(summaryRepository = get()) }
     single<ProjectInstructionsRepository> { ExposedProjectInstructionsRepository(database = get()) }
     single<ProjectInstructionsMemoryProvider> { DefaultProjectInstructionsMemoryProvider(projectInstructionsRepository = get()) }
+    // Stub in-memory repositories (replaced by Exposed implementations in Task 12)
+    single<UserPreferencesMemoryRepository> { InMemoryUserPreferencesMemoryRepository() }
+    single<UserFactRepository> { InMemoryUserFactRepository() }
+    single<UserNoteRepository> { InMemoryUserNoteRepository() }
+    single<UserPreferencesMemoryProvider> { DefaultUserPreferencesMemoryProvider(userPreferencesMemoryRepository = get()) }
+    single<UserFactMemoryProvider> { DefaultUserFactMemoryProvider(userFactRepository = get()) }
+    single<UserNoteMemoryProvider> { DefaultUserNoteMemoryProvider(userNoteRepository = get()) }
     single<MemoryService> {
         DefaultMemoryService(
             factMemoryProvider = get(),
             summaryMemoryProvider = get(),
             projectInstructionsMemoryProvider = get(),
+            userPreferencesMemoryProvider = get(),
+            userNoteMemoryProvider = get(),
+            userFactMemoryProvider = get(),
         )
     }
 
