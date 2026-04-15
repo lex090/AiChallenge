@@ -3,6 +3,7 @@ package com.ai.challenge.sharedkernel.event
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
 import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.SystemInstructions
 import com.ai.challenge.sharedkernel.vo.TurnSnapshot
 
@@ -88,5 +89,43 @@ sealed interface DomainEvent {
     data class ProjectInstructionsChanged(
         val projectId: ProjectId,
         val instructions: SystemInstructions,
+    ) : DomainEvent
+
+    /**
+     * Domain Event -- a new User was created.
+     *
+     * Published from CreateUserUseCase after successful user save.
+     * Carries [userName] as a plain String because shared-kernel must not
+     * depend on Conversation's domain value objects.
+     *
+     * Subscribers:
+     * - Context Management: may initialise user-scoped memory.
+     */
+    data class UserCreated(
+        val userId: UserId,
+        val userName: String,
+    ) : DomainEvent
+
+    /**
+     * Domain Event -- a User's profile was updated.
+     *
+     * Published from UpdateUserUseCase after successful save.
+     *
+     * Subscribers: none currently (extensibility point).
+     */
+    data class UserUpdated(
+        val userId: UserId,
+    ) : DomainEvent
+
+    /**
+     * Domain Event -- a User was deleted.
+     *
+     * Published from DeleteUserUseCase after aggregate deletion.
+     *
+     * Subscribers:
+     * - Context Management: cleanup handler removes user-scoped memory.
+     */
+    data class UserDeleted(
+        val userId: UserId,
     ) : DomainEvent
 }
