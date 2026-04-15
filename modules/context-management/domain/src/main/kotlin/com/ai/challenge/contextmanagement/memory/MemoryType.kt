@@ -12,4 +12,6 @@ sealed interface MemoryType<P : MemoryProvider<*>> {
     data object Facts : MemoryType<FactMemoryProvider>
     /** Compressed summaries (append-only semantics). */
     data object Summaries : MemoryType<SummaryMemoryProvider>
+    /** Project instructions (upsert semantics). */
+    data object ProjectInstructions : MemoryType<ProjectInstructionsMemoryProvider>
 }
