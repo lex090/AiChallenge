@@ -4,6 +4,7 @@ import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
 import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 
 /**
@@ -55,5 +56,14 @@ sealed interface DomainError {
 
     data class ProjectNotFound(val id: ProjectId) : DomainError {
         override val message: String get() = "Project not found: ${id.value}"
+    }
+
+    /**
+     * Error -- requested User does not exist in the repository.
+     *
+     * Returned by UserRepository and UserService when lookup by [UserId] yields no result.
+     */
+    data class UserNotFound(val id: UserId) : DomainError {
+        override val message: String get() = "User not found: ${id.value}"
     }
 }
