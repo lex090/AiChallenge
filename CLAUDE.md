@@ -40,38 +40,44 @@ presentation/app           ← all modules (composition root)
 
 ### Shared Kernel (`modules/shared-kernel`)
 Package: `com.ai.challenge.sharedkernel`
-- **Identity types** — AgentSessionId, BranchId, TurnId
-- **Shared VOs** — MessageContent, CreatedAt, UpdatedAt, ContextModeId (opaque strategy ID), TurnSnapshot (read-only Turn projection), PreparedContext, ContextMessage, MessageRole, LlmResponse, LlmUsage, ResponseFormat
-- **Ports** — LlmPort, ContextManagerPort, TurnQueryPort (CM reads turns), ContextModeValidatorPort
-- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted), DomainEventPublisher, DomainEventHandler
+- **Identity types** — AgentSessionId, BranchId, TurnId, ProjectId, UserId, UserNoteId
+- **Shared VOs** — MessageContent, CreatedAt, UpdatedAt, ContextModeId (opaque strategy ID), SystemInstructions (project LLM instructions), TurnSnapshot (read-only Turn projection), PreparedContext, ContextMessage, MessageRole, LlmResponse, LlmUsage, ResponseFormat
+- **Ports** — LlmPort, ContextManagerPort, TurnQueryPort (CM reads turns), ContextModeValidatorPort, SessionQueryPort (CM resolves userId from session), UserQueryPort (CM reads user preferences)
+- **Events** — DomainEvent (TurnRecorded, SessionCreated, SessionDeleted, ProjectDeleted, ProjectInstructionsChanged, UserCreated, UserUpdated, UserDeleted), DomainEventPublisher, DomainEventHandler
 - **Errors** — DomainError (sealed hierarchy with Arrow Either)
 
 ### Conversation BC — Domain (`modules/conversation/domain`)
 Package: `com.ai.challenge.conversation`
-- **Aggregate** — AgentSession (root, stores `contextModeId: ContextModeId`), Branch, Turn, TurnSequence
-- **VOs** — SessionTitle, UsageRecord, TokenCount, Cost
-- **Services** — ChatService, SessionService, BranchService, UsageQueryService
-- **Repository** — AgentSessionRepository
-- **Use Cases** — SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService
-- **Implementations** — AiChatService, AiSessionService, AiBranchService, AiUsageQueryService
+- **Aggregate** — AgentSession (root, stores `contextModeId: ContextModeId`, `projectId: ProjectId?`, `userId: UserId?`), Branch, Turn, TurnSequence
+- **Aggregate** — Project (root, stores `name: ProjectName`, `systemInstructions: SystemInstructions`)
+- **Aggregate** — User (root, stores `name: UserName`, `preferences: UserPreferences`)
+- **VOs** — SessionTitle, ProjectName, UserName, UserPreferences, UsageRecord, TokenCount, Cost
+- **Services** — ChatService, SessionService, BranchService, UsageQueryService, ProjectService, UserService
+- **Repositories** — AgentSessionRepository, ProjectRepository, UserRepository
+- **Use Cases** — SendMessageUseCase, CreateSessionUseCase, DeleteSessionUseCase, ApplicationInitService, CreateProjectUseCase, UpdateProjectUseCase, DeleteProjectUseCase, ListProjectsUseCase, CreateUserUseCase, UpdateUserUseCase, DeleteUserUseCase, ListUsersUseCase
+- **Implementations** — AiChatService, AiSessionService, AiBranchService, AiUsageQueryService, AiProjectService, AiUserService
 
 ### Conversation BC — Data (`modules/conversation/data`)
 Package: `com.ai.challenge.conversation.data`
 - ExposedAgentSessionRepository (Exposed + SQLite)
+- ExposedProjectRepository (Exposed + SQLite)
+- ExposedUserRepository (Exposed + SQLite)
 - ExposedTurnQueryAdapter (implements TurnQueryPort, maps Turn → TurnSnapshot)
+- SessionQueryAdapter (implements SessionQueryPort, resolves userId from session)
+- UserQueryAdapter (implements UserQueryPort, reads user preferences)
 
 ### Context Management BC — Domain (`modules/context-management/domain`)
 Package: `com.ai.challenge.contextmanagement`
-- **Models** — Fact, FactCategory, FactKey, FactValue, Summary, SummaryContent, TurnIndex, ContextManagementType (with ContextModeId mapping), ContextStrategyConfig
-- **Repositories** — FactRepository, SummaryRepository
-- **Memory** — MemoryService, MemoryProvider, FactMemoryProvider, SummaryMemoryProvider, MemoryType, MemoryScope, MemorySnapshot
+- **Models** — Fact, FactCategory, FactKey, FactValue, Summary, SummaryContent, TurnIndex, ContextManagementType (with ContextModeId mapping), ContextStrategyConfig, ProjectInstructions, InstructionsContent, UserPreferencesMemory, UserNote, NoteTitle, NoteContent, UserFact
+- **Repositories** — FactRepository, SummaryRepository, ProjectInstructionsRepository, UserPreferencesMemoryRepository, UserNoteRepository, UserFactRepository
+- **Memory** — MemoryService, MemoryProvider, FactMemoryProvider, SummaryMemoryProvider, ProjectInstructionsMemoryProvider, UserPreferencesMemoryProvider, UserNoteMemoryProvider, UserFactMemoryProvider, MemoryType (Facts, Summaries, ProjectInstructions, UserPreferences, UserNotes, UserFacts), MemoryScope (Session, Project, User), MemorySnapshot
 - **Strategies** — ContextStrategy, PassthroughStrategy, SlidingWindowStrategy, SummarizeOnThresholdStrategy, StickyFactsStrategy, BranchingContextManager, ContextPreparationAdapter (implements ContextManagerPort), ContextCompressorPort, FactExtractorPort, ContextModeValidatorAdapter, TurnSnapshotMapper
 - **Use Cases** — GetMemoryUseCase, UpdateFactsUseCase, AddSummaryUseCase, DeleteSummaryUseCase
-- **Implementations** — DefaultMemoryService, DefaultFactMemoryProvider, DefaultSummaryMemoryProvider, SessionDeletedCleanupHandler
+- **Implementations** — DefaultMemoryService, DefaultFactMemoryProvider, DefaultSummaryMemoryProvider, DefaultProjectInstructionsMemoryProvider, DefaultUserPreferencesMemoryProvider, DefaultUserNoteMemoryProvider, DefaultUserFactMemoryProvider, SessionDeletedCleanupHandler, ProjectInstructionsChangedHandler, ProjectDeletedCleanupHandler, UserUpdatedHandler, UserDeletedCleanupHandler, UserFactExtractionHandler
 
 ### Context Management BC — Data (`modules/context-management/data`)
 Package: `com.ai.challenge.contextmanagement.data`
-- ExposedFactRepository, ExposedSummaryRepository (Exposed + SQLite, memory.db)
+- ExposedFactRepository, ExposedSummaryRepository, ExposedProjectInstructionsRepository, ExposedUserPreferencesMemoryRepository, ExposedUserNoteRepository, ExposedUserFactRepository (Exposed + SQLite, memory.db)
 - LlmContextCompressorAdapter, LlmFactExtractorAdapter (LLM adapters)
 
 ### Infrastructure (`modules/infrastructure/open-router-service`)
@@ -79,17 +85,17 @@ Package: `com.ai.challenge.infrastructure.llm`
 - OpenRouterService, OpenRouterAdapter (LlmPort implementation)
 
 ### Presentation (`modules/presentation/*`)
-- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through use case interfaces. Includes Memory debug panel.
+- **compose-ui** — Decompose components, MVIKotlin stores, Compose screens. Pure UI, accesses data only through use case interfaces. Includes Memory debug panel, Project management (ProjectRail, ProjectSettingsPanel, ProjectListStore, ProjectSettingsStore), and User management (UserSettingsPanel, UserMemoryPanel, UserListStore, UserSettingsStore, UserMemoryStore, UserMemoryComponent).
 - **app** — Application entry point, Koin DI configuration, InProcessDomainEventPublisher. Composition root that wires all layers together.
 
 ### Cross-Context Communication
 - **Synchronous:** CM reads turns via `TurnQueryPort` → `ExposedTurnQueryAdapter` (returns `TurnSnapshot`, never `Turn`)
-- **Asynchronous:** Conversation publishes `DomainEvent.SessionDeleted` → CM's `SessionDeletedCleanupHandler`
+- **Asynchronous:** Conversation publishes `DomainEvent.SessionDeleted` → CM's `SessionDeletedCleanupHandler`; `DomainEvent.ProjectInstructionsChanged` → CM's `ProjectInstructionsChangedHandler` (upserts instructions in project-scoped memory); `DomainEvent.ProjectDeleted` → CM's `ProjectDeletedCleanupHandler` (cleans up project memory); `DomainEvent.UserUpdated` → CM's `UserUpdatedHandler` (syncs user preferences to CM memory); `DomainEvent.UserDeleted` → CM's `UserDeletedCleanupHandler` (cleans up user memory); `DomainEvent.TurnRecorded` → CM's `UserFactExtractionHandler` (extracts user facts via LLM)
 - **Validation:** Application use cases validate `ContextModeId` via `ContextModeValidatorPort` → `ContextModeValidatorAdapter`
 
 ### Naming Convention: Port/Adapter
-- All port interfaces suffixed with `Port` (LlmPort, TurnQueryPort, ContextManagerPort, ContextModeValidatorPort, ContextCompressorPort, FactExtractorPort)
-- All adapter implementations suffixed with `Adapter` (OpenRouterAdapter, ExposedTurnQueryAdapter, ContextPreparationAdapter, ContextModeValidatorAdapter, LlmContextCompressorAdapter, LlmFactExtractorAdapter)
+- All port interfaces suffixed with `Port` (LlmPort, TurnQueryPort, ContextManagerPort, ContextModeValidatorPort, ContextCompressorPort, FactExtractorPort, SessionQueryPort, UserQueryPort)
+- All adapter implementations suffixed with `Adapter` (OpenRouterAdapter, ExposedTurnQueryAdapter, ContextPreparationAdapter, ContextModeValidatorAdapter, LlmContextCompressorAdapter, LlmFactExtractorAdapter, SessionQueryAdapter, UserQueryAdapter)
 
 ### Standalone
 - **week1** — Demo tasks (not part of the main app)

@@ -38,13 +38,13 @@ class SessionListStoreTest {
     }
 
     @Test
-    fun `LoadSessions populates session list`() = runTest {
+    fun `LoadSessions populates session list when filtering free sessions`() = runTest {
         val fake = FakeServices()
-        (fake.create(title = SessionTitle(value = "Chat 1")) as Either.Right).value
-        (fake.create(title = SessionTitle(value = "Chat 2")) as Either.Right).value
+        (fake.create(title = SessionTitle(value = "Chat 1"), projectId = null, userId = null) as Either.Right).value
+        (fake.create(title = SessionTitle(value = "Chat 2"), projectId = null, userId = null) as Either.Right).value
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         assertEquals(2, store.state.sessions.size)
@@ -68,11 +68,11 @@ class SessionListStoreTest {
     @Test
     fun `DeleteSession removes session from list`() = runTest {
         val fake = FakeServices()
-        val session = (fake.create(title = SessionTitle(value = "To delete")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = "To delete"), projectId = null, userId = null) as Either.Right).value
         val id = session.id
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         store.accept(SessionListStore.Intent.DeleteSession(id))
@@ -86,13 +86,13 @@ class SessionListStoreTest {
     @Test
     fun `DeleteSession switches active to first remaining if active was deleted`() = runTest {
         val fake = FakeServices()
-        val session1 = (fake.create(title = SessionTitle(value = "First")) as Either.Right).value
+        val session1 = (fake.create(title = SessionTitle(value = "First"), projectId = null, userId = null) as Either.Right).value
         val id1 = session1.id
-        val session2 = (fake.create(title = SessionTitle(value = "Second")) as Either.Right).value
+        val session2 = (fake.create(title = SessionTitle(value = "Second"), projectId = null, userId = null) as Either.Right).value
         val id2 = session2.id
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         store.accept(SessionListStore.Intent.SelectSession(id1))
@@ -108,11 +108,11 @@ class SessionListStoreTest {
     @Test
     fun `SelectSession sets activeSessionId`() = runTest {
         val fake = FakeServices()
-        val session = (fake.create(title = SessionTitle(value = "Test")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = "Test"), projectId = null, userId = null) as Either.Right).value
         val id = session.id
 
         val store = SessionListStoreFactory(storeFactory = DefaultStoreFactory(), sessionService = fake).create()
-        store.accept(SessionListStore.Intent.LoadSessions)
+        store.accept(SessionListStore.Intent.FilterByProject(projectId = null))
         advanceUntilIdle()
 
         store.accept(SessionListStore.Intent.SelectSession(id))

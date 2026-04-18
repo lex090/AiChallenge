@@ -27,7 +27,11 @@ import com.ai.challenge.sharedkernel.port.LlmPort
 import com.ai.challenge.sharedkernel.port.TurnQueryPort
 import com.ai.challenge.contextmanagement.memory.FactMemoryProvider
 import com.ai.challenge.contextmanagement.memory.MemoryService
+import com.ai.challenge.contextmanagement.memory.ProjectInstructionsMemoryProvider
 import com.ai.challenge.contextmanagement.memory.SummaryMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserFactMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserNoteMemoryProvider
+import com.ai.challenge.contextmanagement.memory.UserPreferencesMemoryProvider
 import com.ai.challenge.contextmanagement.usecase.AddSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.DeleteSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.GetMemoryUseCase
@@ -48,10 +52,24 @@ import com.ai.challenge.contextmanagement.data.ExposedSummaryRepository
 import com.ai.challenge.contextmanagement.data.createMemoryDatabase
 import com.ai.challenge.contextmanagement.data.LlmContextCompressorAdapter
 import com.ai.challenge.contextmanagement.data.LlmFactExtractorAdapter
-import com.ai.challenge.contextmanagement.memory.impl.DefaultMemoryService
-import com.ai.challenge.contextmanagement.memory.impl.SessionDeletedCleanupHandler
 import com.ai.challenge.contextmanagement.memory.impl.DefaultFactMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultMemoryService
+import com.ai.challenge.contextmanagement.memory.impl.DefaultProjectInstructionsMemoryProvider
 import com.ai.challenge.contextmanagement.memory.impl.DefaultSummaryMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultUserFactMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultUserNoteMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.DefaultUserPreferencesMemoryProvider
+import com.ai.challenge.contextmanagement.memory.impl.ProjectDeletedCleanupHandler
+import com.ai.challenge.contextmanagement.memory.impl.ProjectInstructionsChangedHandler
+import com.ai.challenge.contextmanagement.memory.impl.SessionDeletedCleanupHandler
+import com.ai.challenge.contextmanagement.data.ExposedUserFactRepository
+import com.ai.challenge.contextmanagement.data.ExposedUserNoteRepository
+import com.ai.challenge.contextmanagement.data.ExposedUserPreferencesMemoryRepository
+import com.ai.challenge.contextmanagement.repository.ProjectInstructionsRepository
+import com.ai.challenge.contextmanagement.repository.UserFactRepository
+import com.ai.challenge.contextmanagement.repository.UserNoteRepository
+import com.ai.challenge.contextmanagement.repository.UserPreferencesMemoryRepository
+import com.ai.challenge.contextmanagement.data.ExposedProjectInstructionsRepository
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultAddSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultDeleteSummaryUseCase
 import com.ai.challenge.contextmanagement.usecase.impl.DefaultGetMemoryUseCase
@@ -59,6 +77,30 @@ import com.ai.challenge.contextmanagement.usecase.impl.DefaultUpdateFactsUseCase
 import com.ai.challenge.conversation.data.ExposedAgentSessionRepository
 import com.ai.challenge.conversation.data.ExposedTurnQueryAdapter
 import com.ai.challenge.conversation.data.createSessionDatabase
+import com.ai.challenge.conversation.impl.AiProjectService
+import com.ai.challenge.conversation.repository.ProjectRepository
+import com.ai.challenge.conversation.service.ProjectService
+import com.ai.challenge.conversation.data.ExposedProjectRepository
+import com.ai.challenge.conversation.usecase.CreateProjectUseCase
+import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
+import com.ai.challenge.conversation.usecase.DeleteProjectUseCase
+import com.ai.challenge.conversation.usecase.ListProjectsUseCase
+import com.ai.challenge.conversation.data.ExposedUserRepository
+import com.ai.challenge.conversation.data.SessionQueryAdapter
+import com.ai.challenge.conversation.data.UserQueryAdapter
+import com.ai.challenge.conversation.impl.AiUserService
+import com.ai.challenge.conversation.repository.UserRepository
+import com.ai.challenge.conversation.service.UserService
+import com.ai.challenge.conversation.usecase.CreateUserUseCase
+import com.ai.challenge.conversation.usecase.UpdateUserUseCase
+import com.ai.challenge.conversation.usecase.DeleteUserUseCase
+import com.ai.challenge.conversation.usecase.ListUsersUseCase
+import com.ai.challenge.contextmanagement.memory.impl.UserUpdatedHandler
+import com.ai.challenge.contextmanagement.memory.impl.UserDeletedCleanupHandler
+import com.ai.challenge.contextmanagement.memory.impl.UserFactExtractionHandler
+import com.ai.challenge.sharedkernel.port.SessionQueryPort
+import com.ai.challenge.sharedkernel.port.UserQueryPort
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
@@ -77,7 +119,11 @@ val appModule = module {
     }
 
     // Repositories
-    single<AgentSessionRepository> { ExposedAgentSessionRepository(database = createSessionDatabase()) }
+    // Session database (shared by AgentSession and Project repositories)
+    single(qualifier = named("sessionDb")) { createSessionDatabase() }
+    single<AgentSessionRepository> { ExposedAgentSessionRepository(database = get(qualifier = named("sessionDb"))) }
+    single<ProjectRepository> { ExposedProjectRepository(database = get(qualifier = named("sessionDb"))) }
+    single<UserRepository> { ExposedUserRepository(database = get(qualifier = named("sessionDb"))) }
 
     // Turn Query Port
     single<TurnQueryPort> { ExposedTurnQueryAdapter(repository = get()) }
@@ -85,13 +131,34 @@ val appModule = module {
     // Context Mode Validator Port
     single<ContextModeValidatorPort> { ContextModeValidatorAdapter() }
 
+    // Session and User Query Ports
+    single<SessionQueryPort> { SessionQueryAdapter(repository = get()) }
+    single<UserQueryPort> { UserQueryAdapter(userRepository = get()) }
+
     // Memory Layer
     single { createMemoryDatabase() }
     single<FactRepository> { ExposedFactRepository(database = get()) }
     single<SummaryRepository> { ExposedSummaryRepository(database = get()) }
     single<FactMemoryProvider> { DefaultFactMemoryProvider(factRepository = get()) }
     single<SummaryMemoryProvider> { DefaultSummaryMemoryProvider(summaryRepository = get()) }
-    single<MemoryService> { DefaultMemoryService(factMemoryProvider = get(), summaryMemoryProvider = get()) }
+    single<ProjectInstructionsRepository> { ExposedProjectInstructionsRepository(database = get()) }
+    single<ProjectInstructionsMemoryProvider> { DefaultProjectInstructionsMemoryProvider(projectInstructionsRepository = get()) }
+    single<UserPreferencesMemoryRepository> { ExposedUserPreferencesMemoryRepository(database = get()) }
+    single<UserFactRepository> { ExposedUserFactRepository(database = get()) }
+    single<UserNoteRepository> { ExposedUserNoteRepository(database = get()) }
+    single<UserPreferencesMemoryProvider> { DefaultUserPreferencesMemoryProvider(userPreferencesMemoryRepository = get()) }
+    single<UserFactMemoryProvider> { DefaultUserFactMemoryProvider(userFactRepository = get()) }
+    single<UserNoteMemoryProvider> { DefaultUserNoteMemoryProvider(userNoteRepository = get()) }
+    single<MemoryService> {
+        DefaultMemoryService(
+            factMemoryProvider = get(),
+            summaryMemoryProvider = get(),
+            projectInstructionsMemoryProvider = get(),
+            userPreferencesMemoryProvider = get(),
+            userNoteMemoryProvider = get(),
+            userFactMemoryProvider = get(),
+        )
+    }
 
     // Memory Use Cases
     single<GetMemoryUseCase> { DefaultGetMemoryUseCase(memoryService = get()) }
@@ -146,6 +213,7 @@ val appModule = module {
                 ) as ContextStrategyConfig,
                 ContextManagementType.Branching to ContextStrategyConfig.Branching as ContextStrategyConfig,
             ),
+            memoryService = get(),
         )
     }
 
@@ -154,14 +222,26 @@ val appModule = module {
     single<SessionService> { AiSessionService(repository = get()) }
     single<BranchService> { AiBranchService(repository = get()) }
     single<UsageQueryService> { AiUsageQueryService(repository = get()) }
+    single<ProjectService> { AiProjectService(projectRepository = get(), sessionRepository = get()) }
+    single<UserService> { AiUserService(userRepository = get()) }
 
     // Domain Events
     single { SessionDeletedCleanupHandler(memoryService = get()) }
+    single { ProjectInstructionsChangedHandler(memoryService = get()) }
+    single { ProjectDeletedCleanupHandler(memoryService = get()) }
+    single { UserUpdatedHandler(memoryService = get(), userQueryPort = get()) }
+    single { UserDeletedCleanupHandler(memoryService = get()) }
+    single { UserFactExtractionHandler(memoryService = get(), sessionQueryPort = get(), factExtractor = get()) }
 
     single<DomainEventPublisher> {
         InProcessDomainEventPublisher(
             handlers = mapOf(
                 DomainEvent.SessionDeleted::class to listOf(get<SessionDeletedCleanupHandler>()),
+                DomainEvent.ProjectInstructionsChanged::class to listOf(get<ProjectInstructionsChangedHandler>()),
+                DomainEvent.ProjectDeleted::class to listOf(get<ProjectDeletedCleanupHandler>()),
+                DomainEvent.UserUpdated::class to listOf(get<UserUpdatedHandler>()),
+                DomainEvent.UserDeleted::class to listOf(get<UserDeletedCleanupHandler>()),
+                DomainEvent.TurnRecorded::class to listOf(get<UserFactExtractionHandler>()),
             ),
         )
     }
@@ -192,4 +272,12 @@ val appModule = module {
             sessionService = get(),
         )
     }
+    single { CreateProjectUseCase(projectService = get(), eventPublisher = get()) }
+    single { UpdateProjectUseCase(projectService = get(), eventPublisher = get()) }
+    single { DeleteProjectUseCase(projectService = get(), eventPublisher = get()) }
+    single { ListProjectsUseCase(projectService = get()) }
+    single { CreateUserUseCase(userService = get(), eventPublisher = get()) }
+    single { UpdateUserUseCase(userService = get(), eventPublisher = get()) }
+    single { DeleteUserUseCase(userService = get(), eventPublisher = get()) }
+    single { ListUsersUseCase(userService = get()) }
 }

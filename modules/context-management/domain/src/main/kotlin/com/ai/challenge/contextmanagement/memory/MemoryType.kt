@@ -12,4 +12,12 @@ sealed interface MemoryType<P : MemoryProvider<*>> {
     data object Facts : MemoryType<FactMemoryProvider>
     /** Compressed summaries (append-only semantics). */
     data object Summaries : MemoryType<SummaryMemoryProvider>
+    /** Project instructions (upsert semantics). */
+    data object ProjectInstructions : MemoryType<ProjectInstructionsMemoryProvider>
+    /** User preferences memory (upsert semantics, user-scoped). */
+    data object UserPreferences : MemoryType<UserPreferencesMemoryProvider>
+    /** User-authored notes (append/update/delete semantics, user-scoped). */
+    data object UserNotes : MemoryType<UserNoteMemoryProvider>
+    /** LLM-extracted user facts (replace-all semantics, user-scoped). */
+    data object UserFacts : MemoryType<UserFactMemoryProvider>
 }

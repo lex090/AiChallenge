@@ -2,6 +2,8 @@ package com.ai.challenge.sharedkernel.port
 
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 import com.ai.challenge.sharedkernel.vo.MessageContent
 import com.ai.challenge.sharedkernel.vo.PreparedContext
@@ -17,6 +19,9 @@ import com.ai.challenge.sharedkernel.vo.PreparedContext
  * Dependency direction: defined in shared-kernel,
  * implemented in context-manager module (Context Management Context),
  * consumed by conversation/domain (Conversation Context).
+ *
+ * @param userId optional user identity; when provided, user-level memory
+ * (preferences, facts, notes) is prepended to the prepared context.
  */
 interface ContextManagerPort {
     suspend fun prepareContext(
@@ -24,5 +29,7 @@ interface ContextManagerPort {
         branchId: BranchId,
         newMessage: MessageContent,
         contextModeId: ContextModeId,
+        projectId: ProjectId?,
+        userId: UserId?,
     ): PreparedContext
 }

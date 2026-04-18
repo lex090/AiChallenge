@@ -5,6 +5,8 @@ import com.ai.challenge.conversation.model.AgentSession
 import com.ai.challenge.conversation.model.SessionTitle
 import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 
 /**
@@ -17,7 +19,7 @@ import com.ai.challenge.sharedkernel.vo.ContextModeId
  * Contains no own state -- all logic is stateless.
  */
 interface SessionService {
-    suspend fun create(title: SessionTitle): Either<DomainError, AgentSession>
+    suspend fun create(title: SessionTitle, projectId: ProjectId?, userId: UserId?): Either<DomainError, AgentSession>
     suspend fun get(id: AgentSessionId): Either<DomainError, AgentSession>
     suspend fun delete(id: AgentSessionId): Either<DomainError, Unit>
     suspend fun list(): Either<DomainError, List<AgentSession>>

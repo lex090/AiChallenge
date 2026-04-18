@@ -36,11 +36,16 @@ class DefaultSummaryMemoryProvider(
     }
 
     override suspend fun clear(scope: MemoryScope) {
-        val sessionId = scope.toSessionId()
-        summaryRepository.deleteBySession(sessionId = sessionId)
+        when (scope) {
+            is MemoryScope.Session -> summaryRepository.deleteBySession(sessionId = scope.sessionId)
+            is MemoryScope.Project -> Unit
+            is MemoryScope.User -> Unit
+        }
     }
 
     private fun MemoryScope.toSessionId(): AgentSessionId = when (this) {
         is MemoryScope.Session -> sessionId
+        is MemoryScope.Project -> error("SummaryMemoryProvider does not support Project scope")
+        is MemoryScope.User -> error("SummaryMemoryProvider does not support User scope")
     }
 }

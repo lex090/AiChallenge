@@ -15,11 +15,13 @@ import com.ai.challenge.conversation.service.SessionService
 import com.ai.challenge.conversation.service.UsageQueryService
 import com.ai.challenge.conversation.usecase.SendMessageUseCase
 import com.ai.challenge.sharedkernel.error.DomainError
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.event.DomainEvent
 import com.ai.challenge.sharedkernel.event.DomainEventPublisher
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
 import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 import com.ai.challenge.sharedkernel.vo.CreatedAt
 import com.ai.challenge.sharedkernel.vo.MessageContent
@@ -99,7 +101,7 @@ class ChatStoreTest {
     @Test
     fun `LoadSession sets sessionId and loads history as UiMessages`() = runTest {
         val fake = FakeServices()
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
         val turnId = TurnId.generate()
         fake.appendTurnDirect(
@@ -131,7 +133,7 @@ class ChatStoreTest {
     fun `SendMessage adds user message and agent response`() = runTest {
         val turnId = TurnId.generate()
         val fake = FakeServices(sendTurnId = turnId, sendAssistantMessage = "Hello from agent!")
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -153,7 +155,7 @@ class ChatStoreTest {
     @Test
     fun `SendMessage adds error message on agent failure`() = runTest {
         val fake = FakeServices(sendError = DomainError.NetworkError(message = "Timeout"))
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -185,7 +187,7 @@ class ChatStoreTest {
             upstreamCompletionsCost = Cost(value = BigDecimal.ZERO),
         )
         val fake = FakeServices(sendTurnId = turnId, sendAssistantMessage = "Hi!", sendUsage = usage)
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -228,7 +230,7 @@ class ChatStoreTest {
 
         var callCount = 0
         val fake = object : FakeServices() {
-            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
+            override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?, userId: UserId?): Either<DomainError, Turn> {
                 callCount++
                 val turnId = if (callCount == 1) turnId1 else turnId2
                 val usage = if (callCount == 1) usage1 else usage2
@@ -246,7 +248,7 @@ class ChatStoreTest {
                 return Either.Right(value = turn)
             }
         }
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -265,7 +267,7 @@ class ChatStoreTest {
     @Test
     fun `LoadSession loads usage data from service`() = runTest {
         val fake = FakeServices()
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
 
         val turnId1 = TurnId.generate()
@@ -331,7 +333,7 @@ class ChatStoreTest {
     @Test
     fun `SendMessage auto-titles session on first message`() = runTest {
         val fake = FakeServices(sendAssistantMessage = "response")
-        val session = (fake.create(title = SessionTitle(value = "")) as Either.Right).value
+        val session = (fake.create(title = SessionTitle(value = ""), projectId = null, userId = null) as Either.Right).value
         val sessionId = session.id
         val store = createStoreWithFake(fake = fake)
 
@@ -379,7 +381,7 @@ open class FakeServices(
 
     // -- ChatService --
 
-    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent): Either<DomainError, Turn> {
+    override suspend fun send(sessionId: AgentSessionId, branchId: BranchId, message: MessageContent, projectId: ProjectId?, userId: UserId?): Either<DomainError, Turn> {
         if (sendError != null) return Either.Left(value = sendError)
         val turn = Turn(
             id = sendTurnId,
@@ -396,7 +398,7 @@ open class FakeServices(
 
     // -- SessionService --
 
-    override suspend fun create(title: SessionTitle): Either<DomainError, AgentSession> {
+    override suspend fun create(title: SessionTitle, projectId: ProjectId?, userId: UserId?): Either<DomainError, AgentSession> {
         val id = AgentSessionId.generate()
         val mainBranchId = BranchId.generate()
         val now = Clock.System.now()
@@ -404,6 +406,8 @@ open class FakeServices(
             id = id,
             title = title,
             contextModeId = ContextModeId(value = "none"),
+            projectId = null,
+            userId = null,
             createdAt = CreatedAt(value = now),
             updatedAt = UpdatedAt(value = now),
         )

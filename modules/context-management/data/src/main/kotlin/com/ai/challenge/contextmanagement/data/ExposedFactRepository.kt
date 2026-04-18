@@ -56,7 +56,7 @@ class ExposedFactRepository(private val database: Database) : FactRepository {
     )
 }
 
-private fun FactCategory.toStorageString(): String = when (this) {
+internal fun FactCategory.toStorageString(): String = when (this) {
     FactCategory.Goal -> "goal"
     FactCategory.Constraint -> "constraint"
     FactCategory.Preference -> "preference"
@@ -64,7 +64,7 @@ private fun FactCategory.toStorageString(): String = when (this) {
     FactCategory.Agreement -> "agreement"
 }
 
-private fun String.toFactCategory(): FactCategory = when (this) {
+internal fun String.toFactCategory(): FactCategory = when (this) {
     "goal" -> FactCategory.Goal
     "constraint" -> FactCategory.Constraint
     "preference" -> FactCategory.Preference

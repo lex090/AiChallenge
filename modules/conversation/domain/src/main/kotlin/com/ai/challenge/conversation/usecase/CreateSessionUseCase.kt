@@ -8,6 +8,8 @@ import com.ai.challenge.conversation.service.SessionService
 import com.ai.challenge.sharedkernel.error.DomainError
 import com.ai.challenge.sharedkernel.event.DomainEvent
 import com.ai.challenge.sharedkernel.event.DomainEventPublisher
+import com.ai.challenge.sharedkernel.identity.ProjectId
+import com.ai.challenge.sharedkernel.identity.UserId
 
 /**
  * Application Service -- create session use case.
@@ -20,8 +22,8 @@ class CreateSessionUseCase(
     private val sessionService: SessionService,
     private val eventPublisher: DomainEventPublisher,
 ) {
-    suspend fun execute(title: SessionTitle): Either<DomainError, AgentSession> = either {
-        val session = sessionService.create(title = title).bind()
+    suspend fun execute(title: SessionTitle, projectId: ProjectId?, userId: UserId?): Either<DomainError, AgentSession> = either {
+        val session = sessionService.create(title = title, projectId = projectId, userId = userId).bind()
         eventPublisher.publish(event = DomainEvent.SessionCreated(sessionId = session.id))
         session
     }

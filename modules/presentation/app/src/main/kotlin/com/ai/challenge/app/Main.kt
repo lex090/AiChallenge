@@ -14,9 +14,22 @@ import com.ai.challenge.contextmanagement.usecase.GetMemoryUseCase
 import com.ai.challenge.contextmanagement.usecase.UpdateFactsUseCase
 import com.ai.challenge.conversation.usecase.DeleteSessionUseCase
 import com.ai.challenge.conversation.usecase.SendMessageUseCase
+import com.ai.challenge.conversation.service.ProjectService
+import com.ai.challenge.conversation.usecase.CreateProjectUseCase
+import com.ai.challenge.conversation.usecase.UpdateProjectUseCase
+import com.ai.challenge.conversation.usecase.DeleteProjectUseCase
+import com.ai.challenge.conversation.usecase.ListProjectsUseCase
+import com.ai.challenge.conversation.service.UserService
+import com.ai.challenge.conversation.usecase.CreateUserUseCase
+import com.ai.challenge.conversation.usecase.UpdateUserUseCase
+import com.ai.challenge.conversation.usecase.DeleteUserUseCase
+import com.ai.challenge.contextmanagement.memory.MemoryService
 import com.ai.challenge.ui.debug.memory.MemoryDebugStoreFactory
 import com.ai.challenge.ui.root.RootComponent
 import com.ai.challenge.ui.root.RootContent
+import com.ai.challenge.ui.user.store.UserListStoreFactory
+import com.ai.challenge.ui.user.store.UserMemoryStoreFactory
+import com.ai.challenge.ui.user.store.UserSettingsStoreFactory
 import com.arkivanov.decompose.DefaultComponentContext
 import com.arkivanov.essenty.lifecycle.LifecycleRegistry
 import com.arkivanov.mvikotlin.core.store.StoreFactory
@@ -40,18 +53,44 @@ fun main() {
         sessionService = koin.get<SessionService>(),
     )
 
+    val userListStoreFactory = UserListStoreFactory(
+        storeFactory = mainStoreFactory,
+        userService = koin.get<UserService>(),
+    )
+
+    val userSettingsStoreFactory = UserSettingsStoreFactory(
+        storeFactory = mainStoreFactory,
+        userService = koin.get<UserService>(),
+        createUserUseCase = koin.get<CreateUserUseCase>(),
+        updateUserUseCase = koin.get<UpdateUserUseCase>(),
+        deleteUserUseCase = koin.get<DeleteUserUseCase>(),
+    )
+
+    val userMemoryStoreFactory = UserMemoryStoreFactory(
+        storeFactory = mainStoreFactory,
+        memoryService = koin.get<MemoryService>(),
+    )
+
     val root = runOnUiThread {
         RootComponent(
             componentContext = DefaultComponentContext(lifecycle = lifecycle),
             storeFactory = mainStoreFactory,
             memoryDebugStoreFactory = memoryDebugStoreFactory,
+            userListStoreFactory = userListStoreFactory,
+            userSettingsStoreFactory = userSettingsStoreFactory,
+            userMemoryStoreFactory = userMemoryStoreFactory,
             sessionService = koin.get<SessionService>(),
             chatService = koin.get<ChatService>(),
             usageService = koin.get<UsageQueryService>(),
             branchService = koin.get<BranchService>(),
+            projectService = koin.get<ProjectService>(),
             sendMessageUseCase = koin.get<SendMessageUseCase>(),
             createSessionUseCase = koin.get<CreateSessionUseCase>(),
             deleteSessionUseCase = koin.get<DeleteSessionUseCase>(),
+            createProjectUseCase = koin.get<CreateProjectUseCase>(),
+            updateProjectUseCase = koin.get<UpdateProjectUseCase>(),
+            deleteProjectUseCase = koin.get<DeleteProjectUseCase>(),
+            listProjectsUseCase = koin.get<ListProjectsUseCase>(),
             applicationInitService = koin.get<ApplicationInitService>(),
         )
     }

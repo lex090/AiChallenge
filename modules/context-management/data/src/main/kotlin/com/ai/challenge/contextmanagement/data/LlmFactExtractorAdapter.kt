@@ -5,6 +5,7 @@ import com.ai.challenge.contextmanagement.model.Fact
 import com.ai.challenge.contextmanagement.model.FactCategory
 import com.ai.challenge.contextmanagement.model.FactKey
 import com.ai.challenge.contextmanagement.model.FactValue
+import com.ai.challenge.contextmanagement.model.UserFact
 import com.ai.challenge.contextmanagement.strategy.FactExtractorPort
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.port.LlmPort
@@ -12,6 +13,7 @@ import com.ai.challenge.sharedkernel.vo.ContextMessage
 import com.ai.challenge.sharedkernel.vo.MessageContent
 import com.ai.challenge.sharedkernel.vo.MessageRole
 import com.ai.challenge.sharedkernel.vo.ResponseFormat
+import com.ai.challenge.sharedkernel.vo.TurnSnapshot
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -86,6 +88,11 @@ class LlmFactExtractorAdapter(
         "Agreement" -> FactCategory.Agreement
         else -> FactCategory.Goal
     }
+
+    override suspend fun extractUserFacts(
+        turnSnapshot: TurnSnapshot,
+        existingFacts: List<UserFact>,
+    ): List<UserFact> = existingFacts
 
     companion object {
         private val SYSTEM_PROMPT = """

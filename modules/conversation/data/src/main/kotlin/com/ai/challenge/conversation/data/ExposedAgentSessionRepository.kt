@@ -11,7 +11,9 @@ import com.ai.challenge.conversation.model.UsageRecord
 import com.ai.challenge.conversation.repository.AgentSessionRepository
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
 import com.ai.challenge.sharedkernel.identity.BranchId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.ai.challenge.sharedkernel.identity.TurnId
+import com.ai.challenge.sharedkernel.identity.UserId
 import com.ai.challenge.sharedkernel.vo.ContextModeId
 import com.ai.challenge.sharedkernel.vo.CreatedAt
 import com.ai.challenge.sharedkernel.vo.MessageContent
@@ -51,6 +53,7 @@ class ExposedAgentSessionRepository(
                 TurnsTable,
                 BranchesTable,
                 BranchTurnsTable,
+                ProjectsTable,
             )
         }
     }
@@ -61,6 +64,8 @@ class ExposedAgentSessionRepository(
                 it[id] = session.id.value
                 it[title] = session.title.value
                 it[contextManagementType] = session.contextModeId.value
+                it[projectId] = session.projectId?.value
+                it[userId] = session.userId?.value
                 it[createdAt] = session.createdAt.value.toEpochMilliseconds()
                 it[updatedAt] = session.updatedAt.value.toEpochMilliseconds()
             }
@@ -100,6 +105,8 @@ class ExposedAgentSessionRepository(
             SessionsTable.update(where = { SessionsTable.id eq session.id.value }) {
                 it[title] = session.title.value
                 it[contextManagementType] = session.contextModeId.value
+                it[projectId] = session.projectId?.value
+                it[userId] = session.userId?.value
                 it[updatedAt] = session.updatedAt.value.toEpochMilliseconds()
             }
         }
@@ -210,10 +217,28 @@ class ExposedAgentSessionRepository(
             ?.toTurn()
     }
 
+    override suspend fun clearProjectId(projectId: ProjectId) {
+        transaction(database) {
+            SessionsTable.update(where = { SessionsTable.projectId eq projectId.value }) {
+                it[SessionsTable.projectId] = null
+            }
+        }
+    }
+
+    override suspend fun clearUserId(userId: UserId) {
+        transaction(database) {
+            SessionsTable.update(where = { SessionsTable.userId eq userId.value }) {
+                it[SessionsTable.userId] = null
+            }
+        }
+    }
+
     private fun ResultRow.toAgentSession() = AgentSession(
         id = AgentSessionId(value = this[SessionsTable.id]),
         title = SessionTitle(value = this[SessionsTable.title]),
         contextModeId = ContextModeId(value = this[SessionsTable.contextManagementType]),
+        projectId = this[SessionsTable.projectId]?.let { ProjectId(value = it) },
+        userId = this[SessionsTable.userId]?.let { UserId(value = it) },
         createdAt = CreatedAt(value = Instant.fromEpochMilliseconds(this[SessionsTable.createdAt])),
         updatedAt = UpdatedAt(value = Instant.fromEpochMilliseconds(this[SessionsTable.updatedAt])),
     )

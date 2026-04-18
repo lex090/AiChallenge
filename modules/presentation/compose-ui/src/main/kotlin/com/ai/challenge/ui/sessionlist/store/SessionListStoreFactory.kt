@@ -4,6 +4,7 @@ import arrow.core.getOrElse
 import com.ai.challenge.conversation.service.SessionService
 import com.ai.challenge.conversation.model.SessionTitle
 import com.ai.challenge.sharedkernel.identity.AgentSessionId
+import com.ai.challenge.sharedkernel.identity.ProjectId
 import com.arkivanov.mvikotlin.core.store.Store
 import com.arkivanov.mvikotlin.core.store.StoreFactory
 import com.arkivanov.mvikotlin.extensions.coroutines.CoroutineExecutor
@@ -15,9 +16,15 @@ class SessionListStoreFactory(
 ) {
     fun create(): SessionListStore =
         object : SessionListStore,
-            Store<SessionListStore.Intent, SessionListStore.State, Nothing> by storeFactory.create(
+            Store<SessionListStore.Intent, SessionListStore.State, SessionListStore.Label> by storeFactory.create(
                 name = "SessionListStore",
-                initialState = SessionListStore.State(),
+                initialState = SessionListStore.State(
+                    sessions = emptyList(),
+                    activeSessionId = null,
+                    filterProjectId = null,
+                    showFreeSessions = false,
+                    errorText = null,
+                ),
                 executorFactory = { ExecutorImpl(sessionService = sessionService) },
                 reducer = ReducerImpl,
             ) {}
@@ -27,12 +34,13 @@ class SessionListStoreFactory(
         data class SessionCreated(val item: SessionListStore.SessionItem) : Msg
         data class SessionDeleted(val id: AgentSessionId, val newActiveId: AgentSessionId?) : Msg
         data class SessionSelected(val id: AgentSessionId) : Msg
+        data class ProjectFilterChanged(val projectId: ProjectId?, val showFreeSessions: Boolean) : Msg
         data class Error(val text: String) : Msg
     }
 
     private class ExecutorImpl(
         private val sessionService: SessionService,
-    ) : CoroutineExecutor<SessionListStore.Intent, Nothing, SessionListStore.State, Msg, Nothing>() {
+    ) : CoroutineExecutor<SessionListStore.Intent, Nothing, SessionListStore.State, Msg, SessionListStore.Label>() {
 
         override fun executeIntent(intent: SessionListStore.Intent) {
             when (intent) {
@@ -40,7 +48,14 @@ class SessionListStoreFactory(
                 is SessionListStore.Intent.CreateSession -> handleCreateSession()
                 is SessionListStore.Intent.DeleteSession -> handleDeleteSession(id = intent.id)
                 is SessionListStore.Intent.SelectSession -> dispatch(Msg.SessionSelected(id = intent.id))
+                is SessionListStore.Intent.FilterByProject -> handleFilterByProject(projectId = intent.projectId)
             }
+        }
+
+        private fun handleFilterByProject(projectId: ProjectId?) {
+            val showFree = projectId == null
+            dispatch(Msg.ProjectFilterChanged(projectId = projectId, showFreeSessions = showFree))
+            handleLoadSessions()
         }
 
         private fun handleLoadSessions() {
@@ -49,14 +64,32 @@ class SessionListStoreFactory(
                     .fold(
                         ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
                         ifRight = { sessionList ->
-                            val sessions = sessionList.map { session ->
+                            val currentState = state()
+                            val filtered = sessionList.filter { session ->
+                                when {
+                                    currentState.showFreeSessions -> session.projectId == null
+                                    currentState.filterProjectId != null -> session.projectId == currentState.filterProjectId
+                                    else -> false
+                                }
+                            }
+                            val sessions = filtered.map { session ->
                                 SessionListStore.SessionItem(
                                     id = session.id,
                                     title = session.title.value,
                                     updatedAt = session.updatedAt.value,
+                                    projectId = session.projectId,
                                 )
                             }
-                            dispatch(Msg.SessionsLoaded(sessions = sessions, activeSessionId = state().activeSessionId))
+                            val currentActiveInList = sessions.any { it.id == currentState.activeSessionId }
+                            val newActiveId = if (currentActiveInList) {
+                                currentState.activeSessionId
+                            } else {
+                                sessions.firstOrNull()?.id
+                            }
+                            dispatch(Msg.SessionsLoaded(sessions = sessions, activeSessionId = newActiveId))
+                            if (newActiveId != currentState.activeSessionId) {
+                                publish(SessionListStore.Label.ActiveSessionChanged(sessionId = newActiveId))
+                            }
                         },
                     )
             }
@@ -64,7 +97,7 @@ class SessionListStoreFactory(
 
         private fun handleCreateSession() {
             scope.launch {
-                sessionService.create(title = SessionTitle(value = ""))
+                sessionService.create(title = SessionTitle(value = ""), projectId = state().filterProjectId, userId = null)
                     .fold(
                         ifLeft = { error -> dispatch(Msg.Error(text = error.message)) },
                         ifRight = { session ->
@@ -72,6 +105,7 @@ class SessionListStoreFactory(
                                 id = session.id,
                                 title = session.title.value,
                                 updatedAt = session.updatedAt.value,
+                                projectId = session.projectId,
                             )
                             dispatch(Msg.SessionCreated(item = item))
                         },
@@ -119,6 +153,10 @@ class SessionListStoreFactory(
                 )
                 is Msg.SessionSelected -> copy(
                     activeSessionId = msg.id,
+                )
+                is Msg.ProjectFilterChanged -> copy(
+                    filterProjectId = msg.projectId,
+                    showFreeSessions = msg.showFreeSessions,
                 )
                 is Msg.Error -> copy(errorText = msg.text)
             }
